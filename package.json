@@ -1,0 +1,28 @@
+{
+  "name": "4ever-memories-records",
+  "version": "1.0.0",
+  "description": "4 Ever Memories Records — Vinyl Record Store",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "squareup": "^28.0.0",
+    "@anthropic-ai/sdk": "^0.24.0",
+    "axios": "^1.6.0",
+    "xml2js": "^0.6.2",
+    "sharp": "^0.33.0",
+    "multer": "^1.4.5-lts.1",
+    "date-fns": "^3.3.0"
+  },
+  "devDependencies": {
+    "eslint": "^8",
+    "eslint-config-next": "14.2.0"
+  }
+}
