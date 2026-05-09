@@ -1,9 +1,9 @@
-import { Client, production } from 'square';
+import { Client } from 'square';
 import { randomUUID } from 'crypto';
 
 const client = new Client({
   accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: Environment.Production,
+  environment: 'production',
 });
 
 export default async function handler(req, res) {
