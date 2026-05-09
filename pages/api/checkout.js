@@ -1,4 +1,4 @@
-import { Client, Environment } from 'square';
+import { Client, production } from 'square';
 import { randomUUID } from 'crypto';
 
 const client = new Client({
