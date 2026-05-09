@@ -19,12 +19,9 @@ function calcShipping(qty) {
 export default function Home() {
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState('cart'); // cart | info | processing | success
+  const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
-  const [form, setForm] = useState({
-    name: '', email: '', address: '', city: '', state: '', zip: '',
-    card: '', expiry: '', cvv: '',
-  });
+  const [form, setForm] = useState({ name: '', email: '', address: '', city: '', state: '', zip: '' });
   const [formError, setFormError] = useState('');
 
   const totalQty = cart.reduce((s, i) => s + i.qty, 0);
@@ -60,8 +57,8 @@ export default function Home() {
 
   async function handleCheckout() {
     setFormError('');
-    const { name, email, address, city, state, zip, card, expiry, cvv } = form;
-    if (!name || !email || !address || !city || !state || !zip || !card || !expiry || !cvv) {
+    const { name, email, address, city, state, zip } = form;
+    if (!name || !email || !address || !city || !state || !zip) {
       setFormError('Please fill in all fields.');
       return;
     }
@@ -73,7 +70,7 @@ export default function Home() {
         body: JSON.stringify({ cart, form, subtotal, shipping, total }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.paymentUrl) {
         window.location.href = data.paymentUrl;
       } else {
         setFormError(data.error || 'Payment failed. Please try again.');
@@ -118,7 +115,6 @@ export default function Home() {
   return (
     <div style={{ fontFamily: 'Georgia,serif', background: '#faf7f0', minHeight: '100vh' }}>
 
-      {/* NAV */}
       <nav style={{ background: '#0f1828', borderBottom: '3px solid #c9a84c', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: '20px', color: '#c9a84c', fontWeight: '500' }}>4 Ever Memories Records</div>
@@ -130,16 +126,15 @@ export default function Home() {
             Follow on Facebook
           </a>
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }}
-            style={{ background: '#c9a84c', color: '#0f1828', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontFamily: 'Georgia,serif', fontSize: '13px', fontWeight: '600', position: 'relative' }}>
+            style={{ background: '#c9a84c', color: '#0f1828', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontFamily: 'Georgia,serif', fontSize: '13px', fontWeight: '600' }}>
             🛒 Cart {totalQty > 0 && <span style={{ background: '#8b1a1a', color: '#fff', borderRadius: '50%', padding: '1px 6px', fontSize: '11px', marginLeft: '4px' }}>{totalQty}</span>}
           </button>
         </div>
       </nav>
 
-      {/* GRID */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '16px', maxWidth: '1200px', margin: '24px auto', padding: '0 24px' }}>
         {RECORDS.map(x => (
-          <div key={x.id} style={{ background: '#fff', border: '1px solid #ddd5c0', borderRadius: '12px', overflow: 'hidden', transition: 'box-shadow 0.2s' }}>
+          <div key={x.id} style={{ background: '#fff', border: '1px solid #ddd5c0', borderRadius: '12px', overflow: 'hidden' }}>
             <div style={{ width: '100%', height: '180px', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ width: '140px', height: '140px', borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: x.col }}></div>
@@ -153,8 +148,7 @@ export default function Home() {
                 <span style={{ fontSize: '16px', fontWeight: '500', color: '#8b1a1a' }}>${x.p}</span>
                 <span style={{ fontSize: '9px', padding: '2px 7px', borderRadius: '10px', background: '#e8f5ee', color: '#1e6b3a' }}>{x.c}</span>
               </div>
-              <button
-                onClick={() => addToCart(x)}
+              <button onClick={() => addToCart(x)}
                 style={{ width: '100%', padding: '7px', background: addedId === x.id ? '#1e6b3a' : '#1a2744', color: '#c9a84c', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia,serif', textTransform: 'uppercase', transition: 'background 0.3s' }}>
                 {addedId === x.id ? '✓ Added!' : 'Add to Cart'}
               </button>
@@ -163,13 +157,11 @@ export default function Home() {
         ))}
       </div>
 
-      {/* FOOTER */}
       <div style={{ background: '#0f1828', borderTop: '2px solid #c9a84c', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
         <span style={{ fontSize: '11px', color: '#6a7d90' }}>About · Shipping · Returns · Contact</span>
         <span style={{ fontSize: '11px', color: '#4a5a6a' }}>2025 4 Ever Memories Records. All rights reserved.</span>
       </div>
 
-      {/* CART DRAWER */}
       {showCart && (
         <div style={s.overlay} onClick={e => { if (e.target === e.currentTarget) setShowCart(false); }}>
           <div style={s.drawer}>
@@ -178,14 +170,12 @@ export default function Home() {
                 {checkoutStep === 'cart' && '🛒 Your Cart'}
                 {checkoutStep === 'info' && '📦 Checkout'}
                 {checkoutStep === 'processing' && '⏳ Processing...'}
-                {checkoutStep === 'success' && '✅ Order Confirmed!'}
               </span>
               <button style={s.btnGhost} onClick={() => setShowCart(false)}>✕</button>
             </div>
 
             <div style={{ padding: '20px', flex: 1 }}>
 
-              {/* CART STEP */}
               {checkoutStep === 'cart' && (
                 <>
                   {cart.length === 0 ? (
@@ -207,26 +197,21 @@ export default function Home() {
                           </div>
                         </div>
                       ))}
-
-                      {/* TOTALS */}
                       <div style={{ background: '#f5f0e8', borderRadius: '8px', padding: '14px', marginTop: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
                           <span>Subtotal ({totalQty} record{totalQty !== 1 ? 's' : ''})</span>
                           <span>${subtotal.toFixed(2)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px', color: '#555' }}>
-                          <span>Shipping</span>
-                          <span>${shipping.toFixed(2)}</span>
+                          <span>Shipping</span><span>${shipping.toFixed(2)}</span>
                         </div>
                         <div style={{ fontSize: '10px', color: '#888', marginBottom: '10px' }}>
                           $5.00 first record + $1.00 each additional
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '600', color: '#1a2744', borderTop: '1px solid #ddd5c0', paddingTop: '8px' }}>
-                          <span>Total</span>
-                          <span>${total.toFixed(2)}</span>
+                          <span>Total</span><span>${total.toFixed(2)}</span>
                         </div>
                       </div>
-
                       <button style={s.btnPrimary} onClick={() => setCheckoutStep('info')}>
                         Proceed to Checkout →
                       </button>
@@ -235,26 +220,20 @@ export default function Home() {
                 </>
               )}
 
-              {/* INFO / PAYMENT STEP */}
               {checkoutStep === 'info' && (
                 <>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a2744', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Shipping Information</div>
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '16px', background: '#e8f5ee', padding: '10px', borderRadius: '6px' }}>
+                    You will be redirected to Square to securely enter your payment details.
+                  </div>
                   {['name', 'email', 'address', 'city', 'state', 'zip'].map(field => (
                     <input key={field} name={field} placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
                       value={form[field]} onChange={handleFormChange}
                       style={{ ...s.input, marginBottom: '8px' }} />
                   ))}
 
-                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a2744', margin: '16px 0 12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Payment</div>
-                  <input name="card" placeholder="Card Number" value={form.card} onChange={handleFormChange} style={{ ...s.input, marginBottom: '8px' }} maxLength={19} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                    <input name="expiry" placeholder="MM/YY" value={form.expiry} onChange={handleFormChange} style={s.input} maxLength={5} />
-                    <input name="cvv" placeholder="CVV" value={form.cvv} onChange={handleFormChange} style={s.input} maxLength={4} />
-                  </div>
-
                   {formError && <div style={{ color: '#8b1a1a', fontSize: '12px', marginTop: '8px' }}>{formError}</div>}
 
-                  {/* Order summary */}
                   <div style={{ background: '#f5f0e8', borderRadius: '8px', padding: '12px', margin: '16px 0 4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
                       <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
@@ -268,7 +247,7 @@ export default function Home() {
                   </div>
 
                   <button style={s.btnPrimary} onClick={handleCheckout}>
-                    💳 Pay ${total.toFixed(2)}
+                    💳 Continue to Payment →
                   </button>
                   <button style={{ ...s.btnPrimary, background: 'transparent', color: '#1a2744', border: '1px solid #ccc', marginTop: '6px' }} onClick={() => setCheckoutStep('cart')}>
                     ← Back to Cart
@@ -276,26 +255,11 @@ export default function Home() {
                 </>
               )}
 
-              {/* PROCESSING */}
               {checkoutStep === 'processing' && (
                 <div style={{ textAlign: 'center', marginTop: '60px' }}>
                   <div style={{ fontSize: '40px', marginBottom: '16px' }}>🎵</div>
-                  <div style={{ fontSize: '16px', color: '#1a2744' }}>Processing your order...</div>
-                  <div style={{ fontSize: '12px', color: '#888', marginTop: '8px' }}>Please don&apos;t close this window</div>
-                </div>
-              )}
-
-              {/* SUCCESS */}
-              {checkoutStep === 'success' && (
-                <div style={{ textAlign: 'center', marginTop: '60px' }}>
-                  <div style={{ fontSize: '50px', marginBottom: '16px' }}>🎉</div>
-                  <div style={{ fontSize: '18px', color: '#1e6b3a', fontWeight: '600', marginBottom: '8px' }}>Order Confirmed!</div>
-                  <div style={{ fontSize: '13px', color: '#555', marginBottom: '24px' }}>
-                    Thank you for your order! A confirmation email will be sent to {form.email}.
-                  </div>
-                  <button style={s.btnPrimary} onClick={() => { setShowCart(false); setCheckoutStep('cart'); setForm({ name: '', email: '', address: '', city: '', state: '', zip: '', card: '', expiry: '', cvv: '' }); }}>
-                    Continue Shopping
-                  </button>
+                  <div style={{ fontSize: '16px', color: '#1a2744' }}>Preparing your order...</div>
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '8px' }}>Redirecting to secure payment...</div>
                 </div>
               )}
 
