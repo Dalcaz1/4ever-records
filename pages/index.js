@@ -74,8 +74,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.success) {
-        setCheckoutStep('success');
-        setCart([]);
+        window.location.href = data.paymentUrl;
       } else {
         setFormError(data.error || 'Payment failed. Please try again.');
         setCheckoutStep('info');
