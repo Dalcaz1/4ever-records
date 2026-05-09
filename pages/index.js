@@ -121,7 +121,7 @@ export default function Home() {
           <div style={{ fontSize: '9px', letterSpacing: '3px', color: '#6a7d90', textTransform: 'uppercase' }}>Vinyl · Memories · Music</div>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <a href="https://www.facebook.com/people/4-Ever-Memories-Record-Store/61561753862914/" target="_blank" rel="noreferrer"
+          <a href="https://www.facebook.com/4evermemoriesHarlingen" target="_blank" rel="noreferrer"
             style={{ background: '#1877f2', color: '#fff', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', textDecoration: 'none' }}>
             Follow on Facebook
           </a>
