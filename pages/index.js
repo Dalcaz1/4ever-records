@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const STORE_PHOTOS = [
   'https://raw.githubusercontent.com/Dalcaz1/4ever-records/main/1.jpg',
@@ -35,10 +35,13 @@ function VinylPlaceholder({ color = '#c9a84c' }) {
   );
 }
 
-// Photo Lightbox Modal
 function PhotoLightbox({ record, onClose, onAddToCart }) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const getPhotoLabels = (cat) => {
     switch(cat) {
@@ -50,6 +53,7 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
       default:          return ['Photo 1', 'Photo 2', 'Photo 3', 'Photo 4'];
     }
   };
+
   const labels = getPhotoLabels(record.category);
   const photos = [
     record.photo_cover && { url: record.photo_cover, label: labels[0] || 'Front' },
@@ -60,11 +64,74 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
 
   const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
 
+  function resetZoom() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function changePhoto(i) {
+    setActivePhoto(i);
+    resetZoom();
+  }
+
+  function handleMouseDown(e) {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    setDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setPanStart({ x: pan.x, y: pan.y });
+  }
+
+  function handleMouseMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    setPan({
+      x: panStart.x + (e.clientX - dragStart.x),
+      y: panStart.y + (e.clientY - dragStart.y),
+    });
+  }
+
+  function handleMouseUp() {
+    setDragging(false);
+  }
+
+  function handleTouchStart(e) {
+    if (zoom <= 1) return;
+    const touch = e.touches[0];
+    setDragging(true);
+    setDragStart({ x: touch.clientX, y: touch.clientY });
+    setPanStart({ x: pan.x, y: pan.y });
+  }
+
+  function handleTouchMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    setPan({
+      x: panStart.x + (touch.clientX - dragStart.x),
+      y: panStart.y + (touch.clientY - dragStart.y),
+    });
+  }
+
+  function handleTouchEnd() {
+    setDragging(false);
+  }
+
+  function handleImageClick() {
+    if (!dragging) {
+      if (zoom > 1) {
+        resetZoom();
+      } else {
+        setZoom(2.5);
+      }
+    }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        
+
         {/* HEADER */}
         <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0' }}>
           <div>
@@ -74,32 +141,73 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
-          
+        <div className="lightbox-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
+
           {/* LEFT: PHOTOS */}
           <div style={{ padding: '20px', borderRight: '1px solid #1a1a1a' }}>
-            {/* MAIN PHOTO */}
-            <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', background: '#0a0a0a', cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }}
-              onClick={() => setZoom(z => z === 1 ? 2.5 : 1)}>
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                marginBottom: '12px',
+                background: '#0a0a0a',
+                cursor: zoom > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onClick={handleImageClick}
+            >
               {photos.length > 0 ? (
-                <img src={photos[activePhoto]?.url} alt={photos[activePhoto]?.label}
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', transform: `scale(${zoom})`, transition: 'transform 0.3s', transformOrigin: 'center' }} />
+                <img
+                  src={photos[activePhoto]?.url}
+                  alt={photos[activePhoto]?.label}
+                  draggable={false}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    objectFit: 'cover',
+                    display: 'block',
+                    transform: 'scale(' + zoom + ') translate(' + (pan.x / zoom) + 'px, ' + (pan.y / zoom) + 'px)',
+                    transition: dragging ? 'none' : 'transform 0.3s',
+                    transformOrigin: 'center',
+                    pointerEvents: 'none',
+                  }}
+                />
               ) : (
                 <div style={{ aspectRatio: '1' }}><VinylPlaceholder /></div>
               )}
+
+              {/* HINT */}
               {photos.length > 0 && (
-                <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#c9a84c', fontSize: '10px', padding: '4px 8px', borderRadius: '4px' }}>
-                  {zoom > 1 ? '🔍 Click to zoom out' : '🔍 Click to zoom in'}
+                <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#c9a84c', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', pointerEvents: 'none' }}>
+                  {zoom > 1 ? '🔍 Drag to pan · Click to zoom out' : '🔍 Click to zoom in'}
                 </div>
+              )}
+
+              {/* RESET BUTTON */}
+              {zoom > 1 && (
+                <button
+                  onClick={e => { e.stopPropagation(); resetZoom(); }}
+                  style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.8)', border: '1px solid #c9a84c', color: '#c9a84c', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  ✕ Reset
+                </button>
               )}
             </div>
 
-            {/* PHOTO THUMBNAILS */}
+            {/* THUMBNAILS */}
             {photos.length > 1 && (
               <div style={{ display: 'flex', gap: '8px' }}>
                 {photos.map((photo, i) => (
-                  <div key={i} onClick={() => { setActivePhoto(i); setZoom(1); }}
-                    style={{ flex: 1, borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: `2px solid ${activePhoto === i ? '#c9a84c' : '#2a2a2a'}`, opacity: activePhoto === i ? 1 : 0.6 }}>
+                  <div key={i} onClick={() => changePhoto(i)}
+                    style={{ flex: 1, borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: '2px solid ' + (activePhoto === i ? '#c9a84c' : '#2a2a2a'), opacity: activePhoto === i ? 1 : 0.6 }}>
                     <img src={photo.url} alt={photo.label} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
                   </div>
                 ))}
@@ -130,7 +238,7 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
               ))}
               <div>
                 <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>Condition</div>
-                <div style={{ display: 'inline-block', background: cond.bg, border: `1px solid ${cond.text}44`, borderRadius: '6px', padding: '2px 8px' }}>
+                <div style={{ display: 'inline-block', background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '6px', padding: '2px 8px' }}>
                   <span style={{ fontSize: '12px', color: cond.text, fontWeight: '700' }}>{record.condition}</span>
                 </div>
               </div>
@@ -167,6 +275,7 @@ export default function Home() {
   useEffect(() => {
     try { localStorage.setItem('4em_cart', JSON.stringify(cart)); } catch {}
   }, [cart]);
+
   const [showCart, setShowCart] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
@@ -252,8 +361,6 @@ export default function Home() {
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-
-        /* MOBILE RESPONSIVE */
         @media (max-width: 768px) {
           .records-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
           .hero-title { font-size: 32px !important; }
@@ -275,7 +382,6 @@ export default function Home() {
         }
       `}</style>
 
-      {/* LIGHTBOX */}
       {lightboxRecord && (
         <PhotoLightbox
           record={lightboxRecord}
@@ -343,7 +449,7 @@ export default function Home() {
       {/* PHOTO STRIP */}
       <div className="photo-strip">
         {STORE_PHOTOS.map((src, i) => (
-          <img key={i} src={src} alt={`Store photo ${i + 1}`} />
+          <img key={i} src={src} alt={'Store photo ' + (i + 1)} />
         ))}
       </div>
 
@@ -358,13 +464,9 @@ export default function Home() {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#555', fontStyle: 'italic' }}>
-            Loading records...
-          </div>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#555', fontStyle: 'italic' }}>Loading records...</div>
         ) : records.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#555', fontStyle: 'italic' }}>
-            No records in stock yet. Check back soon!
-          </div>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#555', fontStyle: 'italic' }}>No records in stock yet. Check back soon!</div>
         ) : (
           <div className="records-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '20px' }}>
             {records.map(record => {
@@ -373,36 +475,27 @@ export default function Home() {
                 <div key={record.id} className="record-card"
                   style={{ background: '#111', border: '1px solid #222', borderRadius: '16px', overflow: 'hidden' }}
                   onClick={() => setLightboxRecord(record)}>
-
-                  {/* COVER PHOTO or VINYL PLACEHOLDER */}
                   <div style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', background: '#0a0a0a' }}>
                     {(() => {
-                      // For 7" with no back cover (generic sleeve), show A side label
-                      const cardPhoto = record.photo_cover || 
+                      const cardPhoto = record.photo_cover ||
                         (record.category === '7" Vinyl' && !record.photo_b ? record.photo_a : null) ||
                         record.photo_a;
                       return cardPhoto ? (
-                        <img src={cardPhoto} alt={record.title}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        <img src={cardPhoto} alt={record.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                       ) : (
                         <div style={{ padding: '20px' }}><VinylPlaceholder /></div>
                       );
                     })()}
-                    {/* CONDITION BADGE */}
-                    <div style={{ position: 'absolute', top: '8px', left: '8px', background: cond.bg, border: `1px solid ${cond.text}44`, borderRadius: '6px', padding: '3px 8px' }}>
+                    <div style={{ position: 'absolute', top: '8px', left: '8px', background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '6px', padding: '3px 8px' }}>
                       <span style={{ fontSize: '10px', color: cond.text, fontWeight: '700' }}>{record.condition}</span>
                     </div>
-                    {/* CATEGORY BADGE */}
                     <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', borderRadius: '6px', padding: '3px 8px' }}>
                       <span style={{ fontSize: '10px', color: '#c9a84c' }}>{record.category}</span>
                     </div>
-                    {/* VIEW PHOTOS HINT */}
                     <div style={{ position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.7)', borderRadius: '6px', padding: '4px 10px', whiteSpace: 'nowrap' }}>
                       <span style={{ fontSize: '10px', color: '#e8d5b0' }}>🔍 Click to view photos</span>
                     </div>
                   </div>
-
-                  {/* INFO */}
                   <div style={{ padding: '14px' }}>
                     <div style={{ fontSize: '9px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>{record.sku}</div>
                     <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '15px', fontWeight: '700', color: '#e8d5b0', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
@@ -412,7 +505,7 @@ export default function Home() {
                     </div>
                     <button className="add-btn"
                       onClick={e => { e.stopPropagation(); addToCart(record); }}
-                      style={{ width: '100%', padding: '10px', background: addedId === record.id ? '#c9a84c' : '#1a1a1a', color: addedId === record.id ? '#0d0d0d' : '#c9a84c', border: `1px solid ${addedId === record.id ? '#c9a84c' : '#333'}`, borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', transition: 'all 0.2s' }}>
+                      style={{ width: '100%', padding: '10px', background: addedId === record.id ? '#c9a84c' : '#1a1a1a', color: addedId === record.id ? '#0d0d0d' : '#c9a84c', border: '1px solid ' + (addedId === record.id ? '#c9a84c' : '#333'), borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', transition: 'all 0.2s' }}>
                       {addedId === record.id ? '✓ Added!' : 'Add to Cart'}
                     </button>
                   </div>
@@ -456,7 +549,7 @@ export default function Home() {
       {showCart && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
           onClick={e => { if (e.target === e.currentTarget) setShowCart(false); }}>
-          <div style={{ width: '440px', maxWidth: '100vw', background: '#0f0f0f', height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #2a2a2a' }}>
+          <div className="cart-drawer" style={{ width: '440px', maxWidth: '100vw', background: '#0f0f0f', height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #2a2a2a' }}>
             <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontFamily: "'Playfair Display', Georgia, serif", color: '#e8d5b0', fontSize: '18px', fontWeight: '700' }}>
                 {checkoutStep === 'cart' && '🛒 Your Cart'}
@@ -521,8 +614,7 @@ export default function Home() {
                     🔒 You will be securely redirected to Square to complete payment.
                   </div>
                   {[{name:'name',placeholder:'Full Name'},{name:'email',placeholder:'Email Address'},{name:'address',placeholder:'Street Address'},{name:'city',placeholder:'City'},{name:'state',placeholder:'State'},{name:'zip',placeholder:'ZIP Code'}].map(f => (
-                    <input key={f.name} name={f.name} placeholder={f.placeholder} value={form[f.name]} onChange={handleFormChange}
-                      style={inp} />
+                    <input key={f.name} name={f.name} placeholder={f.placeholder} value={form[f.name]} onChange={handleFormChange} style={inp} />
                   ))}
                   {formError && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '8px' }}>{formError}</div>}
                   <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px', margin: '8px 0 16px' }}>
