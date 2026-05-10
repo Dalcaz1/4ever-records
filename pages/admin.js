@@ -63,7 +63,6 @@ const EMPTY_FORM = {
   genre: 'Rock', condition: 'VG+', price: '', qty: '1', notes: '',
 };
 
-// Camera Modal Component
 function CameraModal({ onCapture, onClose, label }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -247,9 +246,17 @@ export default function Admin() {
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
-      <style>{`* { box-sizing: border-box; } input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }`}</style>
+      <style>{`
+        * { box-sizing: border-box; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }
+        .photo-slot { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; background: #0a0a0a; }
+        .photo-slot::before { content: ''; display: block; padding-top: 100%; }
+        .photo-slot-inner { position: absolute; inset: 0; display: flex; flex-direction: column; }
+        .photo-slot img { width: 100%; height: calc(100% - 28px); object-fit: cover; display: block; }
+        .photo-slot-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+        .photo-slot-label { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; border-top: 1px solid #1a1a1a; font-family: Georgia, serif; }
+      `}</style>
 
-      {/* CAMERA MODAL */}
       {cameraSlot && (
         <CameraModal
           label={photoSlots.find(s => s.key === cameraSlot)?.label || 'Photo'}
@@ -258,7 +265,6 @@ export default function Admin() {
         />
       )}
 
-      {/* NAV */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="32" height="32" viewBox="0 0 40 40">
@@ -278,7 +284,6 @@ export default function Admin() {
 
         {mode === 'entry' && (
           <>
-            {/* FORMAT */}
             <div style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Format</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -292,7 +297,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* DISC COUNT */}
             {format?.multiDisc && selectedFormat && (
               <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
@@ -307,7 +311,6 @@ export default function Admin() {
               </div>
             )}
 
-            {/* PHOTOS */}
             {selectedFormat && (
               <>
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
@@ -315,24 +318,26 @@ export default function Admin() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                   {photoSlots.map(slot => (
-                    <button key={slot.key}
-                      onClick={() => setCameraSlot(slot.key)}
-                      style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: '#0a0a0a', padding: 0, position: 'relative', display: 'block', width: '100%' }}>
-                      {previews[slot.key] ? (
-                        <>
-                          <img src={previews[slot.key]} alt={slot.label} style={{ width: '100%', width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
-                          <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
-                        </>
-                      ) : (
-                        <div style={{ height: "auto", aspectRatio: "1", display: "flex", flexDirection: "column"', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '28px' }}>{slot.icon}</span>
-                          <span style={{ fontSize: '11px', color: '#555' }}>{slot.label}</span>
+                    <div key={slot.key} className="photo-slot"
+                      style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}` }}
+                      onClick={() => setCameraSlot(slot.key)}>
+                      <div className="photo-slot-inner">
+                        {previews[slot.key] ? (
+                          <>
+                            <img src={previews[slot.key]} alt={slot.label} />
+                            <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
+                          </>
+                        ) : (
+                          <div className="photo-slot-empty">
+                            <span style={{ fontSize: '28px' }}>{slot.icon}</span>
+                            <span style={{ fontSize: '11px', color: '#555' }}>{slot.label}</span>
+                          </div>
+                        )}
+                        <div className="photo-slot-label" style={{ color: previews[slot.key] ? '#c9a84c' : '#444' }}>
+                          {previews[slot.key] ? '📷 Tap to retake' : '📷 Tap to photograph'}
                         </div>
-                      )}
-                      <div style={{ padding: '6px 10px', fontSize: '11px', color: previews[slot.key] ? '#c9a84c' : '#444', textAlign: 'center', borderTop: '1px solid #1a1a1a', fontFamily: 'Georgia, serif' }}>
-                        {previews[slot.key] ? '📷 Tap to retake' : '📷 Tap to photograph'}
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
 
@@ -358,7 +363,6 @@ export default function Admin() {
           </>
         )}
 
-        {/* REVIEW MODE */}
         {mode === 'review' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
