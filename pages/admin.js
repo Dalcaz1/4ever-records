@@ -1,6 +1,73 @@
-export const getServerSideProps = async () => ({ props: { v: 3 } });
+export const getServerSideProps = async () => ({ props: { v: 4 } });
 
 import { useState, useRef, useEffect } from 'react';
+
+function PinLock({ onUnlock }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+
+  async function handleSubmit() {
+    if (pin.length !== 6) { setError('Please enter your 6-digit PIN'); return; }
+    setChecking(true);
+    setError('');
+    try {
+      const res = await fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        sessionStorage.setItem('admin_auth', 'true');
+        onUnlock();
+      } else {
+        setError('Incorrect PIN. Please try again.');
+        setPin('');
+      }
+    } catch {
+      setError('Something went wrong. Please try again.');
+    }
+    setChecking(false);
+  }
+
+  return (
+    <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e8d5b0' }}>
+      <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '360px', textAlign: 'center' }}>
+        <svg width="48" height="48" viewBox="0 0 40 40" style={{ marginBottom: '16px' }}>
+          <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+          <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+          <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+        </svg>
+        <div style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#e8d5b0', fontWeight: '700', marginBottom: '4px' }}>4 Ever Memories</div>
+        <div style={{ fontSize: '11px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase', marginBottom: '32px' }}>Admin Access</div>
+
+        <div style={{ fontSize: '13px', color: '#666', marginBottom: '16px', fontStyle: 'italic' }}>Enter your 6-digit PIN to continue</div>
+
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={6}
+          value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          placeholder="••••••"
+          style={{ width: '100%', padding: '14px', border: `1px solid ${error ? '#f87171' : '#2a2a2a'}`, borderRadius: '10px', fontFamily: 'Georgia, serif', fontSize: '24px', background: '#0a0a0a', color: '#e8d5b0', textAlign: 'center', letterSpacing: '8px', marginBottom: '12px', outline: 'none' }}
+          autoFocus
+        />
+
+        {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '12px' }}>{error}</div>}
+
+        <button onClick={handleSubmit} disabled={pin.length !== 6 || checking}
+          style={{ width: '100%', padding: '14px', background: pin.length === 6 ? '#c9a84c' : '#1a1a1a', color: pin.length === 6 ? '#0d0d0d' : '#444', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: pin.length === 6 ? 'pointer' : 'not-allowed', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700' }}>
+          {checking ? 'Verifying...' : 'Unlock →'}
+        </button>
+
+        <a href="/" style={{ display: 'block', marginTop: '20px', color: '#444', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
+      </div>
+    </div>
+  );
+}
 
 const GENRES = ['Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
 const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
@@ -176,6 +243,14 @@ function CameraModal({ onCapture, onClose, label }) {
 }
 
 export default function Admin() {
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
+  }, []);
+
+  if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
+
   const [selectedFormat, setSelectedFormat] = useState(null);
   const [discCount, setDiscCount] = useState('1');
   const [sleeveType, setSleeveType] = useState(null);
