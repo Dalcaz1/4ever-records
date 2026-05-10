@@ -48,7 +48,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
+        <div className="modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
 
           {/* LEFT: PHOTOS */}
           <div style={{ padding: '20px', borderRight: '1px solid #1a1a1a' }}>
@@ -270,6 +270,21 @@ export default function Browse() {
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        /* MOBILE RESPONSIVE */
+        @media (max-width: 768px) {
+          .browse-list-header { display: none !important; }
+          .browse-row { grid-template-columns: 44px 1fr 70px !important; }
+          .browse-row-artist { display: none !important; }
+          .browse-title { font-size: 12px !important; }
+          .browse-padding { padding: 16px !important; }
+          .modal-grid { grid-template-columns: 1fr !important; }
+          .filter-tabs { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 4px; }
+          .cart-drawer { width: 100vw !important; }
+          .nav-padding { padding: 0 16px !important; }
+          .page-title { font-size: 24px !important; }
+          .search-bar { max-width: 100% !important; }
+        }
       `}</style>
 
       {/* RECORD DETAIL MODAL */}
@@ -312,14 +327,14 @@ export default function Browse() {
 
         {/* PAGE TITLE */}
         <div style={{ marginBottom: '28px' }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', color: '#e8d5b0', margin: '0 0 6px', fontWeight: '700' }}>Browse All Records</h1>
+          <h1 className="page-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', color: '#e8d5b0', margin: '0 0 6px', fontWeight: '700' }}>Browse All Records</h1>
           <p style={{ fontSize: '13px', color: '#555', margin: 0, fontStyle: 'italic' }}>
             {total > 0 ? `${total} item${total !== 1 ? 's' : ''} in our collection` : 'Loading collection...'}
           </p>
         </div>
 
         {/* SEARCH BAR */}
-        <div style={{ position: 'relative', maxWidth: '600px', marginBottom: '24px' }}>
+        <div className="search-bar" style={{ position: 'relative', maxWidth: '600px', marginBottom: '24px' }}>
           <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '16px', pointerEvents: 'none' }}>🔍</span>
           <input
             ref={searchRef}
@@ -363,7 +378,7 @@ export default function Browse() {
         {/* CATEGORY TABS */}
         <div style={{ marginBottom: '12px' }}>
           <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Format</div>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {CATEGORIES.map(cat => (
               <button key={cat} onClick={() => handleFilter('category', cat)} style={tabStyle(category === cat)}>
                 {cat === '7" Vinyl' && '🎵 '}{cat === '12" Vinyl' && '💿 '}{cat === 'CD' && '📀 '}
@@ -377,7 +392,7 @@ export default function Browse() {
         {/* GENRE TABS */}
         <div style={{ marginBottom: '28px' }}>
           <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Genre</div>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {GENRES.map(g => (
               <button key={g} onClick={() => handleFilter('genre', g)} style={tabStyle(genre === g)}>{g}</button>
             ))}
@@ -411,7 +426,7 @@ export default function Browse() {
         {/* RECORDS LIST */}
         <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
           {/* LIST HEADER */}
-          <div style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
+          <div className="browse-list-header" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Photo</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Title</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Artist</div>
@@ -432,7 +447,7 @@ export default function Browse() {
               return (
                 <div key={record.id} className="row-item"
                   onClick={() => setSelectedRecord(record)}
-                  style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                  className="browse-row" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
 
                   {/* THUMBNAIL */}
                   <div style={{ width: '44px', height: '44px', borderRadius: '6px', overflow: 'hidden', background: '#0a0a0a', flexShrink: 0 }}>
@@ -450,7 +465,7 @@ export default function Browse() {
                   </div>
 
                   {/* ARTIST */}
-                  <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}</div>
+                  <div className="browse-row-artist" style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}</div>
 
                   {/* CONDITION */}
                   <div>
