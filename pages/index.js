@@ -160,7 +160,13 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
 export default function Home() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try { const s = localStorage.getItem('4em_cart'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('4em_cart', JSON.stringify(cart)); } catch {}
+  }, [cart]);
   const [showCart, setShowCart] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
