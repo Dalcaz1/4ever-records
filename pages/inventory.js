@@ -59,6 +59,129 @@ const COND_COLORS = {
   'G':   { bg: '#3a1a1a', text: '#f87171' },
 };
 
+const GENRES = ['Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
+const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
+
+function EditModal({ record, onSave, onClose }) {
+  const [form, setForm] = useState({
+    artist: record.artist || '',
+    title: record.title || '',
+    year: record.year || '',
+    label: record.label || '',
+    genre: record.genre || 'Rock',
+    condition: record.condition || 'VG',
+    price: record.price || '',
+    qty: record.qty || 1,
+    notes: record.notes || '',
+    active: record.active !== false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const inp = {
+    width: '100%', padding: '10px 12px', border: '1px solid #2a2a2a', borderRadius: '8px',
+    fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0',
+    marginBottom: '10px', outline: 'none',
+  };
+
+  async function handleSave() {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/update-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: record.id, ...form }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onSave({ ...record, ...form });
+      } else {
+        setError(data.error || 'Failed to save.');
+      }
+    } catch {
+      setError('Something went wrong.');
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflow: 'auto' }}>
+        <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0' }}>
+          <div style={{ fontSize: '16px', color: '#e8d5b0', fontWeight: '700' }}>Edit Record</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '20px' }}>
+          <div style={{ fontSize: '10px', color: '#444', letterSpacing: '2px', marginBottom: '16px' }}>{record.sku}</div>
+
+          <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Artist</label>
+          <input value={form.artist} onChange={e => setForm(f => ({ ...f, artist: e.target.value }))} style={inp} />
+
+          <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Title</label>
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} style={inp} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div>
+              <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Year</label>
+              <input value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Label</label>
+              <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Genre</label>
+              <select value={form.genre} onChange={e => setForm(f => ({ ...f, genre: e.target.value }))} style={{ ...inp, marginBottom: 0 }}>
+                {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Condition</label>
+              <select value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value }))} style={{ ...inp, marginBottom: 0 }}>
+                {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Price ($)</label>
+              <input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Qty</label>
+              <input type="number" value={form.qty} onChange={e => setForm(f => ({ ...f, qty: e.target.value }))} style={inp} />
+            </div>
+          </div>
+
+          <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Notes</label>
+          <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3}
+            style={{ ...inp, resize: 'none' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '12px' }}>
+            <input type="checkbox" id="active" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))}
+              style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+            <label htmlFor="active" style={{ fontSize: '13px', color: '#e8d5b0', cursor: 'pointer' }}>
+              {form.active ? '✅ Active — visible on store' : '❌ Hidden from store'}
+            </label>
+          </div>
+
+          {error && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '12px' }}>{error}</div>}
+
+          <button onClick={handleSave} disabled={saving}
+            style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '8px' }}>
+            {saving ? 'Saving...' : '💾 Save Changes'}
+          </button>
+          <button onClick={onClose}
+            style={{ width: '100%', padding: '10px', background: 'transparent', color: '#555', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Inventory() {
   const [authed, setAuthed] = useState(false);
   const [records, setRecords] = useState([]);
@@ -66,6 +189,7 @@ export default function Inventory() {
   const [search, setSearch] = useState('');
   const [deleting, setDeleting] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editRecord, setEditRecord] = useState(null);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -105,6 +229,13 @@ export default function Inventory() {
     setConfirmDelete(null);
   }
 
+  function handleEditSave(updated) {
+    setRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
+    setEditRecord(null);
+    setMessage('Updated: ' + updated.title);
+    setTimeout(() => setMessage(''), 3000);
+  }
+
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
 
   const filtered = records.filter(r =>
@@ -113,9 +244,17 @@ export default function Inventory() {
     r.sku?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const navLink = {
+    color: '#c9a84c', fontSize: '12px', textDecoration: 'none',
+    border: '1px solid #c9a84c44', borderRadius: '6px', padding: '6px 12px',
+    fontFamily: 'Georgia, serif',
+  };
+
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
-      <style>{'* { box-sizing: border-box; }'}</style>
+      <style>{'* { box-sizing: border-box; } input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }'}</style>
+
+      {editRecord && <EditModal record={editRecord} onSave={handleEditSave} onClose={() => setEditRecord(null)} />}
 
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -129,9 +268,10 @@ export default function Inventory() {
             <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Inventory</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <a href="/admin" style={{ color: '#c9a84c', fontSize: '12px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '6px', padding: '6px 12px' }}>+ Add Record</a>
-          <a href="/" style={{ color: '#555', fontSize: '12px', textDecoration: 'none' }}>← Store</a>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <a href="/admin" style={navLink}>➕ Add</a>
+          <a href="/inventory" style={navLink}>📋 Inventory</a>
+          <a href="/" style={{ color: '#555', fontSize: '12px', textDecoration: 'none', borderRadius: '6px', padding: '6px 12px', border: '1px solid #2a2a2a', fontFamily: 'Georgia, serif' }}>← Store</a>
         </div>
       </nav>
 
@@ -150,12 +290,9 @@ export default function Inventory() {
           </div>
         </div>
 
-        <input
-          placeholder="Search by title, artist, or SKU..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ width: '100%', padding: '10px 14px', border: '1px solid #2a2a2a', borderRadius: '8px', fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0', marginBottom: '16px', outline: 'none' }}
-        />
+        <input placeholder="Search by title, artist, or SKU..."
+          value={search} onChange={e => setSearch(e.target.value)}
+          style={{ width: '100%', padding: '10px 14px', border: '1px solid #2a2a2a', borderRadius: '8px', fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0', marginBottom: '16px', outline: 'none' }} />
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#555', fontStyle: 'italic' }}>Loading inventory...</div>
@@ -165,7 +302,7 @@ export default function Inventory() {
           filtered.map(record => {
             const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
             return (
-              <div key={record.id} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '14px', marginBottom: '10px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div key={record.id} style={{ background: '#111', border: '1px solid #222', borderRadius: '12px', padding: '14px', marginBottom: '10px', display: 'flex', gap: '12px', alignItems: 'center', opacity: record.active === false ? 0.5 : 1 }}>
 
                 {record.photo_cover ? (
                   <img src={record.photo_cover} alt={record.title} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
@@ -174,7 +311,9 @@ export default function Inventory() {
                 )}
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '9px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase' }}>{record.sku}</div>
+                  <div style={{ fontSize: '9px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                    {record.sku} {record.active === false && <span style={{ color: '#f87171', marginLeft: '6px' }}>● Hidden</span>}
+                  </div>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
                   <div style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>{record.artist} · {record.year}</div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
@@ -185,6 +324,10 @@ export default function Inventory() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                  <button onClick={() => setEditRecord(record)}
+                    style={{ padding: '6px 12px', background: '#1a2a1a', color: '#c9a84c', border: '1px solid #c9a84c44', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    ✏️ Edit
+                  </button>
                   {confirmDelete === record.id ? (
                     <>
                       <button onClick={() => handleDelete(record)} disabled={deleting === record.id}
