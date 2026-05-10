@@ -68,7 +68,7 @@ function CameraModal({ onCapture, onClose, label }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [ready, setReady] = useState(false);
-  const [error, setError] = useState('');
+  const [camError, setCamError] = useState('');
 
   useEffect(() => {
     async function startCamera() {
@@ -84,7 +84,7 @@ function CameraModal({ onCapture, onClose, label }) {
           setReady(true);
         }
       } catch (err) {
-        setError('Camera access denied. Please allow camera access in your browser settings.');
+        setCamError('Camera access denied. Please allow camera access in your browser settings.');
       }
     }
     startCamera();
@@ -115,8 +115,8 @@ function CameraModal({ onCapture, onClose, label }) {
           style={{ background: 'none', border: 'none', color: '#888', fontSize: '22px', cursor: 'pointer' }}>✕</button>
       </div>
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {error ? (
-          <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif' }}>{error}</div>
+        {camError ? (
+          <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif' }}>{camError}</div>
         ) : (
           <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
@@ -174,6 +174,19 @@ export default function Admin() {
     setCameraSlot(null);
   }
 
+  function removePhoto(key) {
+    setPhotos(p => { const n = { ...p }; delete n[key]; return n; });
+    setPreviews(p => { const n = { ...p }; delete n[key]; return n; });
+  }
+
+  async function fetchNextSku(cat) {
+    try {
+      const r = await fetch(`/api/next-sku?cat=${encodeURIComponent(cat)}`);
+      const d = await r.json();
+      setNextSku(d.sku);
+    } catch {}
+  }
+
   async function handleScan() {
     setScanning(true);
     setError('');
@@ -200,20 +213,16 @@ export default function Admin() {
       if (!res.ok) throw new Error(result.error || 'Scan failed');
 
       setForm(f => ({ ...f, ...result, cat: selectedFormat }));
-      setMode('review');
-
-      // Get next SKU and pricing in parallel
-      fetch(`/api/next-sku?cat=${encodeURIComponent(selectedFormat)}`)
-        .then(r => r.json()).then(d => setNextSku(d.sku)).catch(() => {});
+      await fetchNextSku(selectedFormat);
       fetch(`/api/pricing?artist=${encodeURIComponent(result.artist)}&title=${encodeURIComponent(result.title)}`)
         .then(r => r.json()).then(setPricing).catch(() => {});
+      setMode('review');
 
     } catch (err) {
       setError('Scanning failed. You can still enter details manually.');
       setForm(f => ({ ...f, cat: selectedFormat }));
+      await fetchNextSku(selectedFormat);
       setMode('review');
-      fetch(`/api/next-sku?cat=${encodeURIComponent(selectedFormat)}`)
-        .then(r => r.json()).then(d => setNextSku(d.sku)).catch(() => {});
     }
     setScanning(false);
   }
@@ -235,14 +244,16 @@ export default function Admin() {
 
       const res = await fetch('/api/save-record', { method: 'POST', body: formData });
       const data = await res.json();
+
       if (data.success) {
-        setSavedSku(data.sku);
+        setSavedSku(data.sku || nextSku);
         setMode('success');
       } else {
         setError(data.error || 'Failed to save.');
       }
-    } catch {
+    } catch (err) {
       setError('Failed to save. Please try again.');
+      console.error(err);
     }
     setSaving(false);
   }
@@ -251,6 +262,12 @@ export default function Admin() {
     width: '100%', padding: '10px 12px', border: '1px solid #2a2a2a', borderRadius: '8px',
     fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0',
     marginBottom: '10px',
+  };
+
+  const backBtn = {
+    display: 'flex', alignItems: 'center', gap: '6px', background: '#1a1a1a',
+    border: '1px solid #333', color: '#c9a84c', borderRadius: '8px', padding: '8px 14px',
+    fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginBottom: '20px',
   };
 
   return (
@@ -264,6 +281,7 @@ export default function Admin() {
         .photo-slot img { width: 100%; height: calc(100% - 28px); object-fit: cover; display: block; }
         .photo-slot-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
         .photo-slot-label { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; border-top: 1px solid #1a1a1a; font-family: Georgia, serif; }
+        .remove-btn { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,0.7); border: none; color: #f87171; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
       `}</style>
 
       {cameraSlot && (
@@ -294,44 +312,61 @@ export default function Admin() {
         {/* ENTRY MODE */}
         {mode === 'entry' && (
           <>
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Format</div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {FORMATS.map(fmt => (
-                  <button key={fmt.label}
-                    onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setDiscCount('1'); }}
-                    style={{ padding: '8px 14px', background: selectedFormat === fmt.label ? '#c9a84c' : '#111', color: selectedFormat === fmt.label ? '#0d0d0d' : '#888', border: `1px solid ${selectedFormat === fmt.label ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: selectedFormat === fmt.label ? '700' : '400' }}>
-                    {fmt.icon} {fmt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* BACK BUTTON — only shows if format selected */}
+            {selectedFormat && (
+              <button style={backBtn} onClick={() => { setSelectedFormat(null); setPhotos({}); setPreviews({}); setDiscCount('1'); }}>
+                ← Change Format
+              </button>
+            )}
 
-            {format?.multiDisc && selectedFormat && (
-              <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
-                <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {['1', '2', '3', '4'].map(n => (
-                    <button key={n} onClick={() => { setDiscCount(n); setPhotos({}); setPreviews({}); }}
-                      style={{ flex: 1, padding: '10px', background: discCount === n ? '#c9a84c' : '#0a0a0a', color: discCount === n ? '#0d0d0d' : '#555', border: `1px solid ${discCount === n ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: discCount === n ? '700' : '400' }}>
-                      {n}
-                    </button>
-                  ))}
+            {!selectedFormat && (
+              <>
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Select Format</div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {FORMATS.map(fmt => (
+                      <button key={fmt.label}
+                        onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setDiscCount('1'); }}
+                        style={{ padding: '8px 14px', background: '#111', color: '#888', border: '1px solid #2a2a2a', borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
+                        {fmt.icon} {fmt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#333', fontStyle: 'italic' }}>
+                  Select a format above to begin
+                </div>
+              </>
             )}
 
             {selectedFormat && (
               <>
+                <div style={{ fontSize: '15px', color: '#e8d5b0', fontWeight: '600', marginBottom: '16px' }}>
+                  {format?.icon} {selectedFormat}
+                </div>
+
+                {format?.multiDisc && (
+                  <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
+                    <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {['1', '2', '3', '4'].map(n => (
+                        <button key={n} onClick={() => { setDiscCount(n); setPhotos({}); setPreviews({}); }}
+                          style={{ flex: 1, padding: '10px', background: discCount === n ? '#c9a84c' : '#0a0a0a', color: discCount === n ? '#0d0d0d' : '#555', border: `1px solid ${discCount === n ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: discCount === n ? '700' : '400' }}>
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
                   Photos ({photoCount}/{photoSlots.length})
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                   {photoSlots.map(slot => (
                     <div key={slot.key} className="photo-slot"
-                      style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}` }}
-                      onClick={() => setCameraSlot(slot.key)}>
-                      <div className="photo-slot-inner">
+                      style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}` }}>
+                      <div className="photo-slot-inner" onClick={() => setCameraSlot(slot.key)}>
                         {previews[slot.key] ? (
                           <>
                             <img src={previews[slot.key]} alt={slot.label} />
@@ -347,6 +382,10 @@ export default function Admin() {
                           {previews[slot.key] ? '📷 Tap to retake' : '📷 Tap to photograph'}
                         </div>
                       </div>
+                      {/* REMOVE BUTTON */}
+                      {previews[slot.key] && (
+                        <button className="remove-btn" onClick={e => { e.stopPropagation(); removePhoto(slot.key); }}>✕</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -358,17 +397,11 @@ export default function Admin() {
                   {scanning ? '🔍 Scanning...' : photoCount > 0 ? `🤖 Scan & Identify (${photoCount} photo${photoCount > 1 ? 's' : ''}) →` : 'Tap photos above to begin'}
                 </button>
 
-                <button onClick={() => { setForm(f => ({ ...f, cat: selectedFormat })); setMode('review'); fetch(`/api/next-sku?cat=${encodeURIComponent(selectedFormat)}`).then(r => r.json()).then(d => setNextSku(d.sku)).catch(() => {}); }}
+                <button onClick={async () => { setForm(f => ({ ...f, cat: selectedFormat })); await fetchNextSku(selectedFormat); setMode('review'); }}
                   style={{ width: '100%', padding: '12px', background: 'transparent', color: '#555', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   Skip scanning — enter details manually →
                 </button>
               </>
-            )}
-
-            {!selectedFormat && (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: '#333', fontStyle: 'italic' }}>
-                Select a format above to begin
-              </div>
             )}
           </>
         )}
@@ -376,25 +409,21 @@ export default function Admin() {
         {/* REVIEW MODE */}
         {mode === 'review' && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '20px', color: '#e8d5b0', margin: 0 }}>
-                {form.artist ? '✓ Identified — Review & Save' : 'Enter Details'}
-              </h2>
-              <button onClick={() => setMode('entry')} style={{ background: 'none', border: '1px solid #333', color: '#666', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                ← Back
-              </button>
-            </div>
+            <button style={backBtn} onClick={() => setMode('entry')}>← Back to Photos</button>
 
-            {/* SKU PREVIEW BANNER */}
+            <h2 style={{ fontSize: '20px', color: '#e8d5b0', margin: '0 0 16px' }}>
+              {form.artist ? '✓ Identified — Review & Save' : 'Enter Details'}
+            </h2>
+
+            {/* SKU PREVIEW */}
             {nextSku && (
               <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label</div>
-                <div style={{ fontSize: '32px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
-                <div style={{ fontSize: '11px', color: '#555', marginTop: '6px', fontStyle: 'italic' }}>This SKU will be assigned when you save</div>
+                <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
+                <div style={{ fontSize: '36px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
+                <div style={{ fontSize: '11px', color: '#555', marginTop: '6px', fontStyle: 'italic' }}>This will be the SKU assigned when you save</div>
               </div>
             )}
 
-            {/* PHOTO THUMBNAILS */}
             {Object.keys(previews).length > 0 && (
               <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 {Object.values(previews).map((src, i) => (
@@ -403,7 +432,6 @@ export default function Admin() {
               </div>
             )}
 
-            {/* PRICING */}
             {pricing && (
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>💰 Market Pricing</div>
@@ -485,23 +513,26 @@ export default function Admin() {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
             <h2 style={{ fontSize: '22px', color: '#4ade80', marginBottom: '8px' }}>Record Saved!</h2>
-            <p style={{ fontSize: '13px', color: '#666', fontStyle: 'italic', marginBottom: '24px' }}>
+            <p style={{ fontSize: '13px', color: '#666', fontStyle: 'italic', marginBottom: '28px' }}>
               {form.artist} — {form.title}
             </p>
 
-            {/* BIG SKU DISPLAY */}
-            <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '24px', marginBottom: '28px' }}>
-              <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📋 Label this record with SKU</div>
-              <div style={{ fontSize: '40px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
-              <div style={{ fontSize: '11px', color: '#555', marginTop: '10px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
+            <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
+              <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
+              <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>
+                {savedSku}
+              </div>
+              <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>
+                Write this on a label and attach it to the physical record
+              </div>
             </div>
 
             <button onClick={reset}
-              style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700' }}>
+              style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '12px' }}>
               ➕ Add Another Record
             </button>
 
-            <a href="/" style={{ display: 'block', marginTop: '12px', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>
+            <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>
               ← Back to Store
             </a>
           </div>
