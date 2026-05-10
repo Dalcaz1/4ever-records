@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: {} });
+export const getServerSideProps = async () => ({ props: { v: 2 } });
 
 import { useState, useRef, useEffect } from 'react';
 
