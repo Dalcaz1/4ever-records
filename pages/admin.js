@@ -144,7 +144,8 @@ export default function Admin() {
   const [scanning, setScanning] = useState(false);
   const [pricing, setPricing] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedSku, setSavedSku] = useState(null);
+  const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
   const [cameraSlot, setCameraSlot] = useState(null);
 
@@ -160,6 +161,8 @@ export default function Admin() {
     setForm(EMPTY_FORM);
     setMode('entry');
     setPricing(null);
+    setNextSku(null);
+    setSavedSku(null);
     setError('');
   }
 
@@ -198,6 +201,10 @@ export default function Admin() {
 
       setForm(f => ({ ...f, ...result, cat: selectedFormat }));
       setMode('review');
+
+      // Get next SKU and pricing in parallel
+      fetch(`/api/next-sku?cat=${encodeURIComponent(selectedFormat)}`)
+        .then(r => r.json()).then(d => setNextSku(d.sku)).catch(() => {});
       fetch(`/api/pricing?artist=${encodeURIComponent(result.artist)}&title=${encodeURIComponent(result.title)}`)
         .then(r => r.json()).then(setPricing).catch(() => {});
 
@@ -205,6 +212,8 @@ export default function Admin() {
       setError('Scanning failed. You can still enter details manually.');
       setForm(f => ({ ...f, cat: selectedFormat }));
       setMode('review');
+      fetch(`/api/next-sku?cat=${encodeURIComponent(selectedFormat)}`)
+        .then(r => r.json()).then(d => setNextSku(d.sku)).catch(() => {});
     }
     setScanning(false);
   }
@@ -227,8 +236,8 @@ export default function Admin() {
       const res = await fetch('/api/save-record', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) {
-        setSaved(true);
-        setTimeout(() => { reset(); setSaved(false); }, 2000);
+        setSavedSku(data.sku);
+        setMode('success');
       } else {
         setError(data.error || 'Failed to save.');
       }
@@ -282,6 +291,7 @@ export default function Admin() {
 
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
 
+        {/* ENTRY MODE */}
         {mode === 'entry' && (
           <>
             <div style={{ marginBottom: '20px' }}>
@@ -348,7 +358,7 @@ export default function Admin() {
                   {scanning ? '🔍 Scanning...' : photoCount > 0 ? `🤖 Scan & Identify (${photoCount} photo${photoCount > 1 ? 's' : ''}) →` : 'Tap photos above to begin'}
                 </button>
 
-                <button onClick={() => { setForm(f => ({ ...f, cat: selectedFormat })); setMode('review'); }}
+                <button onClick={() => { setForm(f => ({ ...f, cat: selectedFormat })); setMode('review'); fetch(`/api/next-sku?cat=${encodeURIComponent(selectedFormat)}`).then(r => r.json()).then(d => setNextSku(d.sku)).catch(() => {}); }}
                   style={{ width: '100%', padding: '12px', background: 'transparent', color: '#555', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   Skip scanning — enter details manually →
                 </button>
@@ -363,9 +373,10 @@ export default function Admin() {
           </>
         )}
 
+        {/* REVIEW MODE */}
         {mode === 'review' && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <h2 style={{ fontSize: '20px', color: '#e8d5b0', margin: 0 }}>
                 {form.artist ? '✓ Identified — Review & Save' : 'Enter Details'}
               </h2>
@@ -374,6 +385,16 @@ export default function Admin() {
               </button>
             </div>
 
+            {/* SKU PREVIEW BANNER */}
+            {nextSku && (
+              <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label</div>
+                <div style={{ fontSize: '32px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
+                <div style={{ fontSize: '11px', color: '#555', marginTop: '6px', fontStyle: 'italic' }}>This SKU will be assigned when you save</div>
+              </div>
+            )}
+
+            {/* PHOTO THUMBNAILS */}
             {Object.keys(previews).length > 0 && (
               <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 {Object.values(previews).map((src, i) => (
@@ -382,6 +403,7 @@ export default function Admin() {
               </div>
             )}
 
+            {/* PRICING */}
             {pricing && (
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>💰 Market Pricing</div>
@@ -446,9 +468,9 @@ export default function Admin() {
             {error && <div style={{ color: '#f87171', fontSize: '13px', margin: '12px 0', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
 
             <button onClick={handleSave}
-              disabled={!form.artist || !form.title || !form.price || saving || saved}
-              style={{ width: '100%', padding: '16px', background: saved ? '#1a3a1a' : (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: saved ? '#4ade80' : (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
-              {saved ? '✓ Saved!' : saving ? 'Saving...' : '💾 Save to Store →'}
+              disabled={!form.artist || !form.title || !form.price || saving}
+              style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
+              {saving ? 'Saving...' : '💾 Save to Store →'}
             </button>
 
             <button onClick={reset}
@@ -457,6 +479,34 @@ export default function Admin() {
             </button>
           </>
         )}
+
+        {/* SUCCESS MODE */}
+        {mode === 'success' && (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
+            <h2 style={{ fontSize: '22px', color: '#4ade80', marginBottom: '8px' }}>Record Saved!</h2>
+            <p style={{ fontSize: '13px', color: '#666', fontStyle: 'italic', marginBottom: '24px' }}>
+              {form.artist} — {form.title}
+            </p>
+
+            {/* BIG SKU DISPLAY */}
+            <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '24px', marginBottom: '28px' }}>
+              <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📋 Label this record with SKU</div>
+              <div style={{ fontSize: '40px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
+              <div style={{ fontSize: '11px', color: '#555', marginTop: '10px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
+            </div>
+
+            <button onClick={reset}
+              style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700' }}>
+              ➕ Add Another Record
+            </button>
+
+            <a href="/" style={{ display: 'block', marginTop: '12px', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>
+              ← Back to Store
+            </a>
+          </div>
+        )}
+
       </div>
     </div>
   );
