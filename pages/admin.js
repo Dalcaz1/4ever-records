@@ -9,14 +9,12 @@ const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
 function getPhotoSlots(format, discCount) {
   const count = parseInt(discCount) || 1;
   switch (format) {
-    case '7" Vinyl': {
-      const slots = [
+    case '7" Vinyl':
+      return [
         { key: 'front', label: 'Front Sleeve', icon: '📄', hint: 'Photo of the front of the sleeve' },
         { key: 'a', label: 'A Side Label', icon: '🎵', hint: 'Photo of the A side record label' },
         { key: 'b', label: 'B Side Label', icon: '🎶', hint: 'Photo of the B side record label' },
       ];
-      return slots;
-    }
     case '12" Vinyl': {
       const slots = [
         { key: 'front', label: 'Front Cover', icon: '🖼️', hint: 'Photo of the front album cover' },
@@ -110,51 +108,22 @@ export default function Admin() {
         r.readAsDataURL(file);
       });
 
-      const content = [];
+      const images = [];
       for (const slot of photoSlots) {
         if (photos[slot.key]) {
-          content.push({
-            type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: await toBase64(photos[slot.key]) },
-          });
+          images.push(await toBase64(photos[slot.key]));
         }
       }
 
-      content.push({
-        type: 'text',
-        text: `You are a music collector expert. Analyze these ${selectedFormat} photos and extract all visible information.
-
-Return ONLY a JSON object:
-{
-  "artist": "artist name",
-  "title": "album or song title",
-  "year": "release year as 4 digit string or empty string if unknown",
-  "label": "record label name or empty string if unknown",
-  "genre": "one of: Rock, Jazz, Blues, Country, Spanish, Classical, Children's, Holiday, Pop, Religious, Comedy, Soundtracks",
-  "condition": "one of: M, NM, VG+, VG, G - based on visible wear",
-  "notes": "any other relevant details like pressing info, promo markings, catalog number etc"
-}
-
-Return ONLY the JSON, no other text.`,
-      });
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/scan', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content }],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images, format: selectedFormat }),
       });
 
-      const data = await response.json();
-      const text = data.content[0].text.replace(/```json|```/g, '').trim();
-      const result = JSON.parse(text);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Scan failed');
+
       setForm(f => ({ ...f, ...result, cat: selectedFormat, discCount }));
       setStep(2);
       await getPricing(result.artist, result.title);
@@ -232,7 +201,6 @@ Return ONLY the JSON, no other text.`,
         .photo-box:hover { border-color: #c9a84c !important; }
       `}</style>
 
-      {/* NAV */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <svg width="36" height="36" viewBox="0 0 40 40">
@@ -250,7 +218,6 @@ Return ONLY the JSON, no other text.`,
 
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
 
-        {/* STEP INDICATOR */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '36px', alignItems: 'center' }}>
           {stepLabels.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
@@ -284,7 +251,7 @@ Return ONLY the JSON, no other text.`,
           </div>
         )}
 
-        {/* STEP 1: DISC COUNT + PHOTOS */}
+        {/* STEP 1: PHOTOS */}
         {step === 1 && format && (
           <div>
             <button onClick={() => { setStep(0); setSelectedFormat(null); setPhotos({}); setPreviews({}); setDiscCount('1'); }}
@@ -299,7 +266,6 @@ Return ONLY the JSON, no other text.`,
               </h2>
             </div>
 
-            {/* DISC COUNT SELECTOR */}
             {format.multiDisc && (
               <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>How many discs?</div>
@@ -318,7 +284,6 @@ Return ONLY the JSON, no other text.`,
               {photoSlots.length} photos needed for this {discCount > '1' ? `${discCount}-disc ` : ''}{selectedFormat}.
             </p>
 
-            {/* PHOTO GRID */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px', marginBottom: '24px' }}>
               {photoSlots.map(slot => (
                 <div key={slot.key} className="photo-box"
@@ -365,7 +330,6 @@ Return ONLY the JSON, no other text.`,
               {form.artist ? 'AI identified this item — review and correct before saving.' : 'Enter the details below.'}
             </p>
 
-            {/* PRICING */}
             {pricing && (
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>💰 Market Pricing</div>
@@ -382,7 +346,6 @@ Return ONLY the JSON, no other text.`,
               </div>
             )}
 
-            {/* PHOTO PREVIEWS */}
             {Object.keys(previews).length > 0 && (
               <div style={{ display: 'flex', gap: '6px', marginBottom: '24px', flexWrap: 'wrap' }}>
                 {Object.values(previews).map((src, i) => (
