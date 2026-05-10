@@ -1,11 +1,43 @@
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  
+
   const { artist, title } = req.query;
   if (!artist || !title) return res.status(400).json({ error: 'Missing artist or title' });
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const token = process.env.DISCOGS_TOKEN;
+    const query = encodeURIComponent(`${artist} ${title}`);
+
+    // Search Discogs
+    const searchRes = await fetch(
+      `https://api.discogs.com/database/search?q=${query}&type=release&per_page=5`,
+      { headers: { 'Authorization': `Discogs token=${token}`, 'User-Agent': '4EverMemoriesRecords/1.0' } }
+    );
+    const searchData = await searchRes.json();
+    const results = searchData.results || [];
+
+    let discogs = null;
+    let notes = '';
+
+    if (results.length > 0) {
+      // Get the first result's price stats
+      const releaseId = results[0].id;
+      const statsRes = await fetch(
+        `https://api.discogs.com/marketplace/stats/${releaseId}`,
+        { headers: { 'Authorization': `Discogs token=${token}`, 'User-Agent': '4EverMemoriesRecords/1.0' } }
+      );
+      const stats = await statsRes.json();
+
+      if (stats.lowest_price?.value) discogs = stats.lowest_price.value.toFixed(2);
+      else if (stats.median?.value) discogs = stats.median.value.toFixed(2);
+
+      notes = `Found on Discogs: ${results[0].title}`;
+    } else {
+      notes = 'Not found on Discogs';
+    }
+
+    // Use Claude to estimate eBay and Popsike since they don't have free APIs
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -14,49 +46,27 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 200,
         messages: [{
           role: 'user',
-          content: `You are a vintage music marketplace expert with deep knowledge of collector pricing across multiple platforms.
-
-For the record/item: "${artist}" - "${title}"
-
-Research and estimate current market pricing based on your knowledge of these sources:
-- Discogs (vinyl specialist marketplace)
-- eBay (recent sold listings)
-- Popsike (auction price archive for records)
-- MusicStack (vinyl & CD marketplace)
-- Amazon (especially for CDs and cassettes)
-
-Consider condition grades (VG+/NM typically command highest prices).
-
-If this is a well-known item, provide realistic market estimates.
-If this is obscure or unknown, provide conservative estimates based on similar items.
-If you truly cannot identify this item at all, set all prices to null.
-
-Return ONLY this JSON, no other text:
-{
-  "discogs": "price as number string like 24.99 or null if unknown",
-  "ebay": "price as number string like 19.99 or null if unknown",
-  "popsike": "price as number string like 22.00 or null if unknown",
-  "recommended": "your recommended selling price as number string or null if completely unknown",
-  "confidence": "high, medium, or low",
-  "notes": "brief note about pricing rationale or why item is hard to price"
-}`,
+          content: `Estimate eBay sold price and Popsike auction price for this record: "${artist}" - "${title}". Discogs price is ${discogs ? '$' + discogs : 'unknown'}.
+Return ONLY JSON:
+{"ebay": "price or null", "popsike": "price or null", "recommended": "suggested sell price or null"}`,
         }],
       }),
     });
+    const aiData = await aiRes.json();
+    const aiText = aiData.content[0].text.replace(/```json|```/g, '').trim();
+    const aiPricing = JSON.parse(aiText);
 
-    const data = await response.json();
-    
-    if (data.error) {
-      console.error('Anthropic error:', data.error);
-      return res.status(500).json({ error: 'Pricing lookup failed' });
-    }
-
-    const text = data.content[0].text.replace(/```json|```/g, '').trim();
-    const pricing = JSON.parse(text);
-    return res.status(200).json(pricing);
+    return res.status(200).json({
+      discogs,
+      ebay: aiPricing.ebay,
+      popsike: aiPricing.popsike,
+      recommended: aiPricing.recommended || discogs,
+      confidence: discogs ? 'high' : 'low',
+      notes,
+    });
 
   } catch (err) {
     console.error('Pricing error:', err);
