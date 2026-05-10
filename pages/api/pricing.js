@@ -43,42 +43,20 @@ export default async function handler(req, res) {
       }
 
       notes = 'Found on Discogs: ' + results[0].title;
-    } else {
-      notes = 'Not found on Discogs';
+
+      // Return debug here before Claude call
+      return res.status(200).json({
+        debug: true,
+        discogs,
+        notes,
+        stats,
+        results_count: results.length,
+      });
     }
 
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        messages: [{
-          role: 'user',
-          content: 'Estimate eBay sold price and Popsike auction price for: "' + artist + '" - "' + title + '". Discogs price is ' + (discogs ? '$' + discogs : 'unknown') + '. Return ONLY JSON: {"ebay": "price or null", "popsike": "price or null", "recommended": "suggested sell price or null"}',
-        }],
-      }),
-    });
-
-    const aiData = await aiRes.json();
-    const aiText = aiData.content[0].text.replace(/```json|```/g, '').trim();
-    const aiPricing = JSON.parse(aiText);
-
-    return res.status(200).json({
-      discogs,
-      ebay: aiPricing.ebay,
-      popsike: aiPricing.popsike,
-      recommended: aiPricing.recommended || discogs,
-      confidence: discogs ? 'high' : 'medium',
-      notes,
-    });
+    return res.status(200).json({ debug: true, discogs: null, notes: 'Not found', results_count: 0 });
 
   } catch (err) {
-    console.error('Pricing error:', err);
-    return res.status(500).json({ error: 'Pricing lookup failed' });
+    return res.status(500).json({ error: err.message, stack: err.stack });
   }
 }
