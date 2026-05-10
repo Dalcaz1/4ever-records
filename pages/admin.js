@@ -320,11 +320,11 @@ export default function Admin() {
                       style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: '#0a0a0a', padding: 0, position: 'relative', display: 'block', width: '100%' }}>
                       {previews[slot.key] ? (
                         <>
-                          <img src={previews[slot.key]} alt={slot.label} style={{ width: '100%', height: '130px', objectFit: 'cover', display: 'block' }} />
+                          <img src={previews[slot.key]} alt={slot.label} style={{ width: '100%', width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
                           <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
                         </>
                       ) : (
-                        <div style={{ height: '130px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        <div style={{ height: "auto", aspectRatio: "1", display: "flex", flexDirection: "column"', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                           <span style={{ fontSize: '28px' }}>{slot.icon}</span>
                           <span style={{ fontSize: '11px', color: '#555' }}>{slot.label}</span>
                         </div>
