@@ -137,7 +137,13 @@ export default function Browse() {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try { const s = localStorage.getItem('4em_cart'); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('4em_cart', JSON.stringify(cart)); } catch {}
+  }, [cart]);
   const [showCart, setShowCart] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
