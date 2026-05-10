@@ -28,6 +28,12 @@ export default async function handler(req, res) {
     const form = JSON.parse(order.form);
     const ids = cart.map(i => i.id);
 
+    // Fetch full record details including SKU from Supabase
+    const { data: dbRecords } = await supabase
+      .from('records')
+      .select('id, sku, title, artist, condition')
+      .in('id', ids);
+
     // Mark all purchased records as inactive (sold)
     const { error: updateError } = await supabase
       .from('records')
@@ -45,13 +51,30 @@ export default async function handler(req, res) {
       .delete()
       .eq('square_order_id', orderId);
 
-    // Build order items HTML for emails
-    const itemsHtml = cart.map(item => {
+    // Build order items HTML for CUSTOMER email (no SKU needed)
+    const customerItemsHtml = cart.map(item => {
       const price = parseFloat(item.price || item.p);
       const title = item.title || item.t;
       const artist = item.artist || item.a;
       const condition = item.condition || item.c;
       return '<tr>' +
+        '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #e8d5b0;">' + title + '</td>' +
+        '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #888; font-style: italic;">' + artist + '</td>' +
+        '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #aaa; text-align: center;">' + condition + '</td>' +
+        '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #c9a84c; text-align: right; font-weight: bold;">$' + (price * item.qty).toFixed(2) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    // Build order items HTML for OWNER email (includes SKU)
+    const ownerItemsHtml = cart.map(item => {
+      const price = parseFloat(item.price || item.p);
+      const title = item.title || item.t;
+      const artist = item.artist || item.a;
+      const condition = item.condition || item.c;
+      const dbRecord = dbRecords ? dbRecords.find(r => r.id === item.id) : null;
+      const sku = dbRecord ? dbRecord.sku : 'N/A';
+      return '<tr>' +
+        '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #c9a84c; font-family: monospace; font-weight: 700; font-size: 13px;">' + sku + '</td>' +
         '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #e8d5b0;">' + title + '</td>' +
         '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #888; font-style: italic;">' + artist + '</td>' +
         '<td style="padding: 10px; border-bottom: 1px solid #2a2a2a; color: #aaa; text-align: center;">' + condition + '</td>' +
@@ -93,7 +116,7 @@ export default async function handler(req, res) {
           '<th style="padding: 10px; text-align: center; color: #555; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">Cond.</th>' +
           '<th style="padding: 10px; text-align: right; color: #555; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">Price</th>' +
           '</tr></thead>' +
-          '<tbody>' + itemsHtml + '</tbody>' +
+          '<tbody>' + customerItemsHtml + '</tbody>' +
           '</table>' +
           '<div style="background: #0a0a0a; border-radius: 8px; padding: 16px; margin-bottom: 24px;">' +
           '<div style="display: flex; justify-content: space-between; margin-bottom: 8px;"><span style="color: #666;">Subtotal</span><span style="color: #e8d5b0;">$' + subtotal.toFixed(2) + '</span></div>' +
@@ -111,7 +134,7 @@ export default async function handler(req, res) {
       }),
     });
 
-    // SEND STORE OWNER NOTIFICATION EMAIL
+    // SEND STORE OWNER NOTIFICATION EMAIL (with SKU)
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -136,14 +159,16 @@ export default async function handler(req, res) {
           '<div style="color: #888; margin-top: 8px;">' + form.address + '</div>' +
           '<div style="color: #888;">' + form.city + ', ' + form.state + ' ' + form.zip + '</div>' +
           '</div>' +
+          '<div style="font-size: 11px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">📦 Pull These Records</div>' +
           '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">' +
           '<thead><tr style="background: #0a0a0a;">' +
+          '<th style="padding: 10px; text-align: left; color: #c9a84c; font-size: 11px; text-transform: uppercase;">SKU</th>' +
           '<th style="padding: 10px; text-align: left; color: #555; font-size: 11px; text-transform: uppercase;">Title</th>' +
           '<th style="padding: 10px; text-align: left; color: #555; font-size: 11px; text-transform: uppercase;">Artist</th>' +
           '<th style="padding: 10px; text-align: center; color: #555; font-size: 11px; text-transform: uppercase;">Cond.</th>' +
           '<th style="padding: 10px; text-align: right; color: #555; font-size: 11px; text-transform: uppercase;">Price</th>' +
           '</tr></thead>' +
-          '<tbody>' + itemsHtml + '</tbody>' +
+          '<tbody>' + ownerItemsHtml + '</tbody>' +
           '</table>' +
           '<div style="background: #1a1a0a; border: 2px solid #c9a84c; border-radius: 8px; padding: 16px; text-align: center;">' +
           '<div style="font-size: 13px; color: #888; margin-bottom: 4px;">Order Total</div>' +
