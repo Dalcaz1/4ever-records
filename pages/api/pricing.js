@@ -6,21 +6,32 @@ export default async function handler(req, res) {
 
   try {
     const token = process.env.DISCOGS_TOKEN;
-    const query = encodeURIComponent(`${artist} ${title}`);
 
-    // Search Discogs
+    // Try searching by title only first (more flexible)
+    const titleQuery = encodeURIComponent(title);
+    const artistQuery = encodeURIComponent(artist);
+
     const searchRes = await fetch(
-      `https://api.discogs.com/database/search?q=${query}&type=release&per_page=5`,
+      `https://api.discogs.com/database/search?title=${titleQuery}&artist=${artistQuery}&per_page=5`,
       { headers: { 'Authorization': `Discogs token=${token}`, 'User-Agent': '4EverMemoriesRecords/1.0' } }
     );
     const searchData = await searchRes.json();
-    const results = searchData.results || [];
+    let results = searchData.results || [];
+
+    // If no results, try title only
+    if (results.length === 0) {
+      const fallbackRes = await fetch(
+        `https://api.discogs.com/database/search?q=${titleQuery}&per_page=5`,
+        { headers: { 'Authorization': `Discogs token=${token}`, 'User-Agent': '4EverMemoriesRecords/1.0' } }
+      );
+      const fallbackData = await fallbackRes.json();
+      results = fallbackData.results || [];
+    }
 
     let discogs = null;
     let notes = '';
 
     if (results.length > 0) {
-      // Get the first result's price stats
       const releaseId = results[0].id;
       const statsRes = await fetch(
         `https://api.discogs.com/marketplace/stats/${releaseId}`,
@@ -31,12 +42,12 @@ export default async function handler(req, res) {
       if (stats.lowest_price?.value) discogs = stats.lowest_price.value.toFixed(2);
       else if (stats.median?.value) discogs = stats.median.value.toFixed(2);
 
-      notes = `Found on Discogs: ${results[0].title}`;
+      notes = `Found: ${results[0].title}`;
     } else {
       notes = 'Not found on Discogs';
     }
 
-    // Use Claude to estimate eBay and Popsike since they don't have free APIs
+    // Claude estimates eBay + Popsike
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -49,9 +60,8 @@ export default async function handler(req, res) {
         max_tokens: 200,
         messages: [{
           role: 'user',
-          content: `Estimate eBay sold price and Popsike auction price for this record: "${artist}" - "${title}". Discogs price is ${discogs ? '$' + discogs : 'unknown'}.
-Return ONLY JSON:
-{"ebay": "price or null", "popsike": "price or null", "recommended": "suggested sell price or null"}`,
+          content: `Estimate eBay sold price and Popsike auction price for: "${artist}" - "${title}". Discogs price is ${discogs ? '$' + discogs : 'unknown'}.
+Return ONLY JSON: {"ebay": "price or null", "popsike": "price or null", "recommended": "suggested sell price or null"}`,
         }],
       }),
     });
@@ -64,7 +74,7 @@ Return ONLY JSON:
       ebay: aiPricing.ebay,
       popsike: aiPricing.popsike,
       recommended: aiPricing.recommended || discogs,
-      confidence: discogs ? 'high' : 'low',
+      confidence: discogs ? 'high' : 'medium',
       notes,
     });
 
