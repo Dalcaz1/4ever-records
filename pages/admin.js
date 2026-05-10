@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 2 } });
+export const getServerSideProps = async () => ({ props: {} });
 
 import { useState, useRef, useEffect } from 'react';
 
@@ -6,22 +6,30 @@ const GENRES = ['Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Chi
 const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
 
 const FORMATS = [
-  { label: '7" Vinyl',  icon: '🎵', multiDisc: false },
-  { label: '12" Vinyl', icon: '💿', multiDisc: true  },
-  { label: 'CD',        icon: '📀', multiDisc: true  },
-  { label: 'Cassette',  icon: '📼', multiDisc: false },
-  { label: '8-Track',   icon: '📟', multiDisc: false },
+  { label: '7" Vinyl',  icon: '🎵', multiDisc: false, hasSleeve: true },
+  { label: '12" Vinyl', icon: '💿', multiDisc: true,  hasSleeve: false },
+  { label: 'CD',        icon: '📀', multiDisc: true,  hasSleeve: false },
+  { label: 'Cassette',  icon: '📼', multiDisc: false, hasSleeve: false },
+  { label: '8-Track',   icon: '📟', multiDisc: false, hasSleeve: false },
 ];
 
-function getPhotoSlots(format, discCount) {
+function getPhotoSlots(format, discCount, sleeveType) {
   const count = parseInt(discCount) || 1;
   switch (format) {
     case '7" Vinyl':
-      return [
-        { key: 'front', label: 'Front Sleeve', icon: '📄' },
-        { key: 'a', label: 'A Side', icon: '🎵' },
-        { key: 'b', label: 'B Side', icon: '🎶' },
-      ];
+      if (sleeveType === 'picture') {
+        return [
+          { key: 'front', label: 'Front Sleeve', icon: '📄' },
+          { key: 'back', label: 'Back Sleeve', icon: '📄' },
+          { key: 'a', label: 'A Side', icon: '🎵' },
+          { key: 'b', label: 'B Side', icon: '🎶' },
+        ];
+      } else {
+        return [
+          { key: 'a', label: 'A Side', icon: '🎵' },
+          { key: 'b', label: 'B Side', icon: '🎶' },
+        ];
+      }
     case '12" Vinyl': {
       const slots = [
         { key: 'front', label: 'Front Cover', icon: '🖼️' },
@@ -137,6 +145,7 @@ function CameraModal({ onCapture, onClose, label }) {
 export default function Admin() {
   const [selectedFormat, setSelectedFormat] = useState(null);
   const [discCount, setDiscCount] = useState('1');
+  const [sleeveType, setSleeveType] = useState('generic'); // 'picture' or 'generic'
   const [photos, setPhotos] = useState({});
   const [previews, setPreviews] = useState({});
   const [form, setForm] = useState(EMPTY_FORM);
@@ -150,12 +159,13 @@ export default function Admin() {
   const [cameraSlot, setCameraSlot] = useState(null);
 
   const format = FORMATS.find(f => f.label === selectedFormat);
-  const photoSlots = selectedFormat ? getPhotoSlots(selectedFormat, discCount) : [];
+  const photoSlots = selectedFormat ? getPhotoSlots(selectedFormat, discCount, sleeveType) : [];
   const photoCount = Object.keys(photos).length;
 
   function reset() {
     setSelectedFormat(null);
     setDiscCount('1');
+    setSleeveType('generic');
     setPhotos({});
     setPreviews({});
     setForm(EMPTY_FORM);
@@ -345,6 +355,24 @@ export default function Admin() {
                   {format?.icon} {selectedFormat}
                 </div>
 
+                {/* SLEEVE TYPE for 7" Vinyl */}
+                {format?.hasSleeve && (
+                  <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
+                    <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Sleeve Type</div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => { setSleeveType('generic'); setPhotos({}); setPreviews({}); }}
+                        style={{ flex: 1, padding: '12px', background: sleeveType === 'generic' ? '#c9a84c' : '#0a0a0a', color: sleeveType === 'generic' ? '#0d0d0d' : '#555', border: `1px solid ${sleeveType === 'generic' ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: sleeveType === 'generic' ? '700' : '400' }}>
+                        ⬜ Generic Sleeve<br /><span style={{ fontSize: '10px', opacity: 0.7 }}>2 photos · A & B side only</span>
+                      </button>
+                      <button onClick={() => { setSleeveType('picture'); setPhotos({}); setPreviews({}); }}
+                        style={{ flex: 1, padding: '12px', background: sleeveType === 'picture' ? '#c9a84c' : '#0a0a0a', color: sleeveType === 'picture' ? '#0d0d0d' : '#555', border: `1px solid ${sleeveType === 'picture' ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: sleeveType === 'picture' ? '700' : '400' }}>
+                        🎨 Picture Sleeve<br /><span style={{ fontSize: '10px', opacity: 0.7 }}>4 photos · Front, Back, A & B</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* DISC COUNT for multi-disc formats */}
                 {format?.multiDisc && (
                   <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
                     <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
