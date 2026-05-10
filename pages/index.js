@@ -442,7 +442,7 @@ export default function Home() {
         </div>
         <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '11px', color: '#333' }}>© 2025 4 Ever Memories Records. All rights reserved.</span>
-          <span style={{ fontSize: '11px', color: '#333', fontStyle: 'italic' }}>Vinyl · Memories · Music · <a href='/admin' style={{ color: '#2a2a2a', textDecoration: 'none', fontSize: '13px' }}>⚙</a></span>
+          <span style={{ fontSize: '11px', color: '#333', fontStyle: 'italic' }}>Vinyl · Memories · Music · <a href='/admin' style={{ color: '#555', textDecoration: 'none', fontSize: '16px' }}>⚙</a></span>
         </div>
       </footer>
 
