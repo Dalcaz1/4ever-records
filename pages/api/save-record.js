@@ -4,6 +4,14 @@ export const config = {
   },
 };
 
+const SKU_PREFIXES = {
+  '7" Vinyl':  '4EMR45',
+  '12" Vinyl': '4EMRA',
+  'CD':        '4EMRCD',
+  'Cassette':  '4EMRCA',
+  '8-Track':   '4EMR8',
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -15,13 +23,12 @@ export default async function handler(req, res) {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Parse multipart form data manually
+    // Parse multipart form data
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
     const boundary = req.headers['content-type'].split('boundary=')[1];
     
-    // Parse fields from multipart
     const parts = buffer.toString('binary').split(`--${boundary}`);
     const fields = {};
     const photoBuffers = {};
@@ -38,7 +45,6 @@ export default async function handler(req, res) {
       const name = nameMatch[1];
       
       if (filenameMatch) {
-        // It's a file
         photoBuffers[name] = Buffer.from(body, 'binary');
       } else {
         fields[name] = body;
@@ -51,16 +57,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Artist, title, and price are required' });
     }
 
-    // Generate SKU
+    // Get SKU prefix for this category
+    const prefix = SKU_PREFIXES[cat] || '4EMR';
+    const counterKey = `sku_${prefix.toLowerCase()}`;
+
+    // Get and increment the counter for this specific category
     const { data: counter } = await supabase
       .from('sku_counter')
       .select('value')
+      .eq('category', prefix)
       .single();
     
     const skuNum = (counter?.value || 0) + 1;
-    const sku = `4EMR-${String(skuNum).padStart(4, '0')}`;
+    const sku = `${prefix}-${String(skuNum).padStart(4, '0')}`;
 
-    await supabase.from('sku_counter').upsert({ id: 1, value: skuNum });
+    // Upsert the counter for this category
+    await supabase.from('sku_counter').upsert({ 
+      category: prefix, 
+      value: skuNum 
+    }, { onConflict: 'category' });
 
     // Upload photos to Supabase storage
     const photoUrls = {};
