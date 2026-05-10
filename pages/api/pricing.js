@@ -14,27 +14,46 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
+        max_tokens: 400,
         messages: [{
           role: 'user',
-          content: `You are a vinyl record pricing expert with knowledge of Discogs and eBay market prices.
+          content: `You are a vintage music marketplace expert with deep knowledge of collector pricing across multiple platforms.
 
-For the record: "${artist}" - "${title}"
+For the record/item: "${artist}" - "${title}"
 
-Provide realistic current market pricing estimates.
+Research and estimate current market pricing based on your knowledge of these sources:
+- Discogs (vinyl specialist marketplace)
+- eBay (recent sold listings)
+- Popsike (auction price archive for records)
+- MusicStack (vinyl & CD marketplace)
+- Amazon (especially for CDs and cassettes)
+
+Consider condition grades (VG+/NM typically command highest prices).
+
+If this is a well-known item, provide realistic market estimates.
+If this is obscure or unknown, provide conservative estimates based on similar items.
+If you truly cannot identify this item at all, set all prices to null.
 
 Return ONLY this JSON, no other text:
 {
-  "discogs": "24.99",
-  "ebay": "19.99",
-  "recommended": "22.00",
-  "notes": "brief note about market value"
+  "discogs": "price as number string like 24.99 or null if unknown",
+  "ebay": "price as number string like 19.99 or null if unknown",
+  "popsike": "price as number string like 22.00 or null if unknown",
+  "recommended": "your recommended selling price as number string or null if completely unknown",
+  "confidence": "high, medium, or low",
+  "notes": "brief note about pricing rationale or why item is hard to price"
 }`,
         }],
       }),
     });
 
     const data = await response.json();
+    
+    if (data.error) {
+      console.error('Anthropic error:', data.error);
+      return res.status(500).json({ error: 'Pricing lookup failed' });
+    }
+
     const text = data.content[0].text.replace(/```json|```/g, '').trim();
     const pricing = JSON.parse(text);
     return res.status(200).json(pricing);
