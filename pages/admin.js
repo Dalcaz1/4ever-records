@@ -244,13 +244,6 @@ function CameraModal({ onCapture, onClose, label }) {
 
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
-
-  useEffect(() => {
-    if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
-  }, []);
-
-  if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
-
   const [selectedFormat, setSelectedFormat] = useState(null);
   const [discCount, setDiscCount] = useState('1');
   const [sleeveType, setSleeveType] = useState(null);
@@ -265,6 +258,12 @@ export default function Admin() {
   const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
   const [cameraSlot, setCameraSlot] = useState(null);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
+  }, []);
+
+  if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
 
   const format = FORMATS.find(f => f.label === selectedFormat);
   const effectiveSleeveType = sleeveType || (format?.sleeveOptions?.[0]) || null;
