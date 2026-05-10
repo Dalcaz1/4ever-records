@@ -425,8 +425,11 @@ export default function Home() {
             <p style={{ fontSize: '13px', color: '#555', lineHeight: 1.7, fontStyle: 'italic', maxWidth: '300px' }}>Store full of memories and vinyls. Vintage records from every era, carefully graded and ready to spin.</p>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Store Hours</div>
-            <div style={{ fontSize: '13px', color: '#555', lineHeight: 2 }}>Tuesday – Saturday<br />11:00 AM – 8:00 PM<br /><span style={{ color: '#333' }}>Closed Sun & Mon</span></div>
+            <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Shop</div>
+            <div style={{ fontSize: '13px', color: '#555', lineHeight: 2 }}>
+              <a href="/browse" style={{ color: '#555', textDecoration: 'none', display: 'block' }}>Browse All Records</a>
+              <span style={{ color: '#333', fontSize: '11px' }}>New stock added weekly</span>
+            </div>
           </div>
           <div>
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Connect</div>
@@ -439,7 +442,7 @@ export default function Home() {
         </div>
         <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '11px', color: '#333' }}>© 2025 4 Ever Memories Records. All rights reserved.</span>
-          <span style={{ fontSize: '11px', color: '#333', fontStyle: 'italic' }}>Vinyl · Memories · Music</span>
+          <span style={{ fontSize: '11px', color: '#333', fontStyle: 'italic' }}>Vinyl · Memories · Music · <a href='/admin' style={{ color: '#2a2a2a', textDecoration: 'none', fontSize: '13px' }}>⚙</a></span>
         </div>
       </footer>
 
