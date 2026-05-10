@@ -94,6 +94,34 @@ export default async function handler(req, res) {
       }
     }
 
+    // Map photo URLs based on category
+    let photo_cover = null;
+    let photo_a = null;
+    let photo_b = null;
+    let photo_c = null;
+
+    if (cat === '7" Vinyl') {
+      photo_cover = photoUrls['front'] || null;
+      photo_a = photoUrls['a'] || null;
+      photo_b = photoUrls['b'] || null;
+      photo_c = photoUrls['back'] || null; // back sleeve for picture sleeves
+    } else if (cat === '12" Vinyl') {
+      photo_cover = photoUrls['front'] || null;
+      photo_a = photoUrls['back'] || null;
+      photo_b = photoUrls['disc1a'] || null;
+      photo_c = photoUrls['disc1b'] || null;
+    } else if (cat === 'CD') {
+      photo_cover = photoUrls['front'] || null;
+      photo_a = photoUrls['back'] || null;
+      photo_b = photoUrls['disc1'] || null;
+    } else if (cat === 'Cassette') {
+      photo_cover = photoUrls['front'] || null;
+      photo_a = photoUrls['back'] || null;
+    } else if (cat === '8-Track') {
+      photo_cover = photoUrls['a'] || null;
+      photo_a = photoUrls['b'] || null;
+    }
+
     // Save record to database
     const { error: insertError } = await supabase.from('records').insert({
       sku,
@@ -107,9 +135,10 @@ export default async function handler(req, res) {
       price: parseFloat(price),
       qty: parseInt(qty) || 1,
       notes: notes || null,
-      photo_a: photoUrls['photoA'] || null,
-      photo_b: photoUrls['photoB'] || null,
-      photo_cover: photoUrls['photoCover'] || null,
+      photo_cover,
+      photo_a,
+      photo_b,
+      photo_c,
       active: true,
       created_at: new Date().toISOString(),
     });
