@@ -349,12 +349,18 @@ export default function Home() {
 
                   {/* COVER PHOTO or VINYL PLACEHOLDER */}
                   <div style={{ position: 'relative', aspectRatio: '1', overflow: 'hidden', background: '#0a0a0a' }}>
-                    {record.photo_cover ? (
-                      <img src={record.photo_cover} alt={record.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    ) : (
-                      <div style={{ padding: '20px' }}><VinylPlaceholder /></div>
-                    )}
+                    {(() => {
+                      // For 7" with no back cover (generic sleeve), show A side label
+                      const cardPhoto = record.photo_cover || 
+                        (record.category === '7" Vinyl' && !record.photo_b ? record.photo_a : null) ||
+                        record.photo_a;
+                      return cardPhoto ? (
+                        <img src={cardPhoto} alt={record.title}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      ) : (
+                        <div style={{ padding: '20px' }}><VinylPlaceholder /></div>
+                      );
+                    })()}
                     {/* CONDITION BADGE */}
                     <div style={{ position: 'absolute', top: '8px', left: '8px', background: cond.bg, border: `1px solid ${cond.text}44`, borderRadius: '6px', padding: '3px 8px' }}>
                       <span style={{ fontSize: '10px', color: cond.text, fontWeight: '700' }}>{record.condition}</span>
