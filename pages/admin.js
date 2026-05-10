@@ -1,6 +1,6 @@
 export const getServerSideProps = async () => ({ props: {} });
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const GENRES = ['Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
 const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
@@ -63,18 +63,91 @@ const EMPTY_FORM = {
   genre: 'Rock', condition: 'VG+', price: '', qty: '1', notes: '',
 };
 
+// Camera Modal Component
+function CameraModal({ onCapture, onClose, label }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+          setReady(true);
+        }
+      } catch (err) {
+        setError('Camera access denied. Please allow camera access in your browser settings.');
+      }
+    }
+    startCamera();
+    return () => {
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  function capture() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      onCapture(file);
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    }, 'image/jpeg', 0.9);
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: '#0a0a0a', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: '#c9a84c', fontSize: '14px', fontFamily: 'Georgia, serif' }}>📷 {label}</span>
+        <button onClick={() => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); onClose(); }}
+          style={{ background: 'none', border: 'none', color: '#888', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+      </div>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {error ? (
+          <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif' }}>{error}</div>
+        ) : (
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+      </div>
+      {ready && (
+        <div style={{ padding: '24px', display: 'flex', justifyContent: 'center', background: '#0a0a0a' }}>
+          <button onClick={capture}
+            style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fff', border: '4px solid #c9a84c', cursor: 'pointer', fontSize: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            📸
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [selectedFormat, setSelectedFormat] = useState(null);
   const [discCount, setDiscCount] = useState('1');
   const [photos, setPhotos] = useState({});
   const [previews, setPreviews] = useState({});
   const [form, setForm] = useState(EMPTY_FORM);
-  const [mode, setMode] = useState('entry'); // entry | review
+  const [mode, setMode] = useState('entry');
   const [scanning, setScanning] = useState(false);
   const [pricing, setPricing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [cameraSlot, setCameraSlot] = useState(null);
 
   const format = FORMATS.find(f => f.label === selectedFormat);
   const photoSlots = selectedFormat ? getPhotoSlots(selectedFormat, discCount) : [];
@@ -91,12 +164,12 @@ export default function Admin() {
     setError('');
   }
 
-  function handlePhoto(key, file) {
-    if (!file) return;
+  function handleCapture(key, file) {
     setPhotos(p => ({ ...p, [key]: file }));
     const reader = new FileReader();
     reader.onload = e => setPreviews(p => ({ ...p, [key]: e.target.result }));
     reader.readAsDataURL(file);
+    setCameraSlot(null);
   }
 
   async function handleScan() {
@@ -126,22 +199,15 @@ export default function Admin() {
 
       setForm(f => ({ ...f, ...result, cat: selectedFormat }));
       setMode('review');
-
-      // Get pricing in background
       fetch(`/api/pricing?artist=${encodeURIComponent(result.artist)}&title=${encodeURIComponent(result.title)}`)
         .then(r => r.json()).then(setPricing).catch(() => {});
 
     } catch (err) {
-      setError('Scanning failed. You can still enter details manually below.');
+      setError('Scanning failed. You can still enter details manually.');
       setForm(f => ({ ...f, cat: selectedFormat }));
       setMode('review');
     }
     setScanning(false);
-  }
-
-  function handleSkip() {
-    setForm(f => ({ ...f, cat: selectedFormat }));
-    setMode('review');
   }
 
   function handleFormChange(e) {
@@ -181,14 +247,16 @@ export default function Admin() {
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
-      <style>{`
-        * { box-sizing: border-box; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }
-        .fmt-btn { transition: all 0.15s; }
-        .fmt-btn:hover, .fmt-btn.active { border-color: #c9a84c !important; background: #1a1505 !important; }
-        .fmt-btn.active { background: #c9a84c !important; }
-        .fmt-btn.active span { color: #0d0d0d !important; }
-      `}</style>
+      <style>{`* { box-sizing: border-box; } input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }`}</style>
+
+      {/* CAMERA MODAL */}
+      {cameraSlot && (
+        <CameraModal
+          label={photoSlots.find(s => s.key === cameraSlot)?.label || 'Photo'}
+          onCapture={file => handleCapture(cameraSlot, file)}
+          onClose={() => setCameraSlot(null)}
+        />
+      )}
 
       {/* NAV */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
@@ -208,15 +276,14 @@ export default function Admin() {
 
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
 
-        {/* ENTRY MODE */}
         {mode === 'entry' && (
           <>
-            {/* FORMAT SELECTOR */}
+            {/* FORMAT */}
             <div style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Format</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {FORMATS.map(fmt => (
-                  <button key={fmt.label} className={`fmt-btn${selectedFormat === fmt.label ? ' active' : ''}`}
+                  <button key={fmt.label}
                     onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setDiscCount('1'); }}
                     style={{ padding: '8px 14px', background: selectedFormat === fmt.label ? '#c9a84c' : '#111', color: selectedFormat === fmt.label ? '#0d0d0d' : '#888', border: `1px solid ${selectedFormat === fmt.label ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: selectedFormat === fmt.label ? '700' : '400' }}>
                     {fmt.icon} {fmt.label}
@@ -225,7 +292,7 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* DISC COUNT for multi-disc formats */}
+            {/* DISC COUNT */}
             {format?.multiDisc && selectedFormat && (
               <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
@@ -240,7 +307,7 @@ export default function Admin() {
               </div>
             )}
 
-            {/* PHOTOS - all on screen at once */}
+            {/* PHOTOS */}
             {selectedFormat && (
               <>
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
@@ -248,14 +315,13 @@ export default function Admin() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                   {photoSlots.map(slot => (
-                    <label key={slot.key} htmlFor={`p-${slot.key}`}
-                      style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: '#0a0a0a', display: 'block', position: 'relative' }}>
-                      <input id={`p-${slot.key}`} type="file" accept="image/*"
-                        onChange={e => handlePhoto(slot.key, e.target.files[0])} style={{ display: 'none' }} />
+                    <button key={slot.key}
+                      onClick={() => setCameraSlot(slot.key)}
+                      style={{ border: `2px solid ${previews[slot.key] ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: '#0a0a0a', padding: 0, position: 'relative', display: 'block', width: '100%' }}>
                       {previews[slot.key] ? (
                         <>
                           <img src={previews[slot.key]} alt={slot.label} style={{ width: '100%', height: '130px', objectFit: 'cover', display: 'block' }} />
-                          <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
+                          <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
                         </>
                       ) : (
                         <div style={{ height: '130px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -263,23 +329,21 @@ export default function Admin() {
                           <span style={{ fontSize: '11px', color: '#555' }}>{slot.label}</span>
                         </div>
                       )}
-                      <div style={{ padding: '6px 10px', fontSize: '11px', color: previews[slot.key] ? '#c9a84c' : '#444', textAlign: 'center', borderTop: '1px solid #1a1a1a' }}>
-                        {previews[slot.key] ? 'Tap to retake' : 'Tap to photograph'}
+                      <div style={{ padding: '6px 10px', fontSize: '11px', color: previews[slot.key] ? '#c9a84c' : '#444', textAlign: 'center', borderTop: '1px solid #1a1a1a', fontFamily: 'Georgia, serif' }}>
+                        {previews[slot.key] ? '📷 Tap to retake' : '📷 Tap to photograph'}
                       </div>
-                    </label>
+                    </button>
                   ))}
                 </div>
 
                 {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
 
-                {/* ACTION BUTTONS */}
-                <button onClick={handleScan}
-                  disabled={photoCount === 0 || scanning}
+                <button onClick={handleScan} disabled={photoCount === 0 || scanning}
                   style={{ width: '100%', padding: '16px', background: photoCount > 0 ? '#c9a84c' : '#1a1a1a', color: photoCount > 0 ? '#0d0d0d' : '#444', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: photoCount > 0 ? 'pointer' : 'not-allowed', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '10px' }}>
-                  {scanning ? '🔍 Scanning...' : photoCount > 0 ? `🤖 Scan & Identify (${photoCount} photo${photoCount > 1 ? 's' : ''}) →` : 'Take at least 1 photo to scan'}
+                  {scanning ? '🔍 Scanning...' : photoCount > 0 ? `🤖 Scan & Identify (${photoCount} photo${photoCount > 1 ? 's' : ''}) →` : 'Tap photos above to begin'}
                 </button>
 
-                <button onClick={handleSkip}
+                <button onClick={() => { setForm(f => ({ ...f, cat: selectedFormat })); setMode('review'); }}
                   style={{ width: '100%', padding: '12px', background: 'transparent', color: '#555', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   Skip scanning — enter details manually →
                 </button>
@@ -306,7 +370,6 @@ export default function Admin() {
               </button>
             </div>
 
-            {/* PHOTO THUMBNAILS */}
             {Object.keys(previews).length > 0 && (
               <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 {Object.values(previews).map((src, i) => (
@@ -315,7 +378,6 @@ export default function Admin() {
               </div>
             )}
 
-            {/* PRICING */}
             {pricing && (
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>💰 Market Pricing</div>
@@ -333,7 +395,6 @@ export default function Admin() {
               </div>
             )}
 
-            {/* FORM */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div style={{ gridColumn: '1/-1' }}>
                 <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Artist *</label>
