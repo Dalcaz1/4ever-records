@@ -246,6 +246,27 @@ export default function Home() {
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        /* MOBILE RESPONSIVE */
+        @media (max-width: 768px) {
+          .records-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+          .hero-title { font-size: 32px !important; }
+          .nav-inner { padding: 0 16px !important; }
+          .browse-btn { display: none !important; }
+          .photo-strip { height: 120px !important; }
+          .photo-strip img { height: 120px !important; }
+          .section-padding { padding: 24px 16px 40px !important; }
+          .lightbox-grid { grid-template-columns: 1fr !important; }
+          .cart-drawer { width: 100vw !important; }
+          .footer-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .top-banner { font-size: 10px !important; padding: 6px 12px !important; }
+          .hero-section { height: 280px !important; }
+          .hero-badges { display: none !important; }
+        }
+        @media (max-width: 480px) {
+          .records-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+          .hero-title { font-size: 26px !important; }
+        }
       `}</style>
 
       {/* LIGHTBOX */}
@@ -297,11 +318,11 @@ export default function Home() {
       </nav>
 
       {/* HERO */}
-      <div style={{ position: 'relative', height: '400px', overflow: 'hidden' }}>
+      <div className="hero-section" style={{ position: 'relative', height: '400px', overflow: 'hidden' }}>
         <img src={STORE_PHOTOS[1]} alt="Store" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.3) saturate(0.7)' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(13,13,13,0.2), rgba(13,13,13,0.9))' }} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 24px' }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '54px', color: '#e8d5b0', fontWeight: '900', margin: '0 0 16px', lineHeight: 1.1, textShadow: '0 4px 24px rgba(0,0,0,0.8)' }}>
+          <h1 className="hero-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '54px', color: '#e8d5b0', fontWeight: '900', margin: '0 0 16px', lineHeight: 1.1, textShadow: '0 4px 24px rgba(0,0,0,0.8)' }}>
             Store Full of<br /><span style={{ color: '#c9a84c', fontStyle: 'italic' }}>Memories & Vinyls</span>
           </h1>
           <p style={{ fontSize: '15px', color: '#aaa', maxWidth: '480px', margin: '0 auto 24px', lineHeight: 1.7, fontStyle: 'italic' }}>
@@ -321,7 +342,7 @@ export default function Home() {
       </div>
 
       {/* LATEST RECORDS */}
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '40px 32px 60px' }}>
+      <div className="section-padding" style={{ maxWidth: '1280px', margin: '0 auto', padding: '40px 32px 60px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
           <div>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '28px', color: '#e8d5b0', margin: 0, fontWeight: '700' }}>Latest Arrivals</h2>
@@ -339,7 +360,7 @@ export default function Home() {
             No records in stock yet. Check back soon!
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '20px' }}>
+          <div className="records-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '20px' }}>
             {records.map(record => {
               const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
               return (
@@ -398,7 +419,7 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer style={{ background: '#080808', borderTop: '1px solid #1a1a1a', padding: '40px 32px' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '40px', marginBottom: '32px' }}>
+        <div className="footer-grid" style={{ maxWidth: '1280px', margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '40px', marginBottom: '32px' }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '20px', color: '#e8d5b0', fontWeight: '700', marginBottom: '8px' }}>4 Ever Memories Records</div>
             <p style={{ fontSize: '13px', color: '#555', lineHeight: 1.7, fontStyle: 'italic', maxWidth: '300px' }}>Store full of memories and vinyls. Vintage records from every era, carefully graded and ready to spin.</p>
