@@ -40,10 +40,22 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [zoom, setZoom] = useState(1);
 
+  const getPhotoLabels = (cat) => {
+    switch(cat) {
+      case '7" Vinyl':  return ['Front Sleeve', 'A Side', 'B Side', null];
+      case '12" Vinyl': return ['Front Cover', 'Back Cover', 'A Side', 'B Side'];
+      case 'CD':        return ['Front Case', 'Back Case', 'Disc', null];
+      case 'Cassette':  return ['Front', 'Back', null, null];
+      case '8-Track':   return ['Side 1', 'Side 2', null, null];
+      default:          return ['Photo 1', 'Photo 2', 'Photo 3', 'Photo 4'];
+    }
+  };
+  const labels = getPhotoLabels(record.category);
   const photos = [
-    record.photo_cover && { url: record.photo_cover, label: 'Front Cover' },
-    record.photo_b && { url: record.photo_b, label: 'Back Cover' },
-    record.photo_a && { url: record.photo_a, label: 'A Side' },
+    record.photo_cover && { url: record.photo_cover, label: labels[0] || 'Front' },
+    record.photo_a && { url: record.photo_a, label: labels[1] || 'Photo 2' },
+    record.photo_b && { url: record.photo_b, label: labels[2] || 'Photo 3' },
+    record.photo_c && { url: record.photo_c, label: labels[3] || 'Photo 4' },
   ].filter(Boolean);
 
   const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
