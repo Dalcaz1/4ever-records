@@ -66,7 +66,6 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
 
   function resetZoom() { setZoom(1); setPan({ x: 0, y: 0 }); }
   function changePhoto(i) { setActivePhoto(i); resetZoom(); }
-
   function handleMouseDown(e) {
     if (zoom <= 1) return;
     e.preventDefault();
@@ -264,10 +263,11 @@ export default function Home() {
   };
 
   return (
-    <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
+    <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0', overflowX: 'hidden' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&display=swap');
-        * { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { overflow-x: hidden; max-width: 100vw; }
         .record-card { transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; }
         .record-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.3); }
         .add-btn { transition: all 0.2s ease; }
@@ -281,7 +281,11 @@ export default function Home() {
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
         .sell-pill { animation: pulse 2.5s infinite; }
         @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.5); } 50% { box-shadow: 0 0 0 10px rgba(201,168,76,0); } }
+        .nav-desktop { display: flex; }
+        .nav-mobile { display: none; }
         @media (max-width: 768px) {
+          .nav-desktop { display: none !important; }
+          .nav-mobile { display: flex !important; }
           .records-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
           .hero-title { font-size: 32px !important; }
           .photo-strip { height: 120px !important; }
@@ -291,8 +295,8 @@ export default function Home() {
           .cart-drawer { width: 100vw !important; }
           .footer-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
           .hero-section { height: 280px !important; }
-          .sell-pill-text { display: none !important; }
           .hero-btns { flex-direction: column !important; align-items: center !important; }
+          .sell-banner { flex-direction: column !important; text-align: center !important; }
         }
         @media (max-width: 480px) {
           .records-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
@@ -305,13 +309,13 @@ export default function Home() {
       )}
 
       {/* TOP BANNER */}
-      <div style={{ background: '#c9a84c', padding: '7px 24px', textAlign: 'center' }}>
-        <span style={{ fontSize: '12px', color: '#0d0d0d', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: '700' }}>
+      <div style={{ background: '#c9a84c', padding: '7px 16px', textAlign: 'center' }}>
+        <span style={{ fontSize: '11px', color: '#0d0d0d', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700' }}>
           🎵 New stock added weekly · Graded & Guaranteed · Ships Nationwide
         </span>
       </div>
 
-      {/* NAV */}
+      {/* NAV — DESKTOP */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <svg width="40" height="40" viewBox="0 0 40 40">
@@ -325,14 +329,15 @@ export default function Home() {
             <div style={{ fontSize: '9px', letterSpacing: '3px', color: '#c9a84c', textTransform: 'uppercase' }}>Record Store</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+
+        {/* DESKTOP NAV LINKS */}
+        <div className="nav-desktop" style={{ gap: '12px', alignItems: 'center' }}>
           <a href="/browse" style={{ color: '#c9a84c', fontSize: '13px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', letterSpacing: '1px' }}>
             🎵 Browse All Records
           </a>
-          {/* SELL YOUR RECORDS PILL IN NAV */}
           <a href="/contact" className="sell-pill"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0d0d0d', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-            🎵 <span className="sell-pill-text">Sell Your Records</span>
+            🎵 Sell Your Records
           </a>
           <a href="https://www.facebook.com/4evermemoriesHarlingen" target="_blank" rel="noreferrer"
             onClick={e => { e.preventDefault(); window.open('https://www.facebook.com/4evermemoriesHarlingen', 'facebook', 'width=600,height=700,left=200,top=100'); }}
@@ -343,6 +348,21 @@ export default function Home() {
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }}
             style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 18px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             🛒 Cart
+            {totalQty > 0 && <span style={{ background: '#c9a84c', color: '#0d0d0d', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700' }}>{totalQty}</span>}
+          </button>
+        </div>
+
+        {/* MOBILE NAV LINKS */}
+        <div className="nav-mobile" style={{ gap: '8px', alignItems: 'center' }}>
+          <a href="/browse" style={{ color: '#c9a84c', fontSize: '12px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '7px 10px', fontFamily: 'Georgia, serif' }}>
+            🎵 Browse
+          </a>
+          <a href="/contact" style={{ background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0d0d0d', padding: '7px 10px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: '700' }}>
+            Sell
+          </a>
+          <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }}
+            style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🛒
             {totalQty > 0 && <span style={{ background: '#c9a84c', color: '#0d0d0d', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700' }}>{totalQty}</span>}
           </button>
         </div>
@@ -378,8 +398,8 @@ export default function Home() {
       </div>
 
       {/* SELL YOUR RECORDS BANNER */}
-      <div style={{ background: 'linear-gradient(135deg, #1a1a0a, #111)', borderTop: '1px solid #c9a84c33', borderBottom: '1px solid #c9a84c33', padding: '28px 32px' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
+      <div style={{ background: 'linear-gradient(135deg, #1a1a0a, #111)', borderTop: '1px solid #c9a84c33', borderBottom: '1px solid #c9a84c33', padding: '28px 16px' }}>
+        <div className="sell-banner" style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '52px', height: '52px', background: '#c9a84c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
               🎵
@@ -460,7 +480,7 @@ export default function Home() {
       </div>
 
       {/* FOOTER */}
-      <footer style={{ background: '#080808', borderTop: '1px solid #1a1a1a', padding: '40px 32px' }}>
+      <footer style={{ background: '#080808', borderTop: '1px solid #1a1a1a', padding: '40px 16px' }}>
         <div className="footer-grid" style={{ maxWidth: '1280px', margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '40px', marginBottom: '32px' }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '20px', color: '#e8d5b0', fontWeight: '700', marginBottom: '8px' }}>4 Ever Memories Records</div>
@@ -483,7 +503,7 @@ export default function Home() {
             <a href="tel:+19568733818" style={{ color: '#666', textDecoration: 'none', fontSize: '13px', display: 'block' }}>📱 (956) 873-3818</a>
           </div>
         </div>
-        <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
           <span style={{ fontSize: '11px', color: '#333' }}>© 2025 4 Ever Memories Records. All rights reserved.</span>
           <span style={{ fontSize: '11px', color: '#333', fontStyle: 'italic' }}>Vinyl · Memories · Music · <a href='/admin' style={{ color: '#555', textDecoration: 'none', fontSize: '16px' }}>⚙</a></span>
         </div>
