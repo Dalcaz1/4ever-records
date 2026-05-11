@@ -1,14 +1,13 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { cart, form, total } = req.body;
+  const { cart, form } = req.body;
   if (!cart || cart.length === 0) return res.status(400).json({ error: 'Cart is empty' });
 
   const accessToken = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.SQUARE_LOCATION_ID;
 
   try {
-    // STEP 1: Verify all items are still available in Supabase
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -25,7 +24,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Could not verify stock. Please try again.' });
     }
 
-    // Check each cart item against database
     const unavailable = [];
     for (const cartItem of cart) {
       const dbRecord = dbRecords.find(r => r.id === cartItem.id);
@@ -41,9 +39,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // STEP 2: Build Square payment link
+    // Calculate server-side — free shipping over $100
     const subtotal = cart.reduce((s, i) => s + (parseFloat(i.price) || i.p) * i.qty, 0);
-    const shipping = Math.round((total - subtotal) * 100) / 100;
+    const totalQty = cart.reduce((s, i) => s + i.qty, 0);
+    const freeShipping = subtotal >= 100;
+    const shipping = freeShipping ? 0 : 5 + (totalQty - 1);
+    const total = subtotal + shipping;
 
     const lineItems = cart.map(item => ({
       name: (item.title || item.t) + ' - ' + (item.artist || item.a) + ' (' + (item.condition || item.c) + ')',
@@ -56,10 +57,19 @@ export default async function handler(req, res) {
 
     if (shipping > 0) {
       lineItems.push({
-        name: 'Shipping',
+        name: 'Shipping (USPS Media Mail)',
         quantity: '1',
         base_price_money: {
           amount: Math.round(shipping * 100),
+          currency: 'USD',
+        },
+      });
+    } else {
+      lineItems.push({
+        name: 'Shipping — FREE on orders over $100',
+        quantity: '1',
+        base_price_money: {
+          amount: 0,
           currency: 'USD',
         },
       });
@@ -105,7 +115,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Payment link failed', details: data.errors });
     }
 
-    // STEP 3: Store order info in Supabase so we can mark items sold after payment
     const orderId = data.payment_link.order_id;
     await supabase.from('pending_orders').insert({
       square_order_id: orderId,
@@ -116,7 +125,7 @@ export default async function handler(req, res) {
     });
 
     const paymentUrl = data.payment_link.url;
-    return res.status(200).json({ success: true, paymentUrl });
+    return res.status(200).json({ success: true, paymentUrl, freeShipping, total });
 
   } catch (err) {
     console.error('Checkout error:', err);
