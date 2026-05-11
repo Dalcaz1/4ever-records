@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const CATEGORIES = ['All', '7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'];
 const GENRES = ['All', 'Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
@@ -16,10 +16,13 @@ function calcShipping(qty) {
   return 5 + (qty - 1) * 1;
 }
 
-// Detail Modal
 function RecordModal({ record, onClose, onAddToCart, addedId }) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
 
   const photos = [
@@ -34,6 +37,69 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
     return () => { document.body.style.overflow = ''; };
   }, []);
 
+  function resetZoom() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function changePhoto(i) {
+    setActivePhoto(i);
+    resetZoom();
+  }
+
+  function handleMouseDown(e) {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    setDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setPanStart({ x: pan.x, y: pan.y });
+  }
+
+  function handleMouseMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    setPan({
+      x: panStart.x + (e.clientX - dragStart.x),
+      y: panStart.y + (e.clientY - dragStart.y),
+    });
+  }
+
+  function handleMouseUp() {
+    setDragging(false);
+  }
+
+  function handleTouchStart(e) {
+    if (zoom <= 1) return;
+    const touch = e.touches[0];
+    setDragging(true);
+    setDragStart({ x: touch.clientX, y: touch.clientY });
+    setPanStart({ x: pan.x, y: pan.y });
+  }
+
+  function handleTouchMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    setPan({
+      x: panStart.x + (touch.clientX - dragStart.x),
+      y: panStart.y + (touch.clientY - dragStart.y),
+    });
+  }
+
+  function handleTouchEnd() {
+    setDragging(false);
+  }
+
+  function handleImageClick() {
+    if (!dragging) {
+      if (zoom > 1) {
+        resetZoom();
+      } else {
+        setZoom(2.5);
+      }
+    }
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -43,7 +109,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
         <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0', position: 'sticky', top: 0, zIndex: 10 }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>{record.title}</div>
-            <div style={{ fontSize: '13px', color: '#777', fontStyle: 'italic' }}>{record.artist} {record.year ? `· ${record.year}` : ''}</div>
+            <div style={{ fontSize: '13px', color: '#777', fontStyle: 'italic' }}>{record.artist} {record.year ? '· ' + record.year : ''}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
@@ -52,23 +118,67 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
 
           {/* LEFT: PHOTOS */}
           <div style={{ padding: '20px', borderRight: '1px solid #1a1a1a' }}>
-            <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', background: '#0a0a0a', cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }}
-              onClick={() => setZoom(z => z === 1 ? 2.5 : 1)}>
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                marginBottom: '12px',
+                background: '#0a0a0a',
+                cursor: zoom > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onClick={handleImageClick}
+            >
               {photos.length > 0 ? (
-                <img src={photos[activePhoto]?.url} alt={photos[activePhoto]?.label}
-                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', transform: `scale(${zoom})`, transition: 'transform 0.3s', transformOrigin: 'center' }} />
+                <img
+                  src={photos[activePhoto]?.url}
+                  alt={photos[activePhoto]?.label}
+                  draggable={false}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    objectFit: 'cover',
+                    display: 'block',
+                    transform: 'scale(' + zoom + ') translate(' + (pan.x / zoom) + 'px, ' + (pan.y / zoom) + 'px)',
+                    transition: dragging ? 'none' : 'transform 0.3s',
+                    transformOrigin: 'center',
+                    pointerEvents: 'none',
+                  }}
+                />
               ) : (
                 <div style={{ aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>💿</div>
               )}
-              <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#c9a84c', fontSize: '10px', padding: '4px 8px', borderRadius: '4px' }}>
-                {zoom > 1 ? '🔍 Click to zoom out' : '🔍 Click to zoom in'}
+
+              {/* HINT */}
+              <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#c9a84c', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', pointerEvents: 'none' }}>
+                {zoom > 1 ? '🔍 Drag to pan · Click to zoom out' : '🔍 Click to zoom in'}
               </div>
+
+              {/* RESET BUTTON */}
+              {zoom > 1 && (
+                <button
+                  onClick={e => { e.stopPropagation(); resetZoom(); }}
+                  style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.8)', border: '1px solid #c9a84c', color: '#c9a84c', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  ✕ Reset
+                </button>
+              )}
             </div>
+
+            {/* THUMBNAILS */}
             {photos.length > 1 && (
               <div style={{ display: 'flex', gap: '8px' }}>
                 {photos.map((photo, i) => (
-                  <div key={i} onClick={() => { setActivePhoto(i); setZoom(1); }}
-                    style={{ flex: 1, borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: `2px solid ${activePhoto === i ? '#c9a84c' : '#2a2a2a'}`, opacity: activePhoto === i ? 1 : 0.6 }}>
+                  <div key={i} onClick={() => changePhoto(i)}
+                    style={{ flex: 1, borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: '2px solid ' + (activePhoto === i ? '#c9a84c' : '#2a2a2a'), opacity: activePhoto === i ? 1 : 0.6 }}>
                     <img src={photo.url} alt={photo.label} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
                   </div>
                 ))}
@@ -96,7 +206,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
               ))}
               <div>
                 <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Condition</div>
-                <div style={{ display: 'inline-block', background: cond.bg, border: `1px solid ${cond.text}44`, borderRadius: '6px', padding: '2px 10px' }}>
+                <div style={{ display: 'inline-block', background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '6px', padding: '2px 10px' }}>
                   <span style={{ fontSize: '12px', color: cond.text, fontWeight: '700' }}>{record.condition}</span>
                 </div>
               </div>
@@ -144,6 +254,7 @@ export default function Browse() {
   useEffect(() => {
     try { localStorage.setItem('4em_cart', JSON.stringify(cart)); } catch {}
   }, [cart]);
+
   const [showCart, setShowCart] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
@@ -158,7 +269,6 @@ export default function Browse() {
   const total2 = subtotal + shipping;
   const totalPages = Math.ceil(total / LIMIT);
 
-  // Fetch records
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({
@@ -168,17 +278,16 @@ export default function Browse() {
       ...(genre !== 'All' && { genre }),
       ...(search && { search }),
     });
-    fetch(`/api/records?${params}`)
+    fetch('/api/records?' + params)
       .then(r => r.json())
       .then(d => { setRecords(d.records || []); setTotal(d.total || 0); setLoading(false); })
       .catch(() => setLoading(false));
   }, [page, category, genre, search]);
 
-  // Live search suggestions
   useEffect(() => {
     if (!searchInput || searchInput.length < 1) { setSuggestions([]); return; }
     const timeout = setTimeout(() => {
-      fetch(`/api/records?limit=6&search=${encodeURIComponent(searchInput)}`)
+      fetch('/api/records?limit=6&search=' + encodeURIComponent(searchInput))
         .then(r => r.json())
         .then(d => setSuggestions(d.records || []))
         .catch(() => setSuggestions([]));
@@ -258,7 +367,7 @@ export default function Browse() {
 
   const tabStyle = (active) => ({
     padding: '6px 14px', background: active ? '#c9a84c' : 'transparent',
-    color: active ? '#0d0d0d' : '#666', border: `1px solid ${active ? '#c9a84c' : '#2a2a2a'}`,
+    color: active ? '#0d0d0d' : '#666', border: '1px solid ' + (active ? '#c9a84c' : '#2a2a2a'),
     borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif',
     fontSize: '12px', fontWeight: active ? '700' : '400', whiteSpace: 'nowrap',
     transition: 'all 0.2s',
@@ -276,8 +385,6 @@ export default function Browse() {
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-
-        /* MOBILE RESPONSIVE */
         @media (max-width: 768px) {
           .browse-list-header { display: none !important; }
           .browse-row { grid-template-columns: 44px 1fr 70px !important; }
@@ -293,7 +400,6 @@ export default function Browse() {
         }
       `}</style>
 
-      {/* RECORD DETAIL MODAL */}
       {selectedRecord && (
         <RecordModal
           record={selectedRecord}
@@ -331,11 +437,10 @@ export default function Browse() {
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 32px 60px' }}>
 
-        {/* PAGE TITLE */}
         <div style={{ marginBottom: '28px' }}>
           <h1 className="page-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', color: '#e8d5b0', margin: '0 0 6px', fontWeight: '700' }}>Browse All Records</h1>
           <p style={{ fontSize: '13px', color: '#555', margin: 0, fontStyle: 'italic' }}>
-            {total > 0 ? `${total} item${total !== 1 ? 's' : ''} in our collection` : 'Loading collection...'}
+            {total > 0 ? total + ' item' + (total !== 1 ? 's' : '') + ' in our collection' : 'Loading collection...'}
           </p>
         </div>
 
@@ -357,8 +462,6 @@ export default function Browse() {
             <button onClick={() => { setSearchInput(''); handleSearch(''); }}
               style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '18px' }}>✕</button>
           )}
-
-          {/* SUGGESTIONS */}
           {showSuggestions && suggestions.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', marginTop: '4px', zIndex: 40, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
               {suggestions.map((r, i) => (
@@ -419,10 +522,10 @@ export default function Browse() {
           </div>
         )}
 
-        {/* RESULTS COUNT + PAGINATION INFO */}
+        {/* RESULTS COUNT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <span style={{ fontSize: '12px', color: '#555', fontStyle: 'italic' }}>
-            {loading ? 'Loading...' : total === 0 ? 'No items found' : `Showing ${page * LIMIT + 1}–${Math.min((page + 1) * LIMIT, total)} of ${total} items`}
+            {loading ? 'Loading...' : total === 0 ? 'No items found' : 'Showing ' + (page * LIMIT + 1) + '–' + Math.min((page + 1) * LIMIT, total) + ' of ' + total + ' items'}
           </span>
           {totalPages > 1 && (
             <span style={{ fontSize: '12px', color: '#555' }}>Page {page + 1} of {totalPages}</span>
@@ -431,7 +534,6 @@ export default function Browse() {
 
         {/* RECORDS LIST */}
         <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
-          {/* LIST HEADER */}
           <div className="browse-list-header" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Photo</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Title</div>
@@ -451,11 +553,10 @@ export default function Browse() {
             records.map((record, i) => {
               const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
               return (
-                <div key={record.id} className="row-item"
+                <div key={record.id}
+                  className="row-item browse-row"
                   onClick={() => setSelectedRecord(record)}
-                  className="browse-row" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-
-                  {/* THUMBNAIL */}
+                  style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                   <div style={{ width: '44px', height: '44px', borderRadius: '6px', overflow: 'hidden', background: '#0a0a0a', flexShrink: 0 }}>
                     {record.photo_cover ? (
                       <img src={record.photo_cover} alt={record.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -463,24 +564,16 @@ export default function Browse() {
                       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>💿</div>
                     )}
                   </div>
-
-                  {/* TITLE */}
                   <div>
                     <div style={{ fontSize: '13px', color: '#e8d5b0', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
                     <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{record.category} · {record.genre}</div>
                   </div>
-
-                  {/* ARTIST */}
                   <div className="browse-row-artist" style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}</div>
-
-                  {/* CONDITION */}
                   <div>
-                    <span style={{ background: cond.bg, border: `1px solid ${cond.text}44`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: cond.text, fontWeight: '700' }}>
+                    <span style={{ background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: cond.text, fontWeight: '700' }}>
                       {record.condition}
                     </span>
                   </div>
-
-                  {/* PRICE */}
                   <div style={{ textAlign: 'right', fontFamily: "'Playfair Display', Georgia, serif", fontSize: '15px', fontWeight: '700', color: '#c9a84c' }}>
                     ${parseFloat(record.price).toFixed(2)}
                   </div>
@@ -505,7 +598,7 @@ export default function Browse() {
               const pageNum = Math.min(Math.max(page - 2, 0) + i, totalPages - 1);
               return (
                 <button key={pageNum} onClick={() => setPage(pageNum)}
-                  style={{ padding: '8px 14px', background: page === pageNum ? '#c9a84c' : '#111', color: page === pageNum ? '#0d0d0d' : '#888', border: `1px solid ${page === pageNum ? '#c9a84c' : '#2a2a2a'}`, borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: page === pageNum ? '700' : '400' }}>
+                  style={{ padding: '8px 14px', background: page === pageNum ? '#c9a84c' : '#111', color: page === pageNum ? '#0d0d0d' : '#888', border: '1px solid ' + (page === pageNum ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: page === pageNum ? '700' : '400' }}>
                   {pageNum + 1}
                 </button>
               );
@@ -526,7 +619,7 @@ export default function Browse() {
       {showCart && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
           onClick={e => { if (e.target === e.currentTarget) setShowCart(false); }}>
-          <div style={{ width: '440px', maxWidth: '100vw', background: '#0f0f0f', height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #2a2a2a' }}>
+          <div className="cart-drawer" style={{ width: '440px', maxWidth: '100vw', background: '#0f0f0f', height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #2a2a2a' }}>
             <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontFamily: "'Playfair Display', Georgia, serif", color: '#e8d5b0', fontSize: '18px', fontWeight: '700' }}>
                 {checkoutStep === 'cart' && '🛒 Your Cart'}
