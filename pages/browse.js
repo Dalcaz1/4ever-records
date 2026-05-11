@@ -103,11 +103,11 @@ function EbaySimilar({ artist, title, format }) {
 function MusicPreview({ artist, title, format }) {
   const [open, setOpen] = useState(false);
 
-  const isAlbum = format && format.indexOf('12') !== -1 || format === 'CD' || format === 'Cassette' || format === '8-Track';
+  const isAlbum = (format && format.indexOf('12') !== -1) || format === 'CD' || format === 'Cassette' || format === '8-Track';
   const searchQuery = isAlbum
     ? encodeURIComponent(artist + ' ' + title + ' full album')
     : encodeURIComponent(artist + ' ' + title);
-  const embedUrl = 'https://www.youtube.com/embed?listType=search&list=' + searchQuery + '&autoplay=1&modestbranding=1&rel=0';
+  const searchUrl = 'https://www.youtube.com/results?search_query=' + searchQuery;
 
   return (
     <div style={{ marginTop: '12px' }}>
@@ -119,17 +119,20 @@ function MusicPreview({ artist, title, format }) {
       {open && (
         <div style={{ marginTop: '8px', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
           <iframe
+            key={searchQuery}
             width="100%"
-            height="200"
-            src={embedUrl}
+            height="180"
+            src={'https://www.youtube.com/embed?listType=search&list=' + searchQuery + '&autoplay=1&rel=0'}
             title={'Listen to ' + artist + ' - ' + title}
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             style={{ display: 'block' }}
           />
-          <div style={{ padding: '6px 10px', background: '#0a0a0a', fontSize: '10px', color: '#444', fontStyle: 'italic' }}>
-            🎵 {artist} — {title} · Streaming via YouTube
+          <div style={{ padding: '6px 10px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '10px', color: '#444', fontStyle: 'italic' }}>🎵 {artist} — {title}</span>
+            <a href={searchUrl} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: '10px', color: '#c9a84c', textDecoration: 'none' }}>Open in YouTube →</a>
           </div>
         </div>
       )}
