@@ -126,7 +126,7 @@ async function getEbayPrices(artist, title, format, clientId, clientSecret) {
         headers: {
           'Authorization': 'Bearer ' + accessToken,
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-          'X-EBAY-C-ENDUSERCTX': 'contextualLocation=country=US,zip=78501',
+          'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=' + (process.env.EBAY_EPN_CAMPAIGN_ID || '') + ',contextualLocation=country=US,zip=78501',
         },
       }
     );
