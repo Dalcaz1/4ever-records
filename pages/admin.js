@@ -324,8 +324,18 @@ export default function Admin() {
 
       setForm(f => ({ ...f, ...result, cat: selectedFormat }));
       await fetchNextSku(selectedFormat);
-      fetch('/api/pricing?artist=' + encodeURIComponent(result.artist) + '&title=' + encodeURIComponent(result.title))
+
+      const pricingParams = new URLSearchParams({
+        artist: result.artist || '',
+        title: result.title || '',
+        year: result.year || '',
+        country: result.country || '',
+        catalog_number: result.catalog_number || '',
+        pressing: result.pressing || '',
+      });
+      fetch('/api/pricing?' + pricingParams.toString())
         .then(r => r.json()).then(setPricing).catch(() => {});
+
       setMode('review');
 
     } catch (err) {
@@ -571,16 +581,67 @@ export default function Admin() {
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
                   💰 Market Pricing
-                  {pricing.confidence && <span style={{ marginLeft: '8px', fontSize: '10px', color: pricing.confidence === 'high' ? '#4ade80' : pricing.confidence === 'medium' ? '#fbbf24' : '#f87171', textTransform: 'none', letterSpacing: '0' }}>({pricing.confidence} confidence)</span>}
+                  {pricing.confidence && (
+                    <span style={{ marginLeft: '8px', fontSize: '10px', color: pricing.confidence === 'high' ? '#4ade80' : pricing.confidence === 'medium' ? '#fbbf24' : '#f87171', textTransform: 'none', letterSpacing: '0' }}>
+                      ({pricing.confidence} confidence)
+                    </span>
+                  )}
                 </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
-                  {pricing.discogs && <div style={{ textAlign: 'center' }}><div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Discogs</div><div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div></div>}
-                  {pricing.ebay && <div style={{ textAlign: 'center' }}><div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>eBay</div><div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay}</div></div>}
-                  {pricing.popsike && <div style={{ textAlign: 'center' }}><div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Popsike</div><div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike}</div></div>}
-                  {pricing.recommended && <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '6px' }}><div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div><div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${pricing.recommended}</div></div>}
+                  {pricing.discogs && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Discogs</div>
+                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div>
+                    </div>
+                  )}
+                  {pricing.ebay && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>eBay low</div>
+                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay.lowest || '—'}</div>
+                      <div style={{ fontSize: '10px', color: '#444' }}>avg ${pricing.ebay.avg || '—'}</div>
+                      <div style={{ fontSize: '9px', color: '#333' }}>{pricing.ebay.count} listings</div>
+                    </div>
+                  )}
+                  {pricing.popsike && (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Popsike est.</div>
+                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike}</div>
+                    </div>
+                  )}
+                  {pricing.recommended && (
+                    <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '6px' }}>
+                      <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
+                      <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${pricing.recommended}</div>
+                    </div>
+                  )}
                 </div>
-                {pricing.notes && <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>}
-                {!pricing.recommended && <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>}
+
+                {pricing.ebay && pricing.ebay.topListings && pricing.ebay.topListings.length > 0 && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Top eBay listings</div>
+                    {pricing.ebay.topListings.map(function(item, i) {
+                      return (
+                        <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #1a2a1a', textDecoration: 'none' }}>
+                          <span style={{ fontSize: '11px', color: '#666', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                          <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap' }}>${item.price} · {item.condition}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {pricing.notes && (
+                  <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
+                )}
+
+                {!pricing.recommended && (
+                  <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>
+                    ⚠️ Could not find pricing — please enter manually
+                  </div>
+                )}
+
                 {pricing.recommended && (
                   <button onClick={() => setForm(f => ({ ...f, price: pricing.recommended }))}
                     style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
