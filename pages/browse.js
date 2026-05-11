@@ -36,6 +36,68 @@ function calcShipping(qty) {
   return 5 + (qty - 1) * 1;
 }
 
+function EbaySimilar({ artist, title, format }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [memorabilia, setMemorabilia] = useState([]);
+  const [fetched, setFetched] = useState(false);
+
+  function toggle() {
+    setOpen(function(prev) { return !prev; });
+    if (!fetched) {
+      setLoading(true);
+      const params = new URLSearchParams({ artist: artist });
+      fetch('/api/ebay-similar?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          setMemorabilia(data.memorabilia || []);
+          setLoading(false);
+          setFetched(true);
+        })
+        .catch(function() { setLoading(false); });
+    }
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid #1a1a1a', marginTop: '16px', paddingTop: '12px' }}>
+      <button onClick={toggle}
+        style={{ width: '100%', padding: '10px', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#c9a84c', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>🎁 Shop {artist} collectibles & memorabilia on eBay</span>
+        <span>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: '10px' }}>
+          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#555', fontSize: '12px', fontStyle: 'italic' }}>Loading eBay listings...</div>}
+          {!loading && memorabilia.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>{artist} Posters · Books · Signed Items · Merch</div>
+              {memorabilia.map(function(item, i) {
+                return (
+                  <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid #1a1a1a', textDecoration: 'none' }}>
+                    {item.image && <img src={item.image} alt={item.title} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: '11px', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                      <div style={{ fontSize: '10px', color: '#555' }}>{item.condition}</div>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#c9a84c', fontWeight: '700', flexShrink: 0 }}>${item.price}</div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+          {!loading && memorabilia.length === 0 && fetched && (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#444', fontSize: '12px', fontStyle: 'italic' }}>No eBay listings found</div>
+          )}
+          <div style={{ fontSize: '10px', color: '#333', textAlign: 'center', marginTop: '10px', fontStyle: 'italic' }}>
+            Purchases on eBay support 4 Ever Memories
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecordModal({ record, onClose, onAddToCart, addedId }) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -176,6 +238,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
                 {addedId === record.id ? '✓ Added to Cart!' : '🛒 Add to Cart'}
               </button>
             </div>
+            <EbaySimilar artist={record.artist} title={record.title} format={record.category} />
           </div>
         </div>
       </div>
