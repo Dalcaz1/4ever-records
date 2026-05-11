@@ -1,5 +1,3 @@
-import { useEffect } from 'react';
-
 export default function Contact() {
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
@@ -8,6 +6,10 @@ export default function Contact() {
         * { box-sizing: border-box; }
         .contact-card { transition: transform 0.2s ease; }
         .contact-card:hover { transform: translateY(-4px); }
+        @media (max-width: 768px) {
+          .contact-grid { grid-template-columns: 1fr !important; }
+          .expect-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       {/* NAV */}
@@ -60,7 +62,7 @@ export default function Contact() {
         </div>
 
         {/* CONTACT CARDS */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+        <div className="contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
 
           {/* EMAIL */}
           <a href="mailto:4evermemoriesrecordstore@gmail.com" className="contact-card"
@@ -74,13 +76,13 @@ export default function Contact() {
           </a>
 
           {/* PHONE/TEXT */}
-          <a href="tel:+19562912538" className="contact-card"
+          <a href="tel:+19568733818" className="contact-card"
             style={{ background: '#111', border: '2px solid #c9a84c44', borderRadius: '16px', padding: '28px', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
             <div style={{ width: '56px', height: '56px', background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
               📱
             </div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '16px', color: '#e8d5b0', fontWeight: '700' }}>Call or Text</div>
-            <div style={{ fontSize: '18px', color: '#c9a84c', fontWeight: '700', letterSpacing: '1px' }}>(956) 291-2538</div>
+            <div style={{ fontSize: '18px', color: '#c9a84c', fontWeight: '700', letterSpacing: '1px' }}>(956) 873-3818</div>
             <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic' }}>Text or call — whichever you prefer</div>
           </a>
         </div>
@@ -90,7 +92,7 @@ export default function Contact() {
           <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700', marginBottom: '20px', textAlign: 'center' }}>
             What to Expect
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div className="expect-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             {[
               { icon: '📸', title: 'Share Photos', desc: 'Send us photos of your collection and we will take a look' },
               { icon: '💰', title: 'Get an Offer', desc: 'We will make you a fair offer based on current market values' },
