@@ -2,6 +2,16 @@ function stripAccents(str) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function getFormatSearchTerms(format) {
+  if (!format) return '';
+  if (format.indexOf('7') !== -1) return ' 45rpm 7 inch single';
+  if (format.indexOf('12') !== -1) return ' LP album 12 inch vinyl';
+  if (format === 'CD') return ' CD album';
+  if (format === 'Cassette') return ' cassette tape';
+  if (format === '8-Track') return ' 8 track';
+  return '';
+}
+
 async function getDiscogsPrice(artist, title, token, catalog_number, country, year) {
   const titleQuery = encodeURIComponent(stripAccents(title));
   const artistQuery = encodeURIComponent(stripAccents(artist));
@@ -10,7 +20,7 @@ async function getDiscogsPrice(artist, title, token, catalog_number, country, ye
     'User-Agent': '4EverMemoriesRecords/1.0',
   };
 
-  let results = [];
+  var results = [];
 
   if (catalog_number) {
     const catRes = await fetch(
@@ -22,7 +32,7 @@ async function getDiscogsPrice(artist, title, token, catalog_number, country, ye
   }
 
   if (results.length === 0) {
-    let url = 'https://api.discogs.com/database/search?title=' + titleQuery + '&artist=' + artistQuery + '&per_page=10';
+    var url = 'https://api.discogs.com/database/search?title=' + titleQuery + '&artist=' + artistQuery + '&per_page=10';
     if (country) url += '&country=' + encodeURIComponent(country);
     if (year) url += '&year=' + encodeURIComponent(year);
     const searchRes = await fetch(url, { headers });
@@ -92,7 +102,7 @@ async function getDiscogsPrice(artist, title, token, catalog_number, country, ye
   };
 }
 
-async function getEbayPrices(artist, title, clientId, clientSecret) {
+async function getEbayPrices(artist, title, format, clientId, clientSecret) {
   try {
     const credentials = Buffer.from(clientId + ':' + clientSecret).toString('base64');
     const tokenRes = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
@@ -107,7 +117,8 @@ async function getEbayPrices(artist, title, clientId, clientSecret) {
     const accessToken = tokenData.access_token;
     if (!accessToken) return null;
 
-    const query = encodeURIComponent(stripAccents(artist) + ' ' + stripAccents(title) + ' vinyl record');
+    const formatTerms = getFormatSearchTerms(format);
+    const query = encodeURIComponent(stripAccents(artist) + ' ' + stripAccents(title) + formatTerms);
 
     const searchRes = await fetch(
       'https://api.ebay.com/buy/browse/v1/item_summary/search?q=' + query + '&category_ids=176985&limit=15',
@@ -157,7 +168,7 @@ async function getEbayPrices(artist, title, clientId, clientSecret) {
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { artist, title, catalog_number, country, year, pressing } = req.query;
+  const { artist, title, catalog_number, country, year, pressing, format } = req.query;
   if (!artist || !title) return res.status(400).json({ error: 'Missing artist or title' });
 
   try {
@@ -170,6 +181,7 @@ export default async function handler(req, res) {
     );
     const ebayPromise = getEbayPrices(
       artist, title,
+      format || '',
       process.env.EBAY_CLIENT_ID,
       process.env.EBAY_CLIENT_SECRET
     );
@@ -202,7 +214,7 @@ export default async function handler(req, res) {
           max_tokens: 200,
           messages: [{
             role: 'user',
-            content: 'You are a vinyl record pricing expert. Give a recommended sell price for: Artist: "' + artist + '" Title: "' + title + '" Year: ' + (year || 'unknown') + ' Country: ' + (country || 'unknown') + ' Pressing: ' + (pressing || 'unknown') + ' Catalog: ' + (catalog_number || 'unknown') + ' Discogs lowest: ' + (discogs ? '$' + discogs : 'not found') + ' Discogs demand: ' + (discogsResult.wantHave || 'unknown') + ' eBay lowest: $' + (ebayResult ? ebayResult.lowest : 'unknown') + ' eBay avg: $' + (ebayResult ? ebayResult.avg : 'unknown') + ' eBay count: ' + (ebayResult ? ebayResult.count : 0) + ' listings. Return ONLY JSON with no markdown: {"popsike": "estimated auction price or null", "recommended": "suggested sell price"}',
+            content: 'You are a vinyl record pricing expert. Give a recommended sell price for: Artist: "' + artist + '" Title: "' + title + '" Format: ' + (format || 'unknown') + ' Year: ' + (year || 'unknown') + ' Country: ' + (country || 'unknown') + ' Pressing: ' + (pressing || 'unknown') + ' Catalog: ' + (catalog_number || 'unknown') + ' Discogs lowest: ' + (discogs ? '$' + discogs : 'not found') + ' Discogs demand: ' + (discogsResult.wantHave || 'unknown') + ' eBay lowest: $' + (ebayResult ? ebayResult.lowest : 'unknown') + ' eBay avg: $' + (ebayResult ? ebayResult.avg : 'unknown') + ' eBay count: ' + (ebayResult ? ebayResult.count : 0) + ' listings. Return ONLY JSON with no markdown: {"popsike": "estimated auction price or null", "recommended": "suggested sell price"}',
           }],
         }),
       });
