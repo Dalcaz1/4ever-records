@@ -102,38 +102,67 @@ function EbaySimilar({ artist, title, format }) {
 
 function MusicPreview({ artist, title, format }) {
   const [open, setOpen] = useState(false);
+  const [videoId, setVideoId] = useState(null);
+  const [videoTitle, setVideoTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  function toggle() {
+    setOpen(function(prev) { return !prev; });
+    if (!fetched) {
+      setLoading(true);
+      const params = new URLSearchParams({ artist: artist, title: title || '', format: format || '' });
+      fetch('/api/youtube-search?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          setVideoId(data.videoId || null);
+          setVideoTitle(data.videoTitle || '');
+          setLoading(false);
+          setFetched(true);
+        })
+        .catch(function() { setLoading(false); setFetched(true); });
+    }
+  }
 
   const isAlbum = (format && format.indexOf('12') !== -1) || format === 'CD' || format === 'Cassette' || format === '8-Track';
-  const searchQuery = isAlbum
-    ? encodeURIComponent(artist + ' ' + title + ' full album')
-    : encodeURIComponent(artist + ' ' + title);
-  const searchUrl = 'https://www.youtube.com/results?search_query=' + searchQuery;
+  const searchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(artist + ' ' + (title || ''));
 
   return (
     <div style={{ marginTop: '12px' }}>
-      <button onClick={() => setOpen(!open)}
-        style={{ width: '100%', padding: '10px', background: open ? '#1a0a0a' : '#0a0a0a', border: '1px solid ' + (open ? '#f87171' : '#2a2a2a'), borderRadius: '8px', color: open ? '#f87171' : '#e8d5b0', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <button onClick={toggle}
+        style={{ width: '100%', padding: '10px 14px', background: open ? '#1a0a0a' : '#0a0a0a', border: '1px solid ' + (open ? '#f87171' : '#2a2a2a'), borderRadius: '8px', color: open ? '#f87171' : '#e8d5b0', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>{open ? '⏹ Close player' : '▶ Preview this ' + (isAlbum ? 'album' : 'song') + ' on YouTube'}</span>
         <span style={{ fontSize: '10px', color: '#555' }}>via YouTube</span>
       </button>
       {open && (
         <div style={{ marginTop: '8px', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
-          <iframe
-            key={searchQuery}
-            width="100%"
-            height="180"
-            src={'https://www.youtube.com/embed?listType=search&list=' + searchQuery + '&autoplay=1&rel=0'}
-            title={'Listen to ' + artist + ' - ' + title}
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            style={{ display: 'block' }}
-          />
-          <div style={{ padding: '6px 10px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '10px', color: '#444', fontStyle: 'italic' }}>🎵 {artist} — {title}</span>
-            <a href={searchUrl} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: '10px', color: '#c9a84c', textDecoration: 'none' }}>Open in YouTube →</a>
-          </div>
+          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#555', fontSize: '12px', fontStyle: 'italic' }}>Finding video...</div>}
+          {!loading && videoId && (
+            <iframe
+              width="100%"
+              height="200"
+              src={'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0&modestbranding=1'}
+              title={videoTitle || artist + ' ' + title}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{ display: 'block' }}
+            />
+          )}
+          {!loading && !videoId && fetched && (
+            <div style={{ padding: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#555', marginBottom: '8px', fontStyle: 'italic' }}>No video found — search YouTube directly</div>
+              <a href={searchUrl} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: '12px', color: '#c9a84c', textDecoration: 'none' }}>Search YouTube for {artist} →</a>
+            </div>
+          )}
+          {!loading && videoId && (
+            <div style={{ padding: '6px 10px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '10px', color: '#444', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{videoTitle || artist + ' - ' + title}</span>
+              <a href={searchUrl} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: '10px', color: '#c9a84c', textDecoration: 'none', flexShrink: 0, marginLeft: '8px' }}>YouTube →</a>
+            </div>
+          )}
         </div>
       )}
     </div>
