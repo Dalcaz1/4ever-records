@@ -277,8 +277,8 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
                 {addedId === record.id ? '✓ Added to Cart!' : '🛒 Add to Cart'}
               </button>
             </div>
-            <EbaySimilar artist={record.artist} title={record.title} format={record.category} />
             <MusicPreview artist={record.artist} title={record.title} format={record.category} />
+            <EbaySimilar artist={record.artist} title={record.title} format={record.category} />
           </div>
         </div>
       </div>
