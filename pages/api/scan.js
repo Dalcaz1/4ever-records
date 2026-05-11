@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 Analyze these ${format} photos carefully. Read ALL visible text in the images including small print.
 
 YOUR TASK: Identify the following from the label(s) and/or cover(s):
-- The RECORD LABEL company (e.g. Freddie Records, VeeJay, Columbia, RCA, Discos CBS, etc.)
+- The RECORD LABEL company (e.g. Freddie Records, VeeJay, Columbia, Discos CBS, etc.)
 - The ARTIST or GROUP NAME (e.g. Los Vaqueros Del Norte, The 4 Seasons, etc.)
 - The SONG TITLE(S) — there may be a Side A and Side B title visible
 - The release YEAR if visible
@@ -42,12 +42,13 @@ IMPORTANT RULES:
 6. For Spanish language records, preserve the correct spelling including accents (é, á, ó, ú, ñ, etc.).
 7. Use your music knowledge — if you recognize a known artist or label, use that knowledge to confirm what you read.
 8. NEVER return a number like "1" or "2" as the artist name — if you cannot read the artist clearly, return an empty string.
+9. If the year is not clearly visible on the label, return an empty string for year — do NOT guess or default to any year.
 
 Return ONLY a JSON object:
 {
   "artist": "the performing artist or group name, empty string if truly unreadable",
   "title": "the main song or album title (Side A for 45s), empty string if truly unreadable",
-  "year": "4 digit release year or empty string if unknown",
+  "year": "4 digit release year only if clearly visible on the label, otherwise empty string",
   "label": "record label company name only",
   "genre": "one of: Rock, Jazz, Blues, Country, Spanish, Classical, Children's, Holiday, Pop, Religious, Comedy, Soundtracks",
   "condition": "one of: M, NM, VG+, VG, G - based on visible wear",
@@ -66,7 +67,7 @@ Return ONLY the JSON. No markdown, no explanation, no extra text.`,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{ role: 'user', content }],
       }),
