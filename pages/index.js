@@ -35,6 +35,49 @@ function VinylPlaceholder({ color = '#c9a84c' }) {
   );
 }
 
+function InstallBanner() {
+  const [show, setShow] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const dismissed = localStorage.getItem('4em_install_dismissed');
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    setIsIos(ios);
+    if (!isStandalone && !dismissed && isMobile) {
+      setShow(true);
+    }
+  }, []);
+
+  function dismiss() {
+    localStorage.setItem('4em_install_dismissed', 'true');
+    setShow(false);
+  }
+
+  if (!show) return null;
+
+  return (
+    <div style={{ background: '#1a1a0a', borderBottom: '1px solid #c9a84c44', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+        <img src="/icons/icon-192.png" alt="App icon" style={{ width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0 }} />
+        <div>
+          <div style={{ fontSize: '12px', color: '#c9a84c', fontWeight: '700', fontFamily: 'Georgia, serif' }}>Add to Home Screen</div>
+          <div style={{ fontSize: '11px', color: '#888', fontFamily: 'Georgia, serif' }}>
+            {isIos
+              ? 'Tap the Share button then "Add to Home Screen"'
+              : 'Tap the menu (⋮) then "Add to Home screen"'}
+          </div>
+        </div>
+      </div>
+      <button onClick={dismiss}
+        style={{ background: 'none', border: 'none', color: '#555', fontSize: '20px', cursor: 'pointer', padding: '4px', flexShrink: 0 }}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function PhotoLightbox({ record, onClose, onAddToCart }) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -315,7 +358,10 @@ export default function Home() {
         </span>
       </div>
 
-      {/* NAV — DESKTOP */}
+      {/* INSTALL BANNER — mobile only, hides if already installed */}
+      <InstallBanner />
+
+      {/* NAV */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <svg width="40" height="40" viewBox="0 0 40 40">
@@ -330,7 +376,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* DESKTOP NAV LINKS */}
         <div className="nav-desktop" style={{ gap: '12px', alignItems: 'center' }}>
           <a href="/browse" style={{ color: '#c9a84c', fontSize: '13px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', letterSpacing: '1px' }}>
             🎵 Browse All Records
@@ -352,7 +397,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* MOBILE NAV LINKS */}
         <div className="nav-mobile" style={{ gap: '8px', alignItems: 'center' }}>
           <a href="/browse" style={{ color: '#c9a84c', fontSize: '12px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '7px 10px', fontFamily: 'Georgia, serif' }}>
             🎵 Browse
@@ -401,9 +445,7 @@ export default function Home() {
       <div style={{ background: 'linear-gradient(135deg, #1a1a0a, #111)', borderTop: '1px solid #c9a84c33', borderBottom: '1px solid #c9a84c33', padding: '28px 16px' }}>
         <div className="sell-banner" style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '52px', height: '52px', background: '#c9a84c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
-              🎵
-            </div>
+            <div style={{ width: '52px', height: '52px', background: '#c9a84c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>🎵</div>
             <div>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>Have Records to Sell?</div>
               <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic' }}>We buy collections of all sizes — a few 45s or a whole basement full</div>
