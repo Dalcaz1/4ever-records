@@ -3,6 +3,26 @@ import { useState, useEffect, useRef } from 'react';
 const CATEGORIES = ['All', '7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'];
 const GENRES = ['All', 'Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
 
+const FORMAT_ICONS = {
+  '7" Vinyl': '🎵',
+  '12" Vinyl': '💿',
+  'CD': '📀',
+  'Cassette': '📼',
+  '8-Track': '📟',
+};
+
+const SORT_OPTIONS = [
+  { label: 'Newest', value: 'created_at', dir: 'desc' },
+  { label: 'Price: Low', value: 'price', dir: 'asc' },
+  { label: 'Price: High', value: 'price', dir: 'desc' },
+  { label: 'Artist A–Z', value: 'artist', dir: 'asc' },
+  { label: 'Artist Z–A', value: 'artist', dir: 'desc' },
+  { label: 'Title A–Z', value: 'title', dir: 'asc' },
+  { label: 'Year: Old', value: 'year', dir: 'asc' },
+  { label: 'Year: New', value: 'year', dir: 'desc' },
+  { label: 'Format', value: 'category', dir: 'asc' },
+];
+
 const COND_COLORS = {
   'M':   { bg: '#1a3a1a', text: '#4ade80' },
   'NM':  { bg: '#1a3a2a', text: '#34d399' },
@@ -37,15 +57,8 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
     return () => { document.body.style.overflow = ''; };
   }, []);
 
-  function resetZoom() {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }
-
-  function changePhoto(i) {
-    setActivePhoto(i);
-    resetZoom();
-  }
+  function resetZoom() { setZoom(1); setPan({ x: 0, y: 0 }); }
+  function changePhoto(i) { setActivePhoto(i); resetZoom(); }
 
   function handleMouseDown(e) {
     if (zoom <= 1) return;
@@ -54,20 +67,12 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
     setDragStart({ x: e.clientX, y: e.clientY });
     setPanStart({ x: pan.x, y: pan.y });
   }
-
   function handleMouseMove(e) {
     if (!dragging) return;
     e.preventDefault();
-    setPan({
-      x: panStart.x + (e.clientX - dragStart.x),
-      y: panStart.y + (e.clientY - dragStart.y),
-    });
+    setPan({ x: panStart.x + (e.clientX - dragStart.x), y: panStart.y + (e.clientY - dragStart.y) });
   }
-
-  function handleMouseUp() {
-    setDragging(false);
-  }
-
+  function handleMouseUp() { setDragging(false); }
   function handleTouchStart(e) {
     if (zoom <= 1) return;
     const touch = e.touches[0];
@@ -75,28 +80,16 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
     setDragStart({ x: touch.clientX, y: touch.clientY });
     setPanStart({ x: pan.x, y: pan.y });
   }
-
   function handleTouchMove(e) {
     if (!dragging) return;
     e.preventDefault();
     const touch = e.touches[0];
-    setPan({
-      x: panStart.x + (touch.clientX - dragStart.x),
-      y: panStart.y + (touch.clientY - dragStart.y),
-    });
+    setPan({ x: panStart.x + (touch.clientX - dragStart.x), y: panStart.y + (touch.clientY - dragStart.y) });
   }
-
-  function handleTouchEnd() {
-    setDragging(false);
-  }
-
+  function handleTouchEnd() { setDragging(false); }
   function handleImageClick() {
     if (!dragging) {
-      if (zoom > 1) {
-        resetZoom();
-      } else {
-        setZoom(2.5);
-      }
+      if (zoom > 1) { resetZoom(); } else { setZoom(2.5); }
     }
   }
 
@@ -104,8 +97,6 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '820px', maxHeight: '90vh', overflow: 'auto' }}>
-
-        {/* HEADER */}
         <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0', position: 'sticky', top: 0, zIndex: 10 }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>{record.title}</div>
@@ -113,67 +104,29 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
-
         <div className="modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
-
-          {/* LEFT: PHOTOS */}
           <div style={{ padding: '20px', borderRight: '1px solid #1a1a1a' }}>
             <div
-              style={{
-                position: 'relative',
-                borderRadius: '10px',
-                overflow: 'hidden',
-                marginBottom: '12px',
-                background: '#0a0a0a',
-                cursor: zoom > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-              }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onClick={handleImageClick}
-            >
+              style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', background: '#0a0a0a', cursor: zoom > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in', userSelect: 'none', WebkitUserSelect: 'none' }}
+              onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+              onClick={handleImageClick}>
               {photos.length > 0 ? (
-                <img
-                  src={photos[activePhoto]?.url}
-                  alt={photos[activePhoto]?.label}
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    aspectRatio: '1',
-                    objectFit: 'cover',
-                    display: 'block',
-                    transform: 'scale(' + zoom + ') translate(' + (pan.x / zoom) + 'px, ' + (pan.y / zoom) + 'px)',
-                    transition: dragging ? 'none' : 'transform 0.3s',
-                    transformOrigin: 'center',
-                    pointerEvents: 'none',
-                  }}
-                />
+                <img src={photos[activePhoto]?.url} alt={photos[activePhoto]?.label} draggable={false}
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', transform: 'scale(' + zoom + ') translate(' + (pan.x / zoom) + 'px, ' + (pan.y / zoom) + 'px)', transition: dragging ? 'none' : 'transform 0.3s', transformOrigin: 'center', pointerEvents: 'none' }} />
               ) : (
                 <div style={{ aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>💿</div>
               )}
-
-              {/* HINT */}
               <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#c9a84c', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', pointerEvents: 'none' }}>
                 {zoom > 1 ? '🔍 Drag to pan · Click to zoom out' : '🔍 Click to zoom in'}
               </div>
-
-              {/* RESET BUTTON */}
               {zoom > 1 && (
-                <button
-                  onClick={e => { e.stopPropagation(); resetZoom(); }}
+                <button onClick={e => { e.stopPropagation(); resetZoom(); }}
                   style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.8)', border: '1px solid #c9a84c', color: '#c9a84c', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   ✕ Reset
                 </button>
               )}
             </div>
-
-            {/* THUMBNAILS */}
             {photos.length > 1 && (
               <div style={{ display: 'flex', gap: '8px' }}>
                 {photos.map((photo, i) => (
@@ -185,11 +138,8 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
               </div>
             )}
           </div>
-
-          {/* RIGHT: DETAILS */}
           <div style={{ padding: '20px' }}>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontFamily: 'monospace' }}>{record.sku}</div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
               {[
                 { label: 'Artist', value: record.artist },
@@ -211,14 +161,12 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
                 </div>
               </div>
             </div>
-
             {record.notes && (
               <div style={{ marginBottom: '20px', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '12px' }}>
                 <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Notes</div>
                 <div style={{ fontSize: '12px', color: '#888', fontStyle: 'italic' }}>{record.notes}</div>
               </div>
             )}
-
             <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '16px' }}>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '36px', fontWeight: '700', color: '#c9a84c', marginBottom: '16px' }}>
                 ${parseFloat(record.price).toFixed(2)}
@@ -247,6 +195,8 @@ export default function Browse() {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState('desc');
   const [cart, setCart] = useState(() => {
     try { const s = localStorage.getItem('4em_cart'); return s ? JSON.parse(s) : []; } catch { return []; }
   });
@@ -271,18 +221,15 @@ export default function Browse() {
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams({
-      limit: LIMIT,
-      offset: page * LIMIT,
-      ...(category !== 'All' && { category }),
-      ...(genre !== 'All' && { genre }),
-      ...(search && { search }),
-    });
+    const params = new URLSearchParams({ limit: LIMIT, offset: page * LIMIT, sortBy, sortDir });
+    if (category !== 'All') params.set('category', category);
+    if (genre !== 'All') params.set('genre', genre);
+    if (search) params.set('search', search);
     fetch('/api/records?' + params)
       .then(r => r.json())
       .then(d => { setRecords(d.records || []); setTotal(d.total || 0); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [page, category, genre, search]);
+  }, [page, category, genre, search, sortBy, sortDir]);
 
   useEffect(() => {
     if (!searchInput || searchInput.length < 1) { setSuggestions([]); return; }
@@ -298,6 +245,12 @@ export default function Browse() {
   function handleFilter(type, value) {
     if (type === 'category') setCategory(value);
     if (type === 'genre') setGenre(value);
+    setPage(0);
+  }
+
+  function handleSort(option) {
+    setSortBy(option.value);
+    setSortDir(option.dir);
     setPage(0);
   }
 
@@ -335,10 +288,7 @@ export default function Browse() {
   async function handleCheckout() {
     setFormError('');
     const { name, email, address, city, state, zip } = form;
-    if (!name || !email || !address || !city || !state || !zip) {
-      setFormError('Please fill in all fields.');
-      return;
-    }
+    if (!name || !email || !address || !city || !state || !zip) { setFormError('Please fill in all fields.'); return; }
     setCheckoutStep('processing');
     try {
       const res = await fetch('/api/checkout', {
@@ -361,17 +311,17 @@ export default function Browse() {
 
   const inp = {
     width: '100%', padding: '10px 12px', border: '1px solid #2a2a2a', borderRadius: '8px',
-    fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0',
-    marginBottom: '10px',
+    fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0', marginBottom: '10px',
   };
 
   const tabStyle = (active) => ({
     padding: '6px 14px', background: active ? '#c9a84c' : 'transparent',
     color: active ? '#0d0d0d' : '#666', border: '1px solid ' + (active ? '#c9a84c' : '#2a2a2a'),
     borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif',
-    fontSize: '12px', fontWeight: active ? '700' : '400', whiteSpace: 'nowrap',
-    transition: 'all 0.2s',
+    fontSize: '12px', fontWeight: active ? '700' : '400', whiteSpace: 'nowrap', transition: 'all 0.2s',
   });
+
+  const currentSort = SORT_OPTIONS.find(o => o.value === sortBy && o.dir === sortDir) || SORT_OPTIONS[0];
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
@@ -382,6 +332,7 @@ export default function Browse() {
         .row-item { transition: background 0.15s; cursor: pointer; }
         .row-item:hover { background: rgba(201,168,76,0.06) !important; }
         .suggestion-item:hover { background: rgba(201,168,76,0.08) !important; }
+        .sort-btn:hover { border-color: #c9a84c !important; color: #c9a84c !important; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
@@ -389,27 +340,19 @@ export default function Browse() {
           .browse-list-header { display: none !important; }
           .browse-row { grid-template-columns: 44px 1fr 70px !important; }
           .browse-row-artist { display: none !important; }
-          .browse-title { font-size: 12px !important; }
-          .browse-padding { padding: 16px !important; }
+          .browse-row-format { display: none !important; }
+          .browse-row-label { display: none !important; }
           .modal-grid { grid-template-columns: 1fr !important; }
           .filter-tabs { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 4px; }
           .cart-drawer { width: 100vw !important; }
-          .nav-padding { padding: 0 16px !important; }
-          .page-title { font-size: 24px !important; }
-          .search-bar { max-width: 100% !important; }
+          .sort-bar { flex-wrap: wrap; gap: 6px !important; }
         }
       `}</style>
 
       {selectedRecord && (
-        <RecordModal
-          record={selectedRecord}
-          onClose={() => setSelectedRecord(null)}
-          onAddToCart={addToCart}
-          addedId={addedId}
-        />
+        <RecordModal record={selectedRecord} onClose={() => setSelectedRecord(null)} onAddToCart={addToCart} addedId={addedId} />
       )}
 
-      {/* NAV */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
@@ -438,26 +381,22 @@ export default function Browse() {
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 32px 60px' }}>
 
         <div style={{ marginBottom: '28px' }}>
-          <h1 className="page-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', color: '#e8d5b0', margin: '0 0 6px', fontWeight: '700' }}>Browse All Records</h1>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', color: '#e8d5b0', margin: '0 0 6px', fontWeight: '700' }}>Browse All Records</h1>
           <p style={{ fontSize: '13px', color: '#555', margin: 0, fontStyle: 'italic' }}>
             {total > 0 ? total + ' item' + (total !== 1 ? 's' : '') + ' in our collection' : 'Loading collection...'}
           </p>
         </div>
 
-        {/* SEARCH BAR */}
-        <div className="search-bar" style={{ position: 'relative', maxWidth: '600px', marginBottom: '24px' }}>
+        {/* SEARCH */}
+        <div style={{ position: 'relative', maxWidth: '600px', marginBottom: '24px' }}>
           <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '16px', pointerEvents: 'none' }}>🔍</span>
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Search by artist, title, label, genre..."
+          <input ref={searchRef} type="text" placeholder="Search by artist, title, label, genre..."
             value={searchInput}
             onChange={e => { setSearchInput(e.target.value); setShowSuggestions(true); }}
             onKeyDown={e => { if (e.key === 'Enter') handleSearch(searchInput); if (e.key === 'Escape') setShowSuggestions(false); }}
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-            style={{ width: '100%', padding: '13px 44px 13px 44px', border: '1px solid #2a2a2a', borderRadius: '10px', fontFamily: 'Georgia, serif', fontSize: '14px', background: '#111', color: '#e8d5b0' }}
-          />
+            style={{ width: '100%', padding: '13px 44px 13px 44px', border: '1px solid #2a2a2a', borderRadius: '10px', fontFamily: 'Georgia, serif', fontSize: '14px', background: '#111', color: '#e8d5b0' }} />
           {searchInput && (
             <button onClick={() => { setSearchInput(''); handleSearch(''); }}
               style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '18px' }}>✕</button>
@@ -465,8 +404,7 @@ export default function Browse() {
           {showSuggestions && suggestions.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', marginTop: '4px', zIndex: 40, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
               {suggestions.map((r, i) => (
-                <div key={r.id} className="suggestion-item"
-                  onClick={() => handleSuggestionClick(r)}
+                <div key={r.id} className="suggestion-item" onClick={() => handleSuggestionClick(r)}
                   style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: i < suggestions.length - 1 ? '1px solid #1a1a1a' : 'none' }}>
                   {r.photo_cover && <img src={r.photo_cover} alt={r.title} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />}
                   <div style={{ flex: 1 }}>
@@ -484,28 +422,40 @@ export default function Browse() {
           )}
         </div>
 
-        {/* CATEGORY TABS */}
+        {/* FORMAT TABS */}
         <div style={{ marginBottom: '12px' }}>
           <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Format</div>
           <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {CATEGORIES.map(cat => (
               <button key={cat} onClick={() => handleFilter('category', cat)} style={tabStyle(category === cat)}>
-                {cat === '7" Vinyl' && '🎵 '}{cat === '12" Vinyl' && '💿 '}{cat === 'CD' && '📀 '}
-                {cat === 'Cassette' && '📼 '}{cat === '8-Track' && '📟 '}{cat === 'All' && '🎶 '}
-                {cat}
+                {FORMAT_ICONS[cat] ? FORMAT_ICONS[cat] + ' ' : '🎶 '}{cat}
               </button>
             ))}
           </div>
         </div>
 
         {/* GENRE TABS */}
-        <div style={{ marginBottom: '28px' }}>
+        <div style={{ marginBottom: '20px' }}>
           <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Genre</div>
           <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {GENRES.map(g => (
               <button key={g} onClick={() => handleFilter('genre', g)} style={tabStyle(genre === g)}>{g}</button>
             ))}
           </div>
+        </div>
+
+        {/* SORT BAR */}
+        <div className="sort-bar" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sort by</span>
+          {SORT_OPTIONS.map(opt => {
+            const isActive = opt.value === sortBy && opt.dir === sortDir;
+            return (
+              <button key={opt.label} className="sort-btn" onClick={() => handleSort(opt)}
+                style={{ padding: '5px 12px', background: isActive ? '#1a1a0a' : 'transparent', color: isActive ? '#c9a84c' : '#555', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '16px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '11px', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                {isActive ? '✓ ' : ''}{opt.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* ACTIVE FILTERS */}
@@ -525,19 +475,18 @@ export default function Browse() {
         {/* RESULTS COUNT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <span style={{ fontSize: '12px', color: '#555', fontStyle: 'italic' }}>
-            {loading ? 'Loading...' : total === 0 ? 'No items found' : 'Showing ' + (page * LIMIT + 1) + '–' + Math.min((page + 1) * LIMIT, total) + ' of ' + total + ' items'}
+            {loading ? 'Loading...' : total === 0 ? 'No items found' : 'Showing ' + (page * LIMIT + 1) + '–' + Math.min((page + 1) * LIMIT, total) + ' of ' + total + ' items · sorted by ' + currentSort.label}
           </span>
-          {totalPages > 1 && (
-            <span style={{ fontSize: '12px', color: '#555' }}>Page {page + 1} of {totalPages}</span>
-          )}
+          {totalPages > 1 && <span style={{ fontSize: '12px', color: '#555' }}>Page {page + 1} of {totalPages}</span>}
         </div>
 
-        {/* RECORDS LIST */}
+        {/* LIST */}
         <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
-          <div className="browse-list-header" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
+          <div className="browse-list-header" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 140px 100px 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Photo</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Title</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Artist</div>
+            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Title / Artist</div>
+            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Label</div>
+            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Format</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Cond.</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase', textAlign: 'right' }}>Price</div>
           </div>
@@ -553,10 +502,9 @@ export default function Browse() {
             records.map((record, i) => {
               const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
               return (
-                <div key={record.id}
-                  className="row-item browse-row"
+                <div key={record.id} className="row-item"
                   onClick={() => setSelectedRecord(record)}
-                  style={{ display: 'grid', gridTemplateColumns: '56px 1fr 1fr 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                  style={{ display: 'grid', gridTemplateColumns: '56px 1fr 140px 100px 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                   <div style={{ width: '44px', height: '44px', borderRadius: '6px', overflow: 'hidden', background: '#0a0a0a', flexShrink: 0 }}>
                     {record.photo_cover ? (
                       <img src={record.photo_cover} alt={record.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -566,9 +514,16 @@ export default function Browse() {
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', color: '#e8d5b0', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
-                    <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{record.category} · {record.genre}</div>
+                    <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
                   </div>
-                  <div className="browse-row-artist" style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}</div>
+                  <div className="browse-row-label" style={{ fontSize: '12px', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {record.label || '—'}
+                  </div>
+                  <div className="browse-row-format">
+                    <span style={{ fontSize: '11px', color: '#888', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                      {FORMAT_ICONS[record.category] || ''} {record.category || '—'}
+                    </span>
+                  </div>
                   <div>
                     <span style={{ background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: cond.text, fontWeight: '700' }}>
                       {record.condition}
@@ -587,13 +542,9 @@ export default function Browse() {
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
             <button onClick={() => setPage(0)} disabled={page === 0}
-              style={{ padding: '8px 14px', background: page === 0 ? '#1a1a1a' : '#111', color: page === 0 ? '#333' : '#888', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === 0 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px' }}>
-              ««
-            </button>
+              style={{ padding: '8px 14px', background: page === 0 ? '#1a1a1a' : '#111', color: page === 0 ? '#333' : '#888', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === 0 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px' }}>««</button>
             <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-              style={{ padding: '8px 16px', background: page === 0 ? '#1a1a1a' : '#111', color: page === 0 ? '#333' : '#e8d5b0', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === 0 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
-              ← Previous
-            </button>
+              style={{ padding: '8px 16px', background: page === 0 ? '#1a1a1a' : '#111', color: page === 0 ? '#333' : '#e8d5b0', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === 0 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>← Previous</button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const pageNum = Math.min(Math.max(page - 2, 0) + i, totalPages - 1);
               return (
@@ -604,13 +555,9 @@ export default function Browse() {
               );
             })}
             <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}
-              style={{ padding: '8px 16px', background: page === totalPages - 1 ? '#1a1a1a' : '#111', color: page === totalPages - 1 ? '#333' : '#e8d5b0', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
-              Next →
-            </button>
+              style={{ padding: '8px 16px', background: page === totalPages - 1 ? '#1a1a1a' : '#111', color: page === totalPages - 1 ? '#333' : '#e8d5b0', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>Next →</button>
             <button onClick={() => setPage(totalPages - 1)} disabled={page === totalPages - 1}
-              style={{ padding: '8px 14px', background: page === totalPages - 1 ? '#1a1a1a' : '#111', color: page === totalPages - 1 ? '#333' : '#888', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px' }}>
-              »»
-            </button>
+              style={{ padding: '8px 14px', background: page === totalPages - 1 ? '#1a1a1a' : '#111', color: page === totalPages - 1 ? '#333' : '#888', border: '1px solid #2a2a2a', borderRadius: '8px', cursor: page === totalPages - 1 ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px' }}>»»</button>
           </div>
         )}
       </div>
