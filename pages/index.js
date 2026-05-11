@@ -132,7 +132,6 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-        {/* HEADER */}
         <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0' }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>{record.title}</div>
@@ -142,19 +141,13 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
         </div>
 
         <div className="lightbox-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
-
-          {/* LEFT: PHOTOS */}
           <div style={{ padding: '20px', borderRight: '1px solid #1a1a1a' }}>
             <div
               style={{
-                position: 'relative',
-                borderRadius: '10px',
-                overflow: 'hidden',
-                marginBottom: '12px',
-                background: '#0a0a0a',
+                position: 'relative', borderRadius: '10px', overflow: 'hidden',
+                marginBottom: '12px', background: '#0a0a0a',
                 cursor: zoom > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
+                userSelect: 'none', WebkitUserSelect: 'none',
               }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -166,43 +159,25 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
               onClick={handleImageClick}
             >
               {photos.length > 0 ? (
-                <img
-                  src={photos[activePhoto]?.url}
-                  alt={photos[activePhoto]?.label}
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    aspectRatio: '1',
-                    objectFit: 'cover',
-                    display: 'block',
+                <img src={photos[activePhoto]?.url} alt={photos[activePhoto]?.label} draggable={false}
+                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block',
                     transform: 'scale(' + zoom + ') translate(' + (pan.x / zoom) + 'px, ' + (pan.y / zoom) + 'px)',
-                    transition: dragging ? 'none' : 'transform 0.3s',
-                    transformOrigin: 'center',
-                    pointerEvents: 'none',
-                  }}
-                />
+                    transition: dragging ? 'none' : 'transform 0.3s', transformOrigin: 'center', pointerEvents: 'none' }} />
               ) : (
                 <div style={{ aspectRatio: '1' }}><VinylPlaceholder /></div>
               )}
-
-              {/* HINT */}
               {photos.length > 0 && (
                 <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#c9a84c', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', pointerEvents: 'none' }}>
                   {zoom > 1 ? '🔍 Drag to pan · Click to zoom out' : '🔍 Click to zoom in'}
                 </div>
               )}
-
-              {/* RESET BUTTON */}
               {zoom > 1 && (
-                <button
-                  onClick={e => { e.stopPropagation(); resetZoom(); }}
+                <button onClick={e => { e.stopPropagation(); resetZoom(); }}
                   style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.8)', border: '1px solid #c9a84c', color: '#c9a84c', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   ✕ Reset
                 </button>
               )}
             </div>
-
-            {/* THUMBNAILS */}
             {photos.length > 1 && (
               <div style={{ display: 'flex', gap: '8px' }}>
                 {photos.map((photo, i) => (
@@ -213,16 +188,13 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
                 ))}
               </div>
             )}
-
             {photos.length === 0 && (
               <p style={{ textAlign: 'center', color: '#444', fontSize: '12px', fontStyle: 'italic' }}>No photos available</p>
             )}
           </div>
 
-          {/* RIGHT: DETAILS */}
           <div style={{ padding: '20px' }}>
             <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>{record.sku}</div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
               {[
                 { label: 'Artist', value: record.artist },
@@ -243,14 +215,12 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
                 </div>
               </div>
             </div>
-
             {record.notes && (
               <div style={{ marginBottom: '20px', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '12px' }}>
                 <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Notes</div>
                 <div style={{ fontSize: '12px', color: '#888', fontStyle: 'italic' }}>{record.notes}</div>
               </div>
             )}
-
             <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '16px' }}>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', fontWeight: '700', color: '#c9a84c', marginBottom: '16px' }}>${parseFloat(record.price).toFixed(2)}</div>
               <button onClick={() => { onAddToCart(record); onClose(); }}
@@ -361,20 +331,19 @@ export default function Home() {
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .sell-btn { animation: pulse 2.5s infinite; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.5); } 50% { box-shadow: 0 0 0 12px rgba(201,168,76,0); } }
         @media (max-width: 768px) {
           .records-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
           .hero-title { font-size: 32px !important; }
-          .nav-inner { padding: 0 16px !important; }
-          .browse-btn { display: none !important; }
           .photo-strip { height: 120px !important; }
           .photo-strip img { height: 120px !important; }
           .section-padding { padding: 24px 16px 40px !important; }
           .lightbox-grid { grid-template-columns: 1fr !important; }
           .cart-drawer { width: 100vw !important; }
           .footer-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
-          .top-banner { font-size: 10px !important; padding: 6px 12px !important; }
           .hero-section { height: 280px !important; }
-          .hero-badges { display: none !important; }
+          .sell-btn-text { display: none !important; }
         }
         @media (max-width: 480px) {
           .records-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
@@ -383,12 +352,29 @@ export default function Home() {
       `}</style>
 
       {lightboxRecord && (
-        <PhotoLightbox
-          record={lightboxRecord}
-          onClose={() => setLightboxRecord(null)}
-          onAddToCart={addToCart}
-        />
+        <PhotoLightbox record={lightboxRecord} onClose={() => setLightboxRecord(null)} onAddToCart={addToCart} />
       )}
+
+      {/* FLOATING SELL BUTTON */}
+      <a href="/contact" className="sell-btn"
+        style={{
+          position: 'fixed', bottom: '28px', left: '28px', zIndex: 90,
+          display: 'flex', alignItems: 'center', gap: '10px',
+          background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+          color: '#0d0d0d', borderRadius: '50px', padding: '14px 20px',
+          textDecoration: 'none', fontFamily: 'Georgia, serif', fontWeight: '700',
+          fontSize: '13px', letterSpacing: '0.5px',
+          boxShadow: '0 4px 20px rgba(201,168,76,0.4)',
+        }}>
+        <div style={{
+          width: '36px', height: '36px', background: 'rgba(0,0,0,0.15)',
+          borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '18px', flexShrink: 0,
+        }}>
+          🎵
+        </div>
+        <span className="sell-btn-text" style={{ whiteSpace: 'nowrap' }}>Sell Your Records</span>
+      </a>
 
       {/* TOP BANNER */}
       <div style={{ background: '#c9a84c', padding: '7px 24px', textAlign: 'center' }}>
@@ -440,9 +426,14 @@ export default function Home() {
           <p style={{ fontSize: '15px', color: '#aaa', maxWidth: '480px', margin: '0 auto 24px', lineHeight: 1.7, fontStyle: 'italic' }}>
             Handpicked vintage records with stories to tell. Every groove a memory waiting to be rediscovered.
           </p>
-          <a href="/browse" style={{ background: '#c9a84c', color: '#0d0d0d', padding: '14px 32px', borderRadius: '10px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px' }}>
-            Browse All Records →
-          </a>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <a href="/browse" style={{ background: '#c9a84c', color: '#0d0d0d', padding: '14px 32px', borderRadius: '10px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px' }}>
+              Browse All Records →
+            </a>
+            <a href="/contact" style={{ background: 'transparent', color: '#c9a84c', padding: '14px 32px', borderRadius: '10px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px', border: '2px solid #c9a84c' }}>
+              Sell Your Records
+            </a>
+          </div>
         </div>
       </div>
 
@@ -451,6 +442,25 @@ export default function Home() {
         {STORE_PHOTOS.map((src, i) => (
           <img key={i} src={src} alt={'Store photo ' + (i + 1)} />
         ))}
+      </div>
+
+      {/* SELL YOUR RECORDS BANNER */}
+      <div style={{ background: 'linear-gradient(135deg, #1a1a0a, #111)', borderTop: '1px solid #c9a84c33', borderBottom: '1px solid #c9a84c33', padding: '28px 32px' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '52px', height: '52px', background: '#c9a84c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
+              🎵
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>Have Records to Sell?</div>
+              <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic' }}>We buy collections of all sizes — a few 45s or a whole basement full</div>
+            </div>
+          </div>
+          <a href="/contact"
+            style={{ background: '#c9a84c', color: '#0d0d0d', padding: '12px 28px', borderRadius: '10px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px', whiteSpace: 'nowrap' }}>
+            Contact Us →
+          </a>
+        </div>
       </div>
 
       {/* LATEST RECORDS */}
@@ -527,16 +537,17 @@ export default function Home() {
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Shop</div>
             <div style={{ fontSize: '13px', color: '#555', lineHeight: 2 }}>
               <a href="/browse" style={{ color: '#555', textDecoration: 'none', display: 'block' }}>Browse All Records</a>
-              <span style={{ color: '#333', fontSize: '11px' }}>New stock added weekly</span>
+              <a href="/contact" style={{ color: '#555', textDecoration: 'none', display: 'block' }}>Sell Your Records</a>
             </div>
           </div>
           <div>
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Connect</div>
             <a href="https://www.facebook.com/4evermemoriesHarlingen" target="_blank" rel="noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#666', textDecoration: 'none', fontSize: '13px' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#666', textDecoration: 'none', fontSize: '13px', marginBottom: '8px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
               Follow us on Facebook
             </a>
+            <a href="tel:+19562912538" style={{ color: '#666', textDecoration: 'none', fontSize: '13px', display: 'block' }}>📱 (956) 291-2538</a>
           </div>
         </div>
         <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
