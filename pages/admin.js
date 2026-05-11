@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 4 } });
+export const getServerSideProps = async () => ({ props: { v: 5 } });
 
 import { useState, useRef, useEffect } from 'react';
 
@@ -93,7 +93,6 @@ function getPhotoSlots(format, discCount, sleeveType) {
         { key: 'a', label: 'A Side Label', icon: '🎵' },
         { key: 'b', label: 'B Side Label', icon: '🎶' },
       ];
-
     case '12" Vinyl': {
       if (sleeveType === 'Cover Only') return [
         { key: 'front', label: 'Front Cover', icon: '🖼️' },
@@ -117,7 +116,6 @@ function getPhotoSlots(format, discCount, sleeveType) {
       }
       return slots;
     }
-
     case 'CD': {
       if (sleeveType === 'Generic Case') {
         const slots = [];
@@ -137,22 +135,17 @@ function getPhotoSlots(format, discCount, sleeveType) {
       }
       return slots;
     }
-
     case 'Cassette':
-      if (sleeveType === 'Generic Case') return [
-        { key: 'tape', label: 'Tape', icon: '📼' },
-      ];
+      if (sleeveType === 'Generic Case') return [{ key: 'tape', label: 'Tape', icon: '📼' }];
       return [
         { key: 'front', label: 'Front Case', icon: '📼' },
         { key: 'back', label: 'Back Case', icon: '📼' },
       ];
-
     case '8-Track':
       return [
         { key: 'a', label: 'Side 1', icon: '📟' },
         { key: 'b', label: 'Side 2', icon: '📟' },
       ];
-
     default:
       return [{ key: 'front', label: 'Photo', icon: '📷' }];
   }
@@ -160,6 +153,7 @@ function getPhotoSlots(format, discCount, sleeveType) {
 
 const EMPTY_FORM = {
   artist: '', title: '', year: '', label: '', cat: '',
+  catalog_number: '', country: '', pressing: '',
   genre: 'Rock', condition: 'VG+', price: '', qty: '1', notes: '',
 };
 
@@ -250,6 +244,7 @@ export default function Admin() {
   const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
   const [cameraSlot, setCameraSlot] = useState(null);
+  const [showAllEbay, setShowAllEbay] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
@@ -274,6 +269,7 @@ export default function Admin() {
     setNextSku(null);
     setSavedSku(null);
     setError('');
+    setShowAllEbay(false);
   }
 
   function handleCapture(key, file) {
@@ -300,6 +296,7 @@ export default function Admin() {
   async function handleScan() {
     setScanning(true);
     setError('');
+    setShowAllEbay(false);
     try {
       const toBase64 = file => new Promise((res, rej) => {
         const r = new FileReader();
@@ -337,7 +334,6 @@ export default function Admin() {
         .then(r => r.json()).then(setPricing).catch(() => {});
 
       setMode('review');
-
     } catch (err) {
       setError('Scanning failed. You can still enter details manually.');
       setForm(f => ({ ...f, cat: selectedFormat }));
@@ -396,6 +392,10 @@ export default function Admin() {
     fontFamily: 'Georgia, serif',
   };
 
+  const sectionLabel = {
+    fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px',
+  };
+
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
       <style>{`
@@ -410,6 +410,7 @@ export default function Admin() {
         .remove-btn { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,0.7); border: none; color: #f87171; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
         .sleeve-btn { transition: all 0.2s; }
         .sleeve-btn:hover { border-color: #c9a84c !important; }
+        .ebay-row:hover { background: #0f1f0f; }
       `}</style>
 
       {cameraSlot && (
@@ -588,29 +589,29 @@ export default function Admin() {
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
                   {pricing.discogs && (
-                    <div style={{ textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
                       <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Discogs</div>
-                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div>
+                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div>
                     </div>
                   )}
                   {pricing.ebay && (
-                    <div style={{ textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
                       <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>eBay low</div>
-                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay.lowest || '—'}</div>
+                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay.lowest || '—'}</div>
                       <div style={{ fontSize: '10px', color: '#444' }}>avg ${pricing.ebay.avg || '—'}</div>
-                      <div style={{ fontSize: '9px', color: '#333' }}>{pricing.ebay.count} listings</div>
+                      <div style={{ fontSize: '9px', color: '#333' }}>{pricing.ebay.count} found</div>
                     </div>
                   )}
                   {pricing.popsike && (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Popsike est.</div>
-                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike}</div>
+                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
+                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Popsike</div>
+                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike}</div>
                     </div>
                   )}
                   {pricing.recommended && (
-                    <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '6px' }}>
+                    <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px' }}>
                       <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
                       <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${pricing.recommended}</div>
                     </div>
@@ -619,33 +620,41 @@ export default function Admin() {
 
                 {pricing.ebay && pricing.ebay.topListings && pricing.ebay.topListings.length > 0 && (
                   <div style={{ marginBottom: '10px' }}>
-                    <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Top eBay listings</div>
-                    {pricing.ebay.topListings.map(function(item, i) {
-                      return (
-                        <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #1a2a1a', textDecoration: 'none' }}>
-                          <span style={{ fontSize: '11px', color: '#666', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                          <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap' }}>${item.price} · {item.condition}</span>
-                        </a>
-                      );
-                    })}
+                    <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
+                      eBay listings ({pricing.ebay.count} total)
+                    </div>
+                    <div style={{ maxHeight: showAllEbay ? '400px' : '120px', overflowY: showAllEbay ? 'auto' : 'hidden', borderRadius: '6px', transition: 'max-height 0.3s' }}>
+                      {pricing.ebay.topListings.map(function(item, i) {
+                        return (
+                          <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="ebay-row"
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', textDecoration: 'none', borderRadius: '4px' }}>
+                            <span style={{ fontSize: '11px', color: '#666', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                            <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                    {pricing.ebay.topListings.length >= 3 && (
+                      <button onClick={() => setShowAllEbay(!showAllEbay)}
+                        style={{ width: '100%', padding: '6px', background: 'transparent', color: '#3a6a3a', border: '1px solid #1a3a1a', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '6px' }}>
+                        {showAllEbay ? '▲ Show less' : '▼ Show all ' + pricing.ebay.count + ' listings'}
+                      </button>
+                    )}
                   </div>
                 )}
 
                 {pricing.notes && (
                   <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
                 )}
-
                 {!pricing.recommended && (
                   <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>
                     ⚠️ Could not find pricing — please enter manually
                   </div>
                 )}
-
                 {pricing.recommended && (
                   <button onClick={() => setForm(f => ({ ...f, price: pricing.recommended }))}
                     style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                    Use ${pricing.recommended}
+                    Use ${pricing.recommended} →
                   </button>
                 )}
               </div>
@@ -653,44 +662,56 @@ export default function Admin() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Artist *</label>
+                <label style={sectionLabel}>Artist *</label>
                 <input name="artist" value={form.artist} onChange={handleFormChange} placeholder="Artist name" style={inp} />
               </div>
               <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Title *</label>
+                <label style={sectionLabel}>Title *</label>
                 <input name="title" value={form.title} onChange={handleFormChange} placeholder="Album or song title" style={inp} />
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Year</label>
+                <label style={sectionLabel}>Year</label>
                 <input name="year" value={form.year} onChange={handleFormChange} placeholder="1975" style={inp} />
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Label</label>
+                <label style={sectionLabel}>Label</label>
                 <input name="label" value={form.label} onChange={handleFormChange} placeholder="Record label" style={inp} />
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Genre</label>
+                <label style={sectionLabel}>Catalog number</label>
+                <input name="catalog_number" value={form.catalog_number || ''} onChange={handleFormChange} placeholder="e.g. FR-801" style={inp} />
+              </div>
+              <div>
+                <label style={sectionLabel}>Country</label>
+                <input name="country" value={form.country || ''} onChange={handleFormChange} placeholder="e.g. USA" style={inp} />
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={sectionLabel}>Pressing</label>
+                <input name="pressing" value={form.pressing || ''} onChange={handleFormChange} placeholder="e.g. Original, Reissue, Promo" style={inp} />
+              </div>
+              <div>
+                <label style={sectionLabel}>Genre</label>
                 <select name="genre" value={form.genre} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
                   {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Condition</label>
+                <label style={sectionLabel}>Condition</label>
                 <select name="condition" value={form.condition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
                   {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Price ($) *</label>
+                <label style={sectionLabel}>Price ($) *</label>
                 <input name="price" value={form.price} onChange={handleFormChange} placeholder="0.00" type="number" style={{ ...inp, marginBottom: 0 }} />
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Qty</label>
+                <label style={sectionLabel}>Qty</label>
                 <input name="qty" value={form.qty} onChange={handleFormChange} placeholder="1" type="number" style={{ ...inp, marginBottom: 0 }} />
               </div>
               <div style={{ gridColumn: '1/-1' }}>
-                <label style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Notes</label>
-                <textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="Promo, pressing info, sleeve only, etc." rows={2}
+                <label style={sectionLabel}>Notes</label>
+                <textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="B-side, promo markings, sleeve condition, etc." rows={2}
                   style={{ ...inp, resize: 'none', marginBottom: 0 }} />
               </div>
             </div>
