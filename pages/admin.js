@@ -329,6 +329,7 @@ export default function Admin() {
         country: result.country || '',
         catalog_number: result.catalog_number || '',
         pressing: result.pressing || '',
+        format: selectedFormat || '',
       });
       fetch('/api/pricing?' + pricingParams.toString())
         .then(r => r.json()).then(setPricing).catch(() => {});
