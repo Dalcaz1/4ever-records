@@ -1,3 +1,5 @@
+export const getServerSideProps = async () => ({ props: {} });
+
 import { useState, useEffect, useRef } from 'react';
 
 const CATEGORIES = ['All', '7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'];
