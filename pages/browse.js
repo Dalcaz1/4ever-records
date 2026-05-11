@@ -735,7 +735,7 @@ export default function Browse() {
         </div>
       )}
 
-      {/* CART DRAWER */}}
+      {/* CART DRAWER */}
       {showCart && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
           onClick={e => { if (e.target === e.currentTarget) setShowCart(false); }}>
