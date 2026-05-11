@@ -341,6 +341,8 @@ export default function Browse() {
   }, [cart]);
 
   const [showCart, setShowCart] = useState(false);
+  const [showFreeShippingPopup, setShowFreeShippingPopup] = useState(false);
+  const [freeShippingShown, setFreeShippingShown] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', address: '', city: '', state: '', zip: '' });
@@ -350,7 +352,7 @@ export default function Browse() {
 
   const totalQty = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + parseFloat(i.price) * i.qty, 0);
-  const shipping = calcShipping(totalQty);
+  const shipping = subtotal >= 100 ? 0 : calcShipping(totalQty);
   const total2 = subtotal + shipping;
   const totalPages = Math.ceil(total / LIMIT);
 
@@ -412,6 +414,13 @@ export default function Browse() {
     setAddedId(record.id);
     setTimeout(() => setAddedId(null), 1500);
     setShowCart(true);
+    // Check if crossing $100 threshold for free shipping
+    const newSubtotal = prev.reduce((s, i) => s + parseFloat(i.price) * i.qty, 0) + parseFloat(record.price);
+    if (newSubtotal >= 100 && !freeShippingShown) {
+      setShowFreeShippingPopup(true);
+      setFreeShippingShown(true);
+      setTimeout(() => setShowFreeShippingPopup(false), 5000);
+    }
   }
 
   function removeFromCart(id) { setCart(prev => prev.filter(i => i.id !== id)); }
@@ -697,7 +706,22 @@ export default function Browse() {
         )}
       </div>
 
-      {/* CART DRAWER */}
+      {/* FREE SHIPPING POPUP */}
+      {showFreeShippingPopup && (
+        <div style={{ position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#0a1a0a', border: '2px solid #4ade80', borderRadius: '16px', padding: '20px 28px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.8)', minWidth: '280px' }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
+          <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif', marginBottom: '4px' }}>Congratulations!</div>
+          <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', marginBottom: '4px' }}>Your order qualifies for</div>
+          <div style={{ fontSize: '18px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif' }}>FREE SHIPPING! 🚀</div>
+          <div style={{ fontSize: '11px', color: '#555', marginTop: '8px' }}>Keep browsing — every record ships free!</div>
+          <button onClick={() => setShowFreeShippingPopup(false)}
+            style={{ marginTop: '12px', background: 'none', border: '1px solid #2a4a2a', color: '#4ade80', borderRadius: '6px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+            Got it ✓
+          </button>
+        </div>
+      )}
+
+      {/* CART DRAWER */}}
       {showCart && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
           onClick={e => { if (e.target === e.currentTarget) setShowCart(false); }}>
@@ -751,6 +775,22 @@ export default function Browse() {
                           <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '20px', color: '#c9a84c', fontWeight: '700' }}>${total2.toFixed(2)}</span>
                         </div>
                       </div>
+                      {subtotal < 100 && (
+                        <div style={{ marginTop: '12px', marginBottom: '4px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '11px', color: '#555' }}>Add ${(100 - subtotal).toFixed(2)} more for free shipping</span>
+                            <span style={{ fontSize: '11px', color: '#c9a84c' }}>${subtotal.toFixed(2)} / $100</span>
+                          </div>
+                          <div style={{ background: '#1a1a1a', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                            <div style={{ background: '#c9a84c', height: '100%', width: Math.min((subtotal / 100) * 100, 100) + '%', borderRadius: '4px', transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                      )}
+                      {subtotal >= 100 && (
+                        <div style={{ marginTop: '12px', background: '#0a1a0a', border: '1px solid #4ade80', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
+                          <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: '700' }}>🎉 Free shipping unlocked!</span>
+                        </div>
+                      )}
                       <button onClick={() => setCheckoutStep('info')}
                         style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
                         Proceed to Checkout →
