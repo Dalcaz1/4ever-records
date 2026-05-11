@@ -22,40 +22,36 @@ export default async function handler(req, res) {
       })),
       {
         type: 'text',
-        text: `You are an expert music collector and vinyl record identifier with decades of experience reading record labels, album covers, CD cases, and cassette inserts.
+        text: `You are an expert music collector and vinyl record identifier with decades of experience reading record labels, album covers, CD cases, and cassette inserts. You are fluent in English, Spanish, and other languages commonly found on records.
 
-Analyze these ${format} photos carefully and extract the correct artist and title information.
+Analyze these ${format} photos carefully. Read ALL visible text in the images including small print.
 
-USE ALL OF THESE CLUES TOGETHER to identify the artist vs title:
+YOUR TASK: Identify the following from the label(s) and/or cover(s):
+- The RECORD LABEL company (e.g. Freddie Records, VeeJay, Columbia, RCA, Discos CBS, etc.)
+- The ARTIST or GROUP NAME (e.g. Los Vaqueros Del Norte, The 4 Seasons, etc.)
+- The SONG TITLE(S) — there may be a Side A and Side B title visible
+- The release YEAR if visible
+- The CATALOG NUMBER (e.g. FR-801, VJ 465) — put this in notes
 
-1. KNOWN ARTISTS: If you recognize a known musical act (band, singer, orchestra, composer), that is the artist regardless of text size or position. Examples: "The 4 Seasons", "Elvis Presley", "Frank Sinatra", "The Beatles", "Miles Davis".
+IMPORTANT RULES:
+1. The RECORD LABEL name printed on the label (Freddie, VeeJay, Columbia, Motown, etc.) is NOT the artist — it is the company that released the record. Put it in the "label" field.
+2. The ARTIST is the performer or group. On Spanish records this is often a band like "Los Vaqueros Del Norte", "Conjunto Bernal", "Ramon Ayala", etc.
+3. The SONG TITLE is what the record is called. On a 45, there is a Side A title and a Side B title — use the A side as the main title and put the B side in notes.
+4. Catalog numbers like "FR-801", "VJ-465", "45 RPM", "Stereo", "ASCAP" are NOT artist names — put them in notes.
+5. If you see both sides of the record, read both labels carefully.
+6. For Spanish language records, preserve the correct spelling including accents (é, á, ó, ú, ñ, etc.).
+7. Use your music knowledge — if you recognize a known artist or label, use that knowledge to confirm what you read.
+8. NEVER return a number like "1" or "2" as the artist name — if you cannot read the artist clearly, return an empty string.
 
-2. GRAMMAR CLUES: Look for words like "by", "performed by", "featuring", "presents", "with" — these introduce the artist name.
-
-3. FORMAT CLUES:
-   - 7" singles (45s): Usually show song title prominently and artist below or alongside. But some labels (especially older ones) put the artist first.
-   - 12" albums: Usually artist name is prominent, album title below.
-   - CDs and cassettes: Usually artist on top, album title below.
-
-4. LABEL CLUES: Record label names (VeeJay, Columbia, RCA, Capitol, Decca, Atlantic, Motown, Mercury, Chess, Sun, Stax, Blue Note, etc.) are NEVER the artist.
-
-5. CATALOG NUMBERS: Alphanumeric codes like "VJ 465", "62-2649", "ASCAP-2:25" are catalog/matrix numbers, NOT artist or title.
-
-6. B-SIDE INFO: Text like "From Album X" or a secondary song name is supplemental info, not the artist.
-
-7. WHEN UNCERTAIN: Use your knowledge of music history. If you see "Big Girl's Don't Cry" and "The 4 Seasons" — you know The 4 Seasons is the famous group that recorded that song. Use that knowledge.
-
-8. CONDITION ASSESSMENT: Look at the physical state of the record/sleeve for scratches, scuffs, writing, splits, or wear to determine condition grade.
-
-Return ONLY a JSON object with these exact fields:
+Return ONLY a JSON object:
 {
-  "artist": "the performing artist or group name",
-  "title": "the song or album title",
+  "artist": "the performing artist or group name, empty string if truly unreadable",
+  "title": "the main song or album title (Side A for 45s), empty string if truly unreadable",
   "year": "4 digit release year or empty string if unknown",
-  "label": "record label company name only, not catalog number",
+  "label": "record label company name only",
   "genre": "one of: Rock, Jazz, Blues, Country, Spanish, Classical, Children's, Holiday, Pop, Religious, Comedy, Soundtracks",
   "condition": "one of: M, NM, VG+, VG, G - based on visible wear",
-  "notes": "catalog number, B-side title, pressing info, promo markings, or other useful details"
+  "notes": "B-side title, catalog number, pressing info, promo markings, or other useful details"
 }
 
 Return ONLY the JSON. No markdown, no explanation, no extra text.`,
@@ -70,7 +66,7 @@ Return ONLY the JSON. No markdown, no explanation, no extra text.`,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
         messages: [{ role: 'user', content }],
       }),
