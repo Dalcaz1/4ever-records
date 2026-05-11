@@ -142,6 +142,43 @@ function EbaySimilar({ artist, title, format }) {
   );
 }
 
+function MusicPreview({ artist, title, format }) {
+  const [open, setOpen] = useState(false);
+
+  const isAlbum = format && format.indexOf('12') !== -1 || format === 'CD' || format === 'Cassette' || format === '8-Track';
+  const searchQuery = isAlbum
+    ? encodeURIComponent(artist + ' ' + title + ' full album')
+    : encodeURIComponent(artist + ' ' + title);
+  const embedUrl = 'https://www.youtube.com/embed?listType=search&list=' + searchQuery + '&autoplay=1&modestbranding=1&rel=0';
+
+  return (
+    <div style={{ marginTop: '12px' }}>
+      <button onClick={() => setOpen(!open)}
+        style={{ width: '100%', padding: '10px', background: open ? '#1a0a0a' : '#0a0a0a', border: '1px solid ' + (open ? '#f87171' : '#2a2a2a'), borderRadius: '8px', color: open ? '#f87171' : '#e8d5b0', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>{open ? '⏹ Close player' : '▶ Preview this ' + (isAlbum ? 'album' : 'song') + ' on YouTube'}</span>
+        <span style={{ fontSize: '10px', color: '#555' }}>via YouTube</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: '8px', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
+          <iframe
+            width="100%"
+            height="200"
+            src={embedUrl}
+            title={'Listen to ' + artist + ' - ' + title}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ display: 'block' }}
+          />
+          <div style={{ padding: '6px 10px', background: '#0a0a0a', fontSize: '10px', color: '#444', fontStyle: 'italic' }}>
+            🎵 {artist} — {title} · Streaming via YouTube
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PhotoLightbox({ record, onClose, onAddToCart }) {
   const [activePhoto, setActivePhoto] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -285,6 +322,7 @@ function PhotoLightbox({ record, onClose, onAddToCart }) {
                 🛒 Add to Cart
               </button>
             </div>
+            <MusicPreview artist={record.artist} title={record.title} format={record.category} />
             <EbaySimilar artist={record.artist} title={record.title} format={record.category} />
           </div>
         </div>
