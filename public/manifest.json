@@ -1,1 +1,17 @@
-
+{
+  "name": "4 Ever Memories Record Store",
+  "short_name": "4Ever Memories",
+  "description": "Browse and buy vinyl records, CDs, cassettes and more from 4 Ever Memories Record Store.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#c9a84c",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "/icons/icon-167.png", "sizes": "167x167", "type": "image/png" },
+    { "src": "/icons/icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
