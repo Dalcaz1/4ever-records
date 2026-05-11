@@ -7,8 +7,8 @@ export default async function handler(req, res) {
   try {
     const isAlbum = (format && format.indexOf('12') !== -1) || format === 'CD' || format === 'Cassette' || format === '8-Track';
     const query = isAlbum
-      ? artist + ' ' + title + ' full album'
-      : artist + ' ' + title + ' official';
+      ? '"' + artist + '" "' + title + '" full album'
+      : '"' + artist + '" "' + title + '"';
 
     const searchUrl = 'https://www.googleapis.com/youtube/v3/search?part=snippet&q=' + encodeURIComponent(query) + '&type=video&maxResults=1&key=' + process.env.YOUTUBE_API_KEY;
 
