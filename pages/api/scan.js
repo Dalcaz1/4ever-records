@@ -6,20 +6,40 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const { images, format } = req.body;
-  if (!images || images.length === 0) {
-    return res.status(400).json({ error: 'No images provided' });
-  }
-
-  try {
-    const content = [
-      ...images.map(img => ({
-        type: 'image',
-        source: { type: 'base64', media_type: 'image/jpeg', data: img },
-      })),
-      {
-        type: 'text',
-        text: 'You are an expert music collector and vinyl record identifier with decades of experience reading record labels, album covers, CD cases, and cassette inserts. You are fluent in English, Spanish, and other languages commonly found on records.\n\nAnalyze these ' + format + ' photos carefully. Read ALL visible text in the images including small print.\n\nYOUR TASK: Identify the following from the labels and/or covers:\n- The RECORD LABEL company (e.g. Freddie Records, VeeJay, Columbia, Discos CBS, etc.)\n- The ARTIST or GROUP NAME (e.g. Los Vaqueros Del Norte, The 4 Seasons, etc.)\n- The SONG TITLE(S) — there may be a Side A and Side B title visible\n- The release YEAR if visible\n- The CATALOG NUMBER (e.g. FR-801, V
+const buildPrompt = (format) => {
+  const lines = [
+    'You are an expert music collector and vinyl record identifier with decades of experience.',
+    'You are fluent in English, Spanish, and other languages commonly found on records.',
+    '',
+    'Analyze these ' + format + ' photos carefully. Read ALL visible text including small print.',
+    '',
+    'IDENTIFY FROM THE LABEL OR COVER:',
+    '- RECORD LABEL company (e.g. Freddie Records, VeeJay, Columbia)',
+    '- ARTIST or GROUP NAME (e.g. Los Vaqueros Del Norte, The 4 Seasons)',
+    '- SONG TITLE - use Side A as main title for 45s',
+    '- YEAR if visible on label',
+    '- CATALOG NUMBER (e.g. FR-801, VJ 465) - critical for identifying the pressing',
+    '- COUNTRY OF MANUFACTURE if visible (e.g. Made in USA, Hecho en Mexico, Made in Japan)',
+    '- PRESSING DETAILS (Original, Reissue, Promo, Stereo, Mono, Colored Vinyl, Picture Disc)',
+    '',
+    'RULES:',
+    '1. The label company name (Freddie, VeeJay, Columbia, Motown) is NOT the artist. Put it in the label field.',
+    '2. The ARTIST is the performer or group.',
+    '3. Catalog numbers like FR-801 go in catalog_number field AND notes.',
+    '4. Read both sides if visible.',
+    '5. Preserve Spanish accents (e, a, o, u, n with accents).',
+    '6. Use your music knowledge to confirm what you read.',
+    '7. Never return a number like 1 or 2 as the artist name.',
+    '8. If year is not clearly visible return empty string - do not guess.',
+    '9. For country look for Made in USA, Printed in UK, Hecho en Mexico etc.',
+    '10. For pressing look for Promo, Not For Sale, DJ Copy, Stereo, Mono, Re-issue.',
+    '',
+    'Return ONLY valid JSON with no markdown and no extra text.',
+    'Use exactly these keys:',
+    'artist - performing artist or group, empty string if unreadable',
+    'title - main song or album title, empty string if unreadable',
+    'year - 4 digit year if clearly visible, otherwise empty string',
+    'label - record label company name only',
+    'catalog_number - exact catalog number as printed, empty string if not visible',
+    'country - country of manufacture if visible, otherwise empty string',
+    'pressing - Origina
