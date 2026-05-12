@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 5 } });
+export const getServerSideProps = async () => ({ props: { v: 6 } });
 
 import { useState, useRef, useEffect } from 'react';
 
@@ -228,6 +228,19 @@ function CameraModal({ onCapture, onClose, label }) {
   );
 }
 
+function getDemandLabel(wantHave) {
+  if (!wantHave) return null;
+  const parts = wantHave.split('/');
+  if (parts.length !== 2) return null;
+  const want = parseInt(parts[0].trim().replace(/,/g, ''));
+  const have = parseInt(parts[1].trim().replace(/,/g, ''));
+  if (!want || !have) return null;
+  const ratio = want / have;
+  if (ratio >= 3) return { label: 'High demand', color: '#4ade80', bg: '#0f2a0f', tip: 'Price higher — collectors are chasing this' };
+  if (ratio >= 1) return { label: 'Moderate demand', color: '#fbbf24', bg: '#2a2a0a', tip: 'Fair market pricing' };
+  return { label: 'Low demand', color: '#f87171', bg: '#2a0f0f', tip: 'Price competitively to sell faster' };
+}
+
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState(null);
@@ -396,6 +409,8 @@ export default function Admin() {
   const sectionLabel = {
     fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px',
   };
+
+  const demand = pricing ? getDemandLabel(pricing.wantHave) : null;
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
@@ -590,6 +605,22 @@ export default function Admin() {
                   )}
                 </div>
 
+                {/* DEMAND INDICATOR */}
+                {demand && (
+                  <div style={{ background: demand.bg, border: '1px solid ' + demand.color + '44', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: demand.color, fontWeight: '700', marginBottom: '2px' }}>
+                        {demand.label === 'High demand' ? '🔥' : demand.label === 'Moderate demand' ? '📊' : '📉'} {demand.label}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>{demand.tip}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
+                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Discogs community</div>
+                      <div style={{ fontSize: '11px', color: '#888' }}>{pricing.wantHave}</div>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
                   {pricing.discogs && (
                     <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
@@ -614,7 +645,7 @@ export default function Admin() {
                   {pricing.recommended && (
                     <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px' }}>
                       <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
-                      <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${pricing.recommended}</div>
+                      <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${typeof pricing.recommended === 'string' ? pricing.recommended.replace('$','') : pricing.recommended}</div>
                     </div>
                   )}
                 </div>
@@ -653,9 +684,9 @@ export default function Admin() {
                   </div>
                 )}
                 {pricing.recommended && (
-                  <button onClick={() => setForm(f => ({ ...f, price: pricing.recommended }))}
+                  <button onClick={() => setForm(f => ({ ...f, price: typeof pricing.recommended === 'string' ? pricing.recommended.replace('$','') : pricing.recommended }))}
                     style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                    Use ${pricing.recommended} →
+                    {'Use $' + (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$','') : pricing.recommended) + ' →'}
                   </button>
                 )}
               </div>
