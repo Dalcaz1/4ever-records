@@ -343,8 +343,6 @@ export default function Browse() {
   const [showCart, setShowCart] = useState(false);
   const [showFreeShippingPopup, setShowFreeShippingPopup] = useState(false);
   const [freeShippingShown, setFreeShippingShown] = useState(false);
-  const [showFreeShippingPopup, setShowFreeShippingPopup] = useState(false);
-  const [freeShippingShown, setFreeShippingShown] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', address: '', city: '', state: '', zip: '' });
@@ -707,21 +705,6 @@ export default function Browse() {
           </div>
         )}
       </div>
-
-      {/* FREE SHIPPING POPUP */}
-      {showFreeShippingPopup && (
-        <div style={{ position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#0a1a0a', border: '2px solid #4ade80', borderRadius: '16px', padding: '20px 28px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.8)', minWidth: '280px' }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
-          <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif', marginBottom: '4px' }}>Congratulations!</div>
-          <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', marginBottom: '4px' }}>Your order qualifies for</div>
-          <div style={{ fontSize: '18px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif' }}>FREE SHIPPING! 🚀</div>
-          <div style={{ fontSize: '11px', color: '#555', marginTop: '8px' }}>Keep browsing — every record ships free!</div>
-          <button onClick={() => setShowFreeShippingPopup(false)}
-            style={{ marginTop: '12px', background: 'none', border: '1px solid #2a4a2a', color: '#4ade80', borderRadius: '6px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-            Got it ✓
-          </button>
-        </div>
-      )}
 
       {/* FREE SHIPPING POPUP */}
       {showFreeShippingPopup && (
