@@ -436,6 +436,17 @@ export default function Browse() {
     try { localStorage.setItem('4em_cart', JSON.stringify(cart)); } catch {}
   }, [cart]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('search');
+      if (q) {
+        setSearch(q);
+        setSearchInput(q);
+      }
+    }
+  }, []);
+
   const [showCart, setShowCart] = useState(false);
   const [showFreeShippingPopup, setShowFreeShippingPopup] = useState(false);
   const [freeShippingShown, setFreeShippingShown] = useState(false);
