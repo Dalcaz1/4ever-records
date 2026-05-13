@@ -462,7 +462,6 @@ export default function Browse() {
   const [freeShippingShown, setFreeShippingShown] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
-  const [selectedRecord, setSelectedRecord] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', address: '', city: '', state: '', zip: '' });
   const [formError, setFormError] = useState('');
   const searchRef = useRef(null);
