@@ -446,16 +446,17 @@ export default function Browse() {
       }
       const recordId = params.get('record');
       if (recordId) {
-        fetch('/api/records?limit=500&id=' + recordId)
-          .then(r => r.json())
-          .then(data => {
-            const records = data.records || [];
-            const found = records.find(r => String(r.id) === String(recordId));
-            if (found) {
-              setTimeout(() => setSelectedRecord(found), 1500);
-            }
-          })
-          .catch(() => {});
+        setTimeout(() => {
+          fetch('/api/records?limit=100&id=' + recordId)
+            .then(r => r.json())
+            .then(data => {
+              const records = data.records || [];
+              if (records.length > 0) {
+                setSelectedRecord(records[0]);
+              }
+            })
+            .catch(() => {});
+        }, 800);
       }
     }
   }, []);
