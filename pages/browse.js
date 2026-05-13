@@ -72,14 +72,14 @@ function EbaySimilar({ artist, title, format }) {
           {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#555', fontSize: '12px', fontStyle: 'italic' }}>Loading eBay listings...</div>}
           {!loading && memorabilia.length > 0 && (
             <div>
-              <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>{artist} Posters · Books · Signed Items · Merch</div>
+              <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>{artist} Posters · Books · Signed Items · Merch</div>
               {memorabilia.map(function(item, i) {
                 return (
                   <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid #1a1a1a', textDecoration: 'none' }}>
                     {item.image && <img src={item.image} alt={item.title} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
                     <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <div style={{ fontSize: '11px', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                      <div style={{ fontSize: '11px', color: '#ddd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                       <div style={{ fontSize: '10px', color: '#555' }}>{item.condition}</div>
                     </div>
                     <div style={{ fontSize: '13px', color: '#c9a84c', fontWeight: '700', flexShrink: 0 }}>${item.price}</div>
@@ -132,7 +132,7 @@ function MusicPreview({ artist, title, format }) {
       <button onClick={toggle}
         style={{ width: '100%', padding: '10px 14px', background: open ? '#1a0a0a' : '#0a0a0a', border: '1px solid ' + (open ? '#f87171' : '#2a2a2a'), borderRadius: '8px', color: open ? '#f87171' : '#e8d5b0', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>{open ? '⏹ Close player' : '▶ Preview this ' + (isAlbum ? 'album' : 'song') + ' on YouTube'}</span>
-        <span style={{ fontSize: '10px', color: '#555' }}>via YouTube</span>
+        <span style={{ fontSize: '10px', color: '#aaa' }}>via YouTube</span>
       </button>
       {open && (
         <div style={{ marginTop: '8px', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
@@ -233,7 +233,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
         <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0', position: 'sticky', top: 0, zIndex: 10 }}>
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>{record.title}</div>
-            <div style={{ fontSize: '13px', color: '#777', fontStyle: 'italic' }}>{record.artist} {record.year ? '· ' + record.year : ''}</div>
+            <div style={{ fontSize: '13px', color: '#ccc', fontStyle: 'italic' }}>{record.artist} {record.year ? '· ' + record.year : ''}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
@@ -272,7 +272,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
             )}
           </div>
           <div style={{ padding: '20px' }}>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontFamily: 'monospace' }}>{record.sku}</div>
+            <div style={{ fontSize: '10px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontFamily: 'monospace' }}>{record.sku}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
               {[
                 { label: 'Artist', value: record.artist },
@@ -283,12 +283,12 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
                 { label: 'Qty Available', value: record.qty },
               ].map(item => item.value && (
                 <div key={item.label}>
-                  <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>{item.label}</div>
+                  <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>{item.label}</div>
                   <div style={{ fontSize: '13px', color: '#e8d5b0' }}>{item.value}</div>
                 </div>
               ))}
               <div>
-                <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Condition</div>
+                <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Condition</div>
                 <div style={{ display: 'inline-block', background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '6px', padding: '2px 10px' }}>
                   <span style={{ fontSize: '12px', color: cond.text, fontWeight: '700' }}>{record.condition}</span>
                 </div>
@@ -296,8 +296,8 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
             </div>
             {record.notes && (
               <div style={{ marginBottom: '20px', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '12px' }}>
-                <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Notes</div>
-                <div style={{ fontSize: '12px', color: '#888', fontStyle: 'italic' }}>{record.notes}</div>
+                <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Notes</div>
+                <div style={{ fontSize: '12px', color: '#ccc', fontStyle: 'italic' }}>{record.notes}</div>
               </div>
             )}
             <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '16px' }}>
@@ -315,6 +315,102 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function RecordRequestButton() {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', phone: '', request: '' });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit() {
+    if (!form.name || !form.request) { setError('Please fill in your name and what you are looking for.'); return; }
+    setSending(true);
+    setError('');
+    try {
+      const res = await fetch('/api/record-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSent(true);
+        setTimeout(() => { setOpen(false); setSent(false); setForm({ name: '', email: '', phone: '', request: '' }); }, 3000);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } catch {
+      setError('Something went wrong. Please try again.');
+    }
+    setSending(false);
+  }
+
+  const inp = {
+    width: '100%', padding: '10px 12px', border: '1px solid #2a2a2a', borderRadius: '8px',
+    fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0',
+    marginBottom: '10px', outline: 'none',
+  };
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)}
+        style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 90, background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0d0d0d', border: 'none', borderRadius: '50px', padding: '12px 20px', fontSize: '13px', fontFamily: 'Georgia, serif', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 20px rgba(201,168,76,0.4)', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+        🎵 Looking for a record?
+      </button>
+
+      {open && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
+          <div style={{ background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden' }}>
+            <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '16px', color: '#e8d5b0', fontWeight: '700', fontFamily: 'Georgia, serif' }}>🎵 Looking for something?</div>
+                <div style={{ fontSize: '12px', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>Tell us what you need — we'll find it for you</div>
+              </div>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: '#555', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              {sent ? (
+                <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎶</div>
+                  <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif', marginBottom: '6px' }}>Request sent!</div>
+                  <div style={{ fontSize: '13px', color: '#ccc', fontStyle: 'italic' }}>{"We'll be in touch soon."}</div>
+                </div>
+              ) : (
+                <>
+                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Your Name *</label>
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" style={inp} />
+
+                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Email</label>
+                  <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={inp} />
+
+                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Phone</label>
+                  <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="(956) 555-0000" style={inp} />
+
+                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>What are you looking for? *</label>
+                  <textarea value={form.request} onChange={e => setForm(f => ({ ...f, request: e.target.value }))}
+                    placeholder="e.g. Elvis Presley 45rpm on RCA Victor, Selena anything, Beatles Abbey Road original pressing..."
+                    rows={4} style={{ ...inp, resize: 'none', marginBottom: '12px' }} />
+
+                  {error && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{error}</div>}
+
+                  <button onClick={handleSubmit} disabled={sending}
+                    style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '8px' }}>
+                    {sending ? 'Sending...' : '🎵 Send Request →'}
+                  </button>
+                  <div style={{ fontSize: '11px', color: '#444', textAlign: 'center', fontStyle: 'italic' }}>
+                    {"We'll reply by email or phone as soon as possible"}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -460,7 +556,7 @@ export default function Browse() {
 
   const tabStyle = (active) => ({
     padding: '6px 14px', background: active ? '#c9a84c' : 'transparent',
-    color: active ? '#0d0d0d' : '#666', border: '1px solid ' + (active ? '#c9a84c' : '#2a2a2a'),
+    color: active ? '#0d0d0d' : '#ddd', border: '1px solid ' + (active ? '#c9a84c' : '#2a2a2a'),
     borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif',
     fontSize: '12px', fontWeight: active ? '700' : '400', whiteSpace: 'nowrap', transition: 'all 0.2s',
   });
@@ -526,7 +622,7 @@ export default function Browse() {
 
         <div style={{ marginBottom: '28px' }}>
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '32px', color: '#e8d5b0', margin: '0 0 6px', fontWeight: '700' }}>Browse All Records</h1>
-          <p style={{ fontSize: '13px', color: '#555', margin: 0, fontStyle: 'italic' }}>
+          <p style={{ fontSize: '13px', color: '#aaa', margin: 0, fontStyle: 'italic' }}>
             {total > 0 ? total + ' item' + (total !== 1 ? 's' : '') + ' in our collection' : 'Loading collection...'}
           </p>
         </div>
@@ -553,7 +649,7 @@ export default function Browse() {
                   {r.photo_cover && <img src={r.photo_cover} alt={r.title} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '13px', color: '#e8d5b0' }}>{r.title}</div>
-                    <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>{r.artist} · {r.category}</div>
+                    <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic' }}>{r.artist} · {r.category}</div>
                   </div>
                   <span style={{ fontSize: '13px', color: '#c9a84c', fontWeight: '700' }}>${parseFloat(r.price).toFixed(2)}</span>
                 </div>
@@ -568,7 +664,7 @@ export default function Browse() {
 
         {/* FORMAT TABS */}
         <div style={{ marginBottom: '12px' }}>
-          <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Format</div>
+          <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Format</div>
           <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {CATEGORIES.map(cat => (
               <button key={cat} onClick={() => handleFilter('category', cat)} style={tabStyle(category === cat)}>
@@ -580,7 +676,7 @@ export default function Browse() {
 
         {/* GENRE TABS */}
         <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Genre</div>
+          <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Genre</div>
           <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {GENRES.map(g => (
               <button key={g} onClick={() => handleFilter('genre', g)} style={tabStyle(genre === g)}>{g}</button>
@@ -590,12 +686,12 @@ export default function Browse() {
 
         {/* SORT BAR */}
         <div className="sort-bar" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '10px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sort by</span>
+          <span style={{ fontSize: '10px', color: '#aaa', letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sort by</span>
           {SORT_OPTIONS.map(opt => {
             const isActive = opt.value === sortBy && opt.dir === sortDir;
             return (
               <button key={opt.label} className="sort-btn" onClick={() => handleSort(opt)}
-                style={{ padding: '5px 12px', background: isActive ? '#1a1a0a' : 'transparent', color: isActive ? '#c9a84c' : '#555', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '16px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '11px', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                style={{ padding: '5px 12px', background: isActive ? '#1a1a0a' : 'transparent', color: isActive ? '#c9a84c' : '#bbb', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '16px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '11px', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
                 {isActive ? '✓ ' : ''}{opt.label}
               </button>
             );
@@ -605,7 +701,7 @@ export default function Browse() {
         {/* ACTIVE FILTERS */}
         {(category !== 'All' || genre !== 'All' || search) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '12px', color: '#555' }}>Filters:</span>
+            <span style={{ fontSize: '12px', color: '#aaa' }}>Filters:</span>
             {category !== 'All' && <span style={{ background: '#1a1a0a', border: '1px solid #c9a84c44', color: '#c9a84c', padding: '3px 10px', borderRadius: '12px', fontSize: '11px' }}>{category}</span>}
             {genre !== 'All' && <span style={{ background: '#1a1a0a', border: '1px solid #c9a84c44', color: '#c9a84c', padding: '3px 10px', borderRadius: '12px', fontSize: '11px' }}>{genre}</span>}
             {search && <span style={{ background: '#1a1a0a', border: '1px solid #c9a84c44', color: '#c9a84c', padding: '3px 10px', borderRadius: '12px', fontSize: '11px' }}>"{search}"</span>}
@@ -618,16 +714,16 @@ export default function Browse() {
 
         {/* RESULTS COUNT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <span style={{ fontSize: '12px', color: '#555', fontStyle: 'italic' }}>
+          <span style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic' }}>
             {loading ? 'Loading...' : total === 0 ? 'No items found' : 'Showing ' + (page * LIMIT + 1) + '–' + Math.min((page + 1) * LIMIT, total) + ' of ' + total + ' items · sorted by ' + currentSort.label}
           </span>
-          {totalPages > 1 && <span style={{ fontSize: '12px', color: '#555' }}>Page {page + 1} of {totalPages}</span>}
+          {totalPages > 1 && <span style={{ fontSize: '12px', color: '#aaa' }}>Page {page + 1} of {totalPages}</span>}
         </div>
 
         {/* LIST */}
         <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
           <div className="browse-list-header" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 140px 100px 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Photo</div>
+            <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>Photo</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Title / Artist</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Label</div>
             <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Format</div>
@@ -640,7 +736,7 @@ export default function Browse() {
           ) : records.length === 0 ? (
             <div style={{ padding: '60px', textAlign: 'center' }}>
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>💿</div>
-              <div style={{ color: '#555', fontStyle: 'italic' }}>No records found matching your search</div>
+              <div style={{ color: '#aaa', fontStyle: 'italic' }}>No records found matching your search</div>
             </div>
           ) : (
             records.map((record, i) => {
@@ -658,9 +754,9 @@ export default function Browse() {
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', color: '#e8d5b0', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
-                    <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
+                    <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
                   </div>
-                  <div className="browse-row-label" style={{ fontSize: '12px', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="browse-row-label" style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {record.label || '—'}
                   </div>
                   <div className="browse-row-format">
@@ -718,6 +814,8 @@ export default function Browse() {
         </div>
       )}
 
+      <RecordRequestButton />
+
       {/* CART DRAWER */}
       {showCart && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}
@@ -746,7 +844,7 @@ export default function Browse() {
                           {item.photo_cover && <img src={item.photo_cover} alt={item.title} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />}
                           <div style={{ flex: 1 }}>
                             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '14px', fontWeight: '700', color: '#e8d5b0' }}>{item.title}</div>
-                            <div style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>{item.artist} · {item.condition}</div>
+                            <div style={{ fontSize: '12px', color: '#bbb', fontStyle: 'italic' }}>{item.artist} · {item.condition}</div>
                             <div style={{ fontSize: '14px', color: '#c9a84c', marginTop: '2px' }}>${parseFloat(item.price).toFixed(2)} each</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -759,11 +857,11 @@ export default function Browse() {
                       ))}
                       <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '13px', color: '#666' }}>Subtotal ({totalQty} item{totalQty !== 1 ? 's' : ''})</span>
+                          <span style={{ fontSize: '13px', color: '#bbb' }}>Subtotal ({totalQty} item{totalQty !== 1 ? 's' : ''})</span>
                           <span style={{ fontSize: '13px', color: '#e8d5b0' }}>${subtotal.toFixed(2)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                          <span style={{ fontSize: '13px', color: '#666' }}>Shipping</span>
+                          <span style={{ fontSize: '13px', color: '#bbb' }}>Shipping</span>
                           <span style={{ fontSize: '13px', color: shipping === 0 ? '#4ade80' : '#e8d5b0', fontWeight: shipping === 0 ? '700' : '400' }}>{shipping === 0 ? 'FREE 🎉' : '$' + shipping.toFixed(2)}</span>
                         </div>
                         {subtotal < 100 && (
@@ -826,11 +924,11 @@ export default function Browse() {
                   {formError && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '8px' }}>{formError}</div>}
                   <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px', margin: '8px 0 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '13px', color: '#666' }}>Subtotal</span>
+                      <span style={{ fontSize: '13px', color: '#bbb' }}>Subtotal</span>
                       <span style={{ fontSize: '13px', color: '#e8d5b0' }}>${subtotal.toFixed(2)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', color: '#666' }}>Shipping</span>
+                      <span style={{ fontSize: '13px', color: '#bbb' }}>Shipping</span>
                       <span style={{ fontSize: '13px', color: shipping === 0 ? '#4ade80' : '#e8d5b0', fontWeight: shipping === 0 ? '700' : '400' }}>{shipping === 0 ? 'FREE 🎉' : '$' + shipping.toFixed(2)}</span>
                     </div>
                     <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
@@ -843,7 +941,7 @@ export default function Browse() {
                     💳 Continue to Payment →
                   </button>
                   <button onClick={() => setCheckoutStep('cart')}
-                    style={{ width: '100%', padding: '12px', background: 'transparent', color: '#666', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    style={{ width: '100%', padding: '12px', background: 'transparent', color: '#bbb', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                     ← Back to Cart
                   </button>
                 </>
@@ -852,7 +950,7 @@ export default function Browse() {
                 <div style={{ textAlign: 'center', marginTop: '80px' }}>
                   <div style={{ fontSize: '56px', marginBottom: '20px' }}>💿</div>
                   <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', marginBottom: '8px' }}>Preparing your order...</div>
-                  <div style={{ fontSize: '13px', color: '#555', fontStyle: 'italic' }}>Redirecting to secure payment...</div>
+                  <div style={{ fontSize: '13px', color: '#aaa', fontStyle: 'italic' }}>Redirecting to secure payment...</div>
                 </div>
               )}
             </div>
