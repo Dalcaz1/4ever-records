@@ -446,11 +446,14 @@ export default function Browse() {
       }
       const recordId = params.get('record');
       if (recordId) {
-        fetch('/api/records?limit=500')
+        fetch('/api/records?limit=500&id=' + recordId)
           .then(r => r.json())
           .then(data => {
-            const found = (data.records || []).find(r => String(r.id) === String(recordId));
-            if (found) setSelectedRecord(found);
+            const records = data.records || [];
+            const found = records.find(r => String(r.id) === String(recordId));
+            if (found) {
+              setTimeout(() => setSelectedRecord(found), 1500);
+            }
           })
           .catch(() => {});
       }
