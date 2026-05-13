@@ -609,7 +609,7 @@ export default function Browse() {
           </a>
         </div>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <a href="/" style={{ color: '#888', fontSize: '13px', textDecoration: 'none' }}>← Home</a>
+          <a href="/" style={{ color: '#e8d5b0', fontSize: '14px', textDecoration: 'none', background: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px' }}>🏠 Home</a>
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }}
             style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 18px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             🛒 Cart
@@ -664,7 +664,7 @@ export default function Browse() {
 
         {/* FORMAT TABS */}
         <div style={{ marginBottom: '12px' }}>
-          <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Format</div>
+          <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', fontFamily: 'Georgia, serif', marginBottom: '8px', fontWeight: '700' }}>Format</div>
           <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {CATEGORIES.map(cat => (
               <button key={cat} onClick={() => handleFilter('category', cat)} style={tabStyle(category === cat)}>
@@ -676,7 +676,7 @@ export default function Browse() {
 
         {/* GENRE TABS */}
         <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Genre</div>
+          <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', fontFamily: 'Georgia, serif', marginBottom: '8px', fontWeight: '700' }}>Genre</div>
           <div className="filter-tabs" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {GENRES.map(g => (
               <button key={g} onClick={() => handleFilter('genre', g)} style={tabStyle(genre === g)}>{g}</button>
@@ -686,12 +686,12 @@ export default function Browse() {
 
         {/* SORT BAR */}
         <div className="sort-bar" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '10px', color: '#aaa', letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sort by</span>
+          <span style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', fontWeight: '700' }}>Sort by:</span>
           {SORT_OPTIONS.map(opt => {
             const isActive = opt.value === sortBy && opt.dir === sortDir;
             return (
               <button key={opt.label} className="sort-btn" onClick={() => handleSort(opt)}
-                style={{ padding: '5px 12px', background: isActive ? '#1a1a0a' : 'transparent', color: isActive ? '#c9a84c' : '#bbb', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '16px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '11px', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                style={{ padding: '7px 14px', background: isActive ? '#1a1a0a' : '#111', color: isActive ? '#c9a84c' : '#ddd', border: '1px solid ' + (isActive ? '#c9a84c' : '#333'), borderRadius: '16px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
                 {isActive ? '✓ ' : ''}{opt.label}
               </button>
             );
@@ -714,21 +714,21 @@ export default function Browse() {
 
         {/* RESULTS COUNT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <span style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic' }}>
+          <span style={{ fontSize: '13px', color: '#e8d5b0', fontStyle: 'italic' }}>
             {loading ? 'Loading...' : total === 0 ? 'No items found' : 'Showing ' + (page * LIMIT + 1) + '–' + Math.min((page + 1) * LIMIT, total) + ' of ' + total + ' items · sorted by ' + currentSort.label}
           </span>
-          {totalPages > 1 && <span style={{ fontSize: '12px', color: '#aaa' }}>Page {page + 1} of {totalPages}</span>}
+          {totalPages > 1 && <span style={{ fontSize: '13px', color: '#e8d5b0', fontWeight: '700' }}>Page {page + 1} of {totalPages}</span>}
         </div>
 
         {/* LIST */}
         <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
           <div className="browse-list-header" style={{ display: 'grid', gridTemplateColumns: '56px 1fr 140px 100px 80px 80px', gap: '12px', padding: '10px 16px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
-            <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>Photo</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Title / Artist</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Label</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Format</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase' }}>Cond.</div>
-            <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase', textAlign: 'right' }}>Price</div>
+            <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700' }}>Photo</div>
+            <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700' }}>Title / Artist</div>
+            <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700' }}>Label</div>
+            <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700' }}>Format</div>
+            <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700' }}>Cond.</div>
+            <div style={{ fontSize: '12px', color: '#e8d5b0', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '700', textAlign: 'right' }}>Price</div>
           </div>
 
           {loading ? (
@@ -754,14 +754,14 @@ export default function Browse() {
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', color: '#e8d5b0', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
-                    <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
+                    <div style={{ fontSize: '11px', color: '#ddd', fontStyle: 'italic', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
                   </div>
-                  <div className="browse-row-label" style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="browse-row-label" style={{ fontSize: '12px', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {record.label || '—'}
                   </div>
                   <div className="browse-row-format">
-                    <span style={{ fontSize: '11px', color: '#888', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                      {FORMAT_ICONS[record.category] || ''} {record.category || '—'}
+                    <span style={{ fontSize: '11px', color: '#ddd', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                      {FORMAT_ICONS[record.category] || ''} <span style={{ color: '#ffffff', fontWeight: '600' }}>{record.category || '—'}</span>
                     </span>
                   </div>
                   <div>
