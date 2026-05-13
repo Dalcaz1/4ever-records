@@ -444,6 +444,16 @@ export default function Browse() {
         setSearch(q);
         setSearchInput(q);
       }
+      const recordId = params.get('record');
+      if (recordId) {
+        fetch('/api/records?limit=500')
+          .then(r => r.json())
+          .then(data => {
+            const found = (data.records || []).find(r => String(r.id) === String(recordId));
+            if (found) setSelectedRecord(found);
+          })
+          .catch(() => {});
+      }
     }
   }, []);
 
@@ -452,6 +462,7 @@ export default function Browse() {
   const [freeShippingShown, setFreeShippingShown] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState('cart');
   const [addedId, setAddedId] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', address: '', city: '', state: '', zip: '' });
   const [formError, setFormError] = useState('');
   const searchRef = useRef(null);
@@ -812,6 +823,15 @@ export default function Browse() {
           </div>
         )}
       </div>
+
+      {selectedRecord && (
+        <RecordModal
+          record={selectedRecord}
+          onClose={() => setSelectedRecord(null)}
+          onAddToCart={addToCart}
+          addedId={addedId}
+        />
+      )}
 
       {/* FREE SHIPPING POPUP */}
       {showFreeShippingPopup && (
