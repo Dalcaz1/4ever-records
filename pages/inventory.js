@@ -406,12 +406,12 @@ export default function Inventory() {
                     {record.active === false && <span style={{ color: '#f87171', fontSize: '10px', background: '#2a1a1a', border: '1px solid #f8717144', borderRadius: '4px', padding: '1px 6px' }}>● Hidden</span>}
                   </div>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.title}</div>
-                  <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
+                  <div style={{ fontSize: '12px', color: '#e8d5b0', fontStyle: 'italic' }}>{record.artist}{record.year ? ' · ' + record.year : ''}</div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${parseFloat(record.price).toFixed(2)}</span>
                     <span style={{ background: cond.bg, border: '1px solid ' + cond.text + '44', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', color: cond.text, fontWeight: '700' }}>{record.condition}</span>
-                    <span style={{ fontSize: '11px', color: '#ccc', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '1px 6px' }}>{record.category}</span>
-                    {record.genre && <span style={{ fontSize: '11px', color: '#bbb' }}>{record.genre}</span>}
+                    <span style={{ fontSize: '11px', color: '#e8d5b0', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '1px 6px' }}>{record.category}</span>
+                    {record.genre && <span style={{ fontSize: '11px', color: '#e8d5b0' }}>{record.genre}</span>}
                   </div>
                 </div>
 
