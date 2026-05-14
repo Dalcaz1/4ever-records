@@ -69,7 +69,7 @@ function EbaySimilar({ artist, title, format }) {
       </button>
       {open && (
         <div style={{ marginTop: '10px' }}>
-          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#555', fontSize: '12px', fontStyle: 'italic' }}>Loading eBay listings...</div>}
+          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#aaa', fontSize: '12px', fontStyle: 'italic' }}>Loading eBay listings...</div>}
           {!loading && memorabilia.length > 0 && (
             <div>
               <div style={{ fontSize: '10px', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>{artist} Posters · Books · Signed Items · Merch</div>
@@ -80,7 +80,7 @@ function EbaySimilar({ artist, title, format }) {
                     {item.image && <img src={item.image} alt={item.title} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
                     <div style={{ flex: 1, overflow: 'hidden' }}>
                       <div style={{ fontSize: '11px', color: '#ddd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                      <div style={{ fontSize: '10px', color: '#555' }}>{item.condition}</div>
+                      <div style={{ fontSize: '10px', color: '#aaa' }}>{item.condition}</div>
                     </div>
                     <div style={{ fontSize: '13px', color: '#c9a84c', fontWeight: '700', flexShrink: 0 }}>${item.price}</div>
                   </a>
@@ -89,9 +89,9 @@ function EbaySimilar({ artist, title, format }) {
             </div>
           )}
           {!loading && memorabilia.length === 0 && fetched && (
-            <div style={{ textAlign: 'center', padding: '16px', color: '#444', fontSize: '12px', fontStyle: 'italic' }}>No eBay listings found</div>
+            <div style={{ textAlign: 'center', padding: '16px', color: '#bbb', fontSize: '12px', fontStyle: 'italic' }}>No eBay listings found</div>
           )}
-          <div style={{ fontSize: '10px', color: '#333', textAlign: 'center', marginTop: '10px', fontStyle: 'italic' }}>
+          <div style={{ fontSize: '10px', color: '#bbb', textAlign: 'center', marginTop: '10px', fontStyle: 'italic' }}>
             Purchases on eBay support 4 Ever Memories
           </div>
         </div>
@@ -136,7 +136,7 @@ function MusicPreview({ artist, title, format }) {
       </button>
       {open && (
         <div style={{ marginTop: '8px', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
-          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#555', fontSize: '12px', fontStyle: 'italic' }}>Finding video...</div>}
+          {loading && <div style={{ textAlign: 'center', padding: '20px', color: '#aaa', fontSize: '12px', fontStyle: 'italic' }}>Finding video...</div>}
           {!loading && videoId && (
             <iframe
               width="100%"
@@ -151,14 +151,14 @@ function MusicPreview({ artist, title, format }) {
           )}
           {!loading && !videoId && fetched && (
             <div style={{ padding: '16px', textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#555', marginBottom: '8px', fontStyle: 'italic' }}>No video found — search YouTube directly</div>
+              <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '8px', fontStyle: 'italic' }}>No video found — search YouTube directly</div>
               <a href={searchUrl} target="_blank" rel="noopener noreferrer"
                 style={{ fontSize: '12px', color: '#c9a84c', textDecoration: 'none' }}>Search YouTube for {artist} →</a>
             </div>
           )}
           {!loading && videoId && (
             <div style={{ padding: '6px 10px', background: '#0a0a0a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '10px', color: '#444', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{videoTitle || artist + ' - ' + title}</span>
+              <span style={{ fontSize: '10px', color: '#bbb', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{videoTitle || artist + ' - ' + title}</span>
               <a href={searchUrl} target="_blank" rel="noopener noreferrer"
                 style={{ fontSize: '10px', color: '#c9a84c', textDecoration: 'none', flexShrink: 0, marginLeft: '8px' }}>YouTube →</a>
             </div>
@@ -235,7 +235,7 @@ function RecordModal({ record, onClose, onAddToCart, addedId }) {
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '18px', color: '#e8d5b0', fontWeight: '700' }}>{record.title}</div>
             <div style={{ fontSize: '13px', color: '#ccc', fontStyle: 'italic' }}>{record.artist} {record.year ? '· ' + record.year : ''}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
         <div className="modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0' }}>
           <div style={{ padding: '20px', borderRight: '1px solid #1a1a1a' }}>
@@ -368,9 +368,9 @@ function RecordRequestButton() {
             <div style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '16px', color: '#e8d5b0', fontWeight: '700', fontFamily: 'Georgia, serif' }}>🎵 Looking for something?</div>
-                <div style={{ fontSize: '12px', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>Tell us what you need — we'll find it for you</div>
+                <div style={{ fontSize: '12px', color: '#ccc', fontStyle: 'italic', marginTop: '2px' }}>Tell us what you need — we'll find it for you</div>
               </div>
-              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: '#555', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '22px', cursor: 'pointer' }}>✕</button>
             </div>
             <div style={{ padding: '20px' }}>
               {sent ? (
@@ -381,16 +381,16 @@ function RecordRequestButton() {
                 </div>
               ) : (
                 <>
-                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Your Name *</label>
+                  <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Your Name *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" style={inp} />
 
-                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Email</label>
+                  <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Email</label>
                   <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={inp} />
 
-                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Phone</label>
+                  <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Phone</label>
                   <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="(956) 555-0000" style={inp} />
 
-                  <label style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>What are you looking for? *</label>
+                  <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>What are you looking for? *</label>
                   <textarea value={form.request} onChange={e => setForm(f => ({ ...f, request: e.target.value }))}
                     placeholder="e.g. Elvis Presley 45rpm on RCA Victor, Selena anything, Beatles Abbey Road original pressing..."
                     rows={4} style={{ ...inp, resize: 'none', marginBottom: '12px' }} />
@@ -401,7 +401,7 @@ function RecordRequestButton() {
                     style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '8px' }}>
                     {sending ? 'Sending...' : '🎵 Send Request →'}
                   </button>
-                  <div style={{ fontSize: '11px', color: '#444', textAlign: 'center', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: '11px', color: '#bbb', textAlign: 'center', fontStyle: 'italic' }}>
                     {"We'll reply by email or phone as soon as possible"}
                   </div>
                 </>
@@ -664,7 +664,7 @@ export default function Browse() {
             style={{ width: '100%', padding: '13px 44px 13px 44px', border: '1px solid #2a2a2a', borderRadius: '10px', fontFamily: 'Georgia, serif', fontSize: '14px', background: '#111', color: '#e8d5b0' }} />
           {searchInput && (
             <button onClick={() => { setSearchInput(''); handleSearch(''); }}
-              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '18px' }}>✕</button>
           )}
           {showSuggestions && suggestions.length > 0 && (
             <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', marginTop: '4px', zIndex: 40, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
@@ -731,7 +731,7 @@ export default function Browse() {
             {genre !== 'All' && <span style={{ background: '#1a1a0a', border: '1px solid #c9a84c44', color: '#c9a84c', padding: '3px 10px', borderRadius: '12px', fontSize: '11px' }}>{genre}</span>}
             {search && <span style={{ background: '#1a1a0a', border: '1px solid #c9a84c44', color: '#c9a84c', padding: '3px 10px', borderRadius: '12px', fontSize: '11px' }}>"{search}"</span>}
             <button onClick={() => { setCategory('All'); setGenre('All'); setSearch(''); setSearchInput(''); setPage(0); }}
-              style={{ background: 'none', border: '1px solid #333', color: '#888', borderRadius: '12px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              style={{ background: 'none', border: '1px solid #333', color: '#ccc', borderRadius: '12px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
               ✕ Clear all
             </button>
           </div>
@@ -757,7 +757,7 @@ export default function Browse() {
           </div>
 
           {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#444', fontStyle: 'italic' }}>Loading...</div>
+            <div style={{ padding: '40px', textAlign: 'center', color: '#bbb', fontStyle: 'italic' }}>Loading...</div>
           ) : records.length === 0 ? (
             <div style={{ padding: '60px', textAlign: 'center' }}>
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>💿</div>
@@ -841,9 +841,9 @@ export default function Browse() {
         <div style={{ position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#0a1a0a', border: '2px solid #4ade80', borderRadius: '16px', padding: '20px 28px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.8)', minWidth: '280px' }}>
           <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
           <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif', marginBottom: '4px' }}>Congratulations!</div>
-          <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', marginBottom: '4px' }}>Your order qualifies for</div>
+          <div style={{ fontSize: '13px', color: '#ccc', fontStyle: 'italic', marginBottom: '4px' }}>Your order qualifies for</div>
           <div style={{ fontSize: '18px', color: '#4ade80', fontWeight: '700', fontFamily: 'Georgia, serif' }}>FREE SHIPPING! 🚀</div>
-          <div style={{ fontSize: '11px', color: '#555', marginTop: '8px' }}>Keep browsing — every record ships free!</div>
+          <div style={{ fontSize: '11px', color: '#aaa', marginTop: '8px' }}>Keep browsing — every record ships free!</div>
           <button onClick={() => setShowFreeShippingPopup(false)} style={{ marginTop: '12px', background: 'none', border: '1px solid #2a4a2a', color: '#4ade80', borderRadius: '6px', padding: '4px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>Got it ✓</button>
         </div>
       )}
@@ -861,7 +861,7 @@ export default function Browse() {
                 {checkoutStep === 'info' && '📦 Checkout'}
                 {checkoutStep === 'processing' && '⏳ Processing...'}
               </span>
-              <button onClick={() => setShowCart(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', fontSize: '22px' }}>✕</button>
+              <button onClick={() => setShowCart(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: '22px' }}>✕</button>
             </div>
             <div style={{ padding: '24px', flex: 1 }}>
               {checkoutStep === 'cart' && (
@@ -869,7 +869,7 @@ export default function Browse() {
                   {cart.length === 0 ? (
                     <div style={{ textAlign: 'center', marginTop: '60px' }}>
                       <div style={{ fontSize: '48px', marginBottom: '16px' }}>💿</div>
-                      <p style={{ color: '#444', fontStyle: 'italic' }}>Your cart is empty.</p>
+                      <p style={{ color: '#bbb', fontStyle: 'italic' }}>Your cart is empty.</p>
                     </div>
                   ) : (
                     <>
@@ -885,7 +885,7 @@ export default function Browse() {
                             <button onClick={() => changeQty(item.id, -1)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#e8d5b0', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px' }}>−</button>
                             <span style={{ fontSize: '14px', color: '#e8d5b0', minWidth: '20px', textAlign: 'center' }}>{item.qty}</span>
                             <button onClick={() => changeQty(item.id, 1)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#e8d5b0', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px' }}>+</button>
-                            <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#444', fontSize: '16px' }}>🗑</button>
+                            <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '16px' }}>🗑</button>
                           </div>
                         </div>
                       ))}
@@ -901,7 +901,7 @@ export default function Browse() {
                         {subtotal < 100 && (
                           <div style={{ marginTop: '8px', marginBottom: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                              <span style={{ fontSize: '11px', color: '#555' }}>{'Add $' + (100 - subtotal).toFixed(2) + ' more for free shipping'}</span>
+                              <span style={{ fontSize: '11px', color: '#aaa' }}>{'Add $' + (100 - subtotal).toFixed(2) + ' more for free shipping'}</span>
                               <span style={{ fontSize: '11px', color: '#c9a84c' }}>{'$' + subtotal.toFixed(2) + ' / $100'}</span>
                             </div>
                             <div style={{ background: '#1a1a1a', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
@@ -914,7 +914,7 @@ export default function Browse() {
                             <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: '700' }}>🎉 Free shipping unlocked!</span>
                           </div>
                         )}
-                        <div style={{ fontSize: '10px', color: '#444', marginBottom: '12px', fontStyle: 'italic', marginTop: '4px' }}>
+                        <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '12px', fontStyle: 'italic', marginTop: '4px' }}>
                           {subtotal < 100 ? '$5.00 first + $1.00 each additional' : 'Free shipping on orders over $100'}
                         </div>
                         <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
@@ -925,7 +925,7 @@ export default function Browse() {
                       {subtotal < 100 && (
                         <div style={{ marginTop: '12px', marginBottom: '4px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '11px', color: '#555' }}>Add ${(100 - subtotal).toFixed(2)} more for free shipping</span>
+                            <span style={{ fontSize: '11px', color: '#aaa' }}>Add ${(100 - subtotal).toFixed(2)} more for free shipping</span>
                             <span style={{ fontSize: '11px', color: '#c9a84c' }}>${subtotal.toFixed(2)} / $100</span>
                           </div>
                           <div style={{ background: '#1a1a1a', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
@@ -949,7 +949,7 @@ export default function Browse() {
               {checkoutStep === 'info' && (
                 <>
                   <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Shipping Information</div>
-                  <div style={{ fontSize: '12px', color: '#555', marginBottom: '20px', background: '#0a0a0a', border: '1px solid #1a3a1a', padding: '12px', borderRadius: '8px', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '20px', background: '#0a0a0a', border: '1px solid #1a3a1a', padding: '12px', borderRadius: '8px', fontStyle: 'italic' }}>
                     🔒 You will be securely redirected to Square to complete payment.
                   </div>
                   {[{name:'name',placeholder:'Full Name'},{name:'email',placeholder:'Email Address'},{name:'address',placeholder:'Street Address'},{name:'city',placeholder:'City'},{name:'state',placeholder:'State'},{name:'zip',placeholder:'ZIP Code'}].map(f => (
