@@ -41,7 +41,7 @@ function PinLock({ onUnlock }) {
         </svg>
         <div style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#e8d5b0', fontWeight: '700', marginBottom: '4px' }}>4 Ever Memories</div>
         <div style={{ fontSize: '11px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase', marginBottom: '32px' }}>Admin Access</div>
-        <div style={{ fontSize: '13px', color: '#666', marginBottom: '16px', fontStyle: 'italic' }}>Enter your 6-digit PIN to continue</div>
+        <div style={{ fontSize: '13px', color: '#bbb', marginBottom: '16px', fontStyle: 'italic' }}>Enter your 6-digit PIN to continue</div>
         <input
           type="password"
           inputMode="numeric"
@@ -58,7 +58,7 @@ function PinLock({ onUnlock }) {
           style={{ width: '100%', padding: '14px', background: pin.length === 6 ? '#c9a84c' : '#1a1a1a', color: pin.length === 6 ? '#0d0d0d' : '#444', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: pin.length === 6 ? 'pointer' : 'not-allowed', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700' }}>
           {checking ? 'Verifying...' : 'Unlock →'}
         </button>
-        <a href="/" style={{ display: 'block', marginTop: '20px', color: '#444', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
+        <a href="/" style={{ display: 'block', marginTop: '20px', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
       </div>
     </div>
   );
@@ -452,7 +452,7 @@ export default function Admin() {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <a href="/admin" style={navLink}>➕ Add</a>
           <a href="/inventory" style={navLink}>📋 Inventory</a>
-          <a href="/" style={{ color: '#555', fontSize: '12px', textDecoration: 'none', borderRadius: '6px', padding: '6px 12px', border: '1px solid #2a2a2a', fontFamily: 'Georgia, serif' }}>← Store</a>
+          <a href="/" style={{ color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', borderRadius: '8px', padding: '8px 16px', border: '1px solid #333', fontFamily: 'Georgia, serif', background: '#1a1a1a' }}>← Store</a>
         </div>
       </nav>
 
@@ -473,12 +473,12 @@ export default function Admin() {
                   {FORMATS.map(fmt => (
                     <button key={fmt.label}
                       onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setDiscCount('1'); setSleeveType(null); }}
-                      style={{ padding: '8px 14px', background: '#111', color: '#888', border: '1px solid #2a2a2a', borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
+                      style={{ padding: '8px 14px', background: '#111', color: '#e8d5b0', border: '1px solid #333', borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
                       {fmt.icon} {fmt.label}
                     </button>
                   ))}
                 </div>
-                <div style={{ textAlign: 'center', padding: '40px 0', color: '#333', fontStyle: 'italic' }}>
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontStyle: 'italic' }}>
                   Select a format above to begin
                 </div>
               </div>
@@ -500,7 +500,7 @@ export default function Admin() {
                         return (
                           <button key={opt} className="sleeve-btn"
                             onClick={() => { setSleeveType(opt); setPhotos({}); setPreviews({}); }}
-                            style={{ padding: '10px 8px', background: isActive ? '#c9a84c' : '#0a0a0a', color: isActive ? '#0d0d0d' : '#666', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: isActive ? '700' : '400', textAlign: 'center' }}>
+                            style={{ padding: '10px 8px', background: isActive ? '#c9a84c' : '#0a0a0a', color: isActive ? '#0d0d0d' : '#e8d5b0', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: isActive ? '700' : '400', textAlign: 'center' }}>
                             {opt}<br />
                             <span style={{ fontSize: '10px', opacity: 0.7 }}>{slots.length} photo{slots.length !== 1 ? 's' : ''}</span>
                           </button>
@@ -516,7 +516,7 @@ export default function Admin() {
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {['1', '2', '3', '4'].map(n => (
                         <button key={n} onClick={() => { setDiscCount(n); setPhotos({}); setPreviews({}); }}
-                          style={{ flex: 1, padding: '10px', background: discCount === n ? '#c9a84c' : '#0a0a0a', color: discCount === n ? '#0d0d0d' : '#555', border: '1px solid ' + (discCount === n ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: discCount === n ? '700' : '400' }}>
+                          style={{ flex: 1, padding: '10px', background: discCount === n ? '#c9a84c' : '#0a0a0a', color: discCount === n ? '#0d0d0d' : '#e8d5b0', border: '1px solid ' + (discCount === n ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: discCount === n ? '700' : '400' }}>
                           {n}
                         </button>
                       ))}
@@ -540,10 +540,10 @@ export default function Admin() {
                         ) : (
                           <div className="photo-slot-empty">
                             <span style={{ fontSize: '28px' }}>{slot.icon}</span>
-                            <span style={{ fontSize: '11px', color: '#555' }}>{slot.label}</span>
+                            <span style={{ fontSize: '11px', color: '#ddd' }}>{slot.label}</span>
                           </div>
                         )}
-                        <div className="photo-slot-label" style={{ color: previews[slot.key] ? '#c9a84c' : '#444' }}>
+                        <div className="photo-slot-label" style={{ color: previews[slot.key] ? '#c9a84c' : '#e8d5b0' }}>
                           {previews[slot.key] ? '📷 Tap to retake' : '📷 Tap to photograph'}
                         </div>
                       </div>
@@ -562,7 +562,7 @@ export default function Admin() {
                 </button>
 
                 <button onClick={async () => { setForm(f => ({ ...f, cat: selectedFormat })); await fetchNextSku(selectedFormat); setMode('review'); }}
-                  style={{ width: '100%', padding: '12px', background: 'transparent', color: '#555', border: '1px solid #2a2a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  style={{ width: '100%', padding: '12px', background: 'transparent', color: '#bbb', border: '1px solid #333', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   Skip scanning — enter details manually →
                 </button>
               </>
@@ -580,9 +580,9 @@ export default function Admin() {
 
             {nextSku && (
               <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
+                <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
                 <div style={{ fontSize: '36px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
-                <div style={{ fontSize: '11px', color: '#555', marginTop: '6px', fontStyle: 'italic' }}>This will be assigned when you save</div>
+                <div style={{ fontSize: '11px', color: '#bbb', marginTop: '6px', fontStyle: 'italic' }}>This will be assigned when you save</div>
               </div>
             )}
 
@@ -612,11 +612,11 @@ export default function Admin() {
                       <div style={{ fontSize: '12px', color: demand.color, fontWeight: '700', marginBottom: '2px' }}>
                         {demand.label === 'High demand' ? '🔥' : demand.label === 'Moderate demand' ? '📊' : '📉'} {demand.label}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>{demand.tip}</div>
+                      <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic' }}>{demand.tip}</div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
-                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Discogs community</div>
-                      <div style={{ fontSize: '11px', color: '#888' }}>{pricing.wantHave}</div>
+                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Discogs community</div>
+                      <div style={{ fontSize: '11px', color: '#e8d5b0' }}>{pricing.wantHave}</div>
                     </div>
                   </div>
                 )}
@@ -624,21 +624,21 @@ export default function Admin() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
                   {pricing.discogs && (
                     <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Discogs</div>
+                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Discogs</div>
                       <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div>
                     </div>
                   )}
                   {pricing.ebay && (
                     <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>eBay low</div>
+                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>eBay low</div>
                       <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay.lowest || '—'}</div>
-                      <div style={{ fontSize: '10px', color: '#444' }}>avg ${pricing.ebay.avg || '—'}</div>
-                      <div style={{ fontSize: '9px', color: '#333' }}>{pricing.ebay.count} found</div>
+                      <div style={{ fontSize: '10px', color: '#bbb' }}>avg ${pricing.ebay.avg || '—'}</div>
+                      <div style={{ fontSize: '9px', color: '#bbb' }}>{pricing.ebay.count} found</div>
                     </div>
                   )}
                   {pricing.popsike && (
                     <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Popsike</div>
+                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Popsike</div>
                       <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike}</div>
                     </div>
                   )}
@@ -660,7 +660,7 @@ export default function Admin() {
                         return (
                           <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="ebay-row"
                             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', textDecoration: 'none', borderRadius: '4px' }}>
-                            <span style={{ fontSize: '11px', color: '#666', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                            <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
                             <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
                           </a>
                         );
@@ -676,7 +676,7 @@ export default function Admin() {
                 )}
 
                 {pricing.notes && (
-                  <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
+                  <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
                 )}
                 {!pricing.recommended && (
                   <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>
@@ -757,7 +757,7 @@ export default function Admin() {
             </button>
 
             <button onClick={reset}
-              style={{ width: '100%', padding: '10px', background: 'transparent', color: '#444', border: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '6px' }}>
+              style={{ width: '100%', padding: '10px', background: 'transparent', color: '#bbb', border: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '6px' }}>
               Start over
             </button>
           </>
@@ -767,11 +767,11 @@ export default function Admin() {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
             <h2 style={{ fontSize: '22px', color: '#4ade80', marginBottom: '8px' }}>Record Saved!</h2>
-            <p style={{ fontSize: '13px', color: '#666', fontStyle: 'italic', marginBottom: '28px' }}>
+            <p style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic', marginBottom: '28px' }}>
               {form.artist} — {form.title}
             </p>
             <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
-              <div style={{ fontSize: '11px', color: '#888', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
+              <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
               <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
               <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
             </div>
