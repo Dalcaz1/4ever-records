@@ -90,6 +90,7 @@ function buildScanPrompt(format, type, sealed, photoLabels) {
     'Create a collector-focused FYT description.',
     'No outside-site wording.',
     'No external verification wording.',
+    'No “check Discogs/eBay/etc.” language.',
     'Description should include artist/title, label, catalog, format, pressing/variant clues, matrix/runout if visible, track information if visible, release history if supported, and condition notes.',
     'Keep description professional and FYT-native.',
 
@@ -144,7 +145,6 @@ function buildScanPrompt(format, type, sealed, photoLabels) {
     'notes: short FYT-native notes only. No outside source references.',
   ].join('\n');
 }
-
 function stripCodeFence(text) {
   return String(text || '')
     .replace(/```json/gi, '')
@@ -152,15 +152,59 @@ function stripCodeFence(text) {
     .trim();
 }
 
+function repairJsonString(str) {
+  return String(str || '')
+    .replace(/[\u0000-\u0019]+/g, ' ')
+    .replace(/,\s*}/g, '}')
+    .replace(/,\s*]/g, ']')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, ' ')
+    .replace(/\t/g, ' ')
+    .trim();
+}
+
 function safeJsonParse(text) {
-  const cleaned = stripCodeFence(text);
+  const cleaned = repairJsonString(
+    stripCodeFence(text)
+  );
 
   try {
     return JSON.parse(cleaned);
-  } catch (err) {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    throw err;
+  } catch (err1) {
+    try {
+      const match = cleaned.match(/\{[\s\S]*\}/);
+
+      if (match) {
+        return JSON.parse(
+          repairJsonString(match[0])
+        );
+      }
+    } catch (err2) {}
+
+    try {
+      const first = cleaned.indexOf('{');
+      const last = cleaned.lastIndexOf('}');
+
+      if (first !== -1 && last !== -1) {
+        const extracted = cleaned.slice(
+          first,
+          last + 1
+        );
+
+        return JSON.parse(
+          repairJsonString(extracted)
+        );
+      }
+    } catch (err3) {}
+
+    console.error(
+      'RAW AI RESPONSE:',
+      cleaned
+    );
+
+    throw new Error(
+      'AI returned invalid JSON'
+    );
   }
 }
 
@@ -181,8 +225,10 @@ function normalizeReleaseType(format, type, result) {
       if (combined.includes('album') || combined.includes('lp')) {
         return 'VINYL_LP';
       }
+
       return 'VINYL_12_SINGLE';
     }
+
     return 'VINYL_LP';
   }
 
@@ -310,6 +356,7 @@ function postProcessResult(raw, format, type, sealed) {
   result.track_titles = normalizeTrackTitles(result.track_titles);
 
   result.sealed = Boolean(sealed || result.sealed || cleanText(type).includes('sealed'));
+
   result.release_type = normalizeReleaseType(format, type, result);
 
   if (!Array.isArray(result.catalog_aliases)) {
