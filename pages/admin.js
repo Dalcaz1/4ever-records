@@ -157,69 +157,225 @@ const EMPTY_FORM = {
   genre: 'Rock', condition: 'VG+', price: '', qty: '1', notes: '',
 };
 
-function CameraModal({ onCapture, onClose, label }) {
+function getGuideText(slotLabel, selectedFormat) {
+  const label = String(slotLabel || '').toLowerCase();
+  const format = String(selectedFormat || '').toLowerCase();
+
+  if (label.includes('front') && (format.includes('12') || format.includes('cd') || format.includes('cassette'))) {
+    return 'Fit the full front cover or case inside the yellow guide.';
+  }
+
+  if (label.includes('back')) {
+    return 'Fit the full back cover or case inside the yellow guide.';
+  }
+
+  if (label.includes('label') || label.includes('side') || label.includes('disc')) {
+    return 'Center the label inside the yellow guide.';
+  }
+
+  return 'Fit the item clearly inside the yellow guide.';
+}
+
+function CameraModal({ onCapture, onClose, label, selectedFormat }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const guideRef = useRef(null);
   const streamRef = useRef(null);
+
   const [ready, setReady] = useState(false);
   const [camError, setCamError] = useState('');
+
+  const slotLabel = typeof label === 'string' ? label : label?.label || '';
+  const formatText = String(selectedFormat || '').toLowerCase();
+
+  const circleGuide =
+    slotLabel.includes('Label') ||
+    slotLabel.includes('Disc') ||
+    slotLabel.includes('Side');
+
+  const isSevenInch = formatText.includes('7');
 
   useEffect(() => {
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
+            resizeMode: 'none',
+          },
           audio: false,
         });
+
         streamRef.current = stream;
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play();
+          await videoRef.current.play();
           setReady(true);
+        }
+
+        const track = stream.getVideoTracks()[0];
+
+        if (track?.getCapabilities && track?.applyConstraints) {
+          const capabilities = track.getCapabilities();
+          const advanced = [];
+
+          if (capabilities.focusMode?.includes('continuous')) {
+            advanced.push({ focusMode: 'continuous' });
+          }
+
+          if (capabilities.exposureMode?.includes('continuous')) {
+            advanced.push({ exposureMode: 'continuous' });
+          }
+
+          if (capabilities.whiteBalanceMode?.includes('continuous')) {
+            advanced.push({ whiteBalanceMode: 'continuous' });
+          }
+
+          if (advanced.length) {
+            try {
+              await track.applyConstraints({ advanced });
+            } catch {}
+          }
         }
       } catch (err) {
         setCamError('Camera access denied. Please allow camera access in your browser settings.');
       }
     }
+
     startCamera();
+
     return () => {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
   }, []);
 
+  function getCropFromGuide(video, guide) {
+    const videoRect = video.getBoundingClientRect();
+    const guideRect = guide.getBoundingClientRect();
+
+    const scaleX = video.videoWidth / videoRect.width;
+    const scaleY = video.videoHeight / videoRect.height;
+
+    return {
+      cropX: (guideRect.left - videoRect.left) * scaleX,
+      cropY: (guideRect.top - videoRect.top) * scaleY,
+      cropW: guideRect.width * scaleX,
+      cropH: guideRect.height * scaleY,
+    };
+  }
+
+  function stopCamera() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+    }
+  }
+
   function capture() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    const guide = guideRef.current;
+
+    if (!video || !canvas || !guide) return;
+
+    const { cropX, cropY, cropW, cropH } = getCropFromGuide(video, guide);
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, cropW, cropH);
+
+    if (circleGuide) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cropW / 2, cropH / 2, Math.min(cropW, cropH) / 2, 0, Math.PI * 2);
+      ctx.clip();
+    }
+
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    if (circleGuide) ctx.restore();
+
     canvas.toBlob(blob => {
-      const file = new File([blob], 'photo-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+      if (!blob) return;
+
+      const file = new File([blob], 'scan-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+
       onCapture(file);
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-    }, 'image/jpeg', 0.9);
+      stopCamera();
+    }, 'image/jpeg', 0.98);
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: '#0a0a0a', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#c9a84c', fontSize: '14px', fontFamily: 'Georgia, serif' }}>📷 {label}</span>
-        <button onClick={() => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); onClose(); }}
-          style={{ background: 'none', border: 'none', color: '#888', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+        <span style={{ color: '#ffff00', fontSize: '18px', fontFamily: 'Georgia, serif', fontWeight: '900' }}>📷 {slotLabel}</span>
+        <button onClick={() => { stopCamera(); onClose(); }}
+          style={{ background: 'none', border: 'none', color: '#fff', fontSize: '30px', cursor: 'pointer' }}>×</button>
       </div>
+
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {camError ? (
           <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif' }}>{camError}</div>
         ) : (
           <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
+
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          {circleGuide ? (
+            <div
+              ref={guideRef}
+              style={{
+                position: 'relative',
+                width: isSevenInch ? '82vw' : '96vw',
+                height: isSevenInch ? '82vw' : '96vw',
+                borderRadius: '50%',
+                boxShadow: '0 0 0 9999px rgba(0,0,0,.28)',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: isSevenInch ? '70%' : '62%',
+                  height: isSevenInch ? '70%' : '62%',
+                  borderRadius: '50%',
+                  border: '5px solid rgba(255,255,0,.95)',
+                  boxShadow: '0 0 20px rgba(255,255,0,.7)',
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              ref={guideRef}
+              style={{
+                width: '82vw',
+                height: '82vw',
+                border: '6px solid rgba(255,255,0,.95)',
+                boxShadow: '0 0 0 9999px rgba(0,0,0,.28)',
+              }}
+            />
+          )}
+        </div>
+
         <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>
+
       {ready && (
-        <div style={{ padding: '24px', display: 'flex', justifyContent: 'center', background: '#0a0a0a' }}>
+        <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#0a0a0a', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ color: '#ffff00', fontWeight: '900', marginBottom: '12px', textAlign: 'center', lineHeight: 1.3 }}>
+            {circleGuide ? 'Center the label inside the yellow guide.' : getGuideText(slotLabel, selectedFormat)}
+          </div>
           <button onClick={capture}
-            style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#fff', border: '4px solid #c9a84c', cursor: 'pointer', fontSize: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ width: '82px', height: '82px', borderRadius: '50%', background: '#fff', border: '5px solid #ffff00', cursor: 'pointer', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             📸
           </button>
         </div>
@@ -310,6 +466,7 @@ export default function Admin() {
     setScanning(true);
     setError('');
     setShowAllEbay(false);
+
     try {
       const toBase64 = file => new Promise((res, rej) => {
         const r = new FileReader();
@@ -319,20 +476,56 @@ export default function Admin() {
       });
 
       const images = [];
+      const photoLabels = [];
+
       for (const slot of photoSlots) {
-        if (photos[slot.key]) images.push(await toBase64(photos[slot.key]));
+        if (photos[slot.key]) {
+          images.push(await toBase64(photos[slot.key]));
+          photoLabels.push(slot.label || slot.key);
+        }
       }
+
+      const isSealed = effectiveSleeveType === 'Sealed Item' || String(form.pressing || '').toLowerCase().includes('sealed');
 
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, format: selectedFormat }),
+        body: JSON.stringify({
+          images,
+          format: selectedFormat,
+          type: effectiveSleeveType || '',
+          sleeveType: effectiveSleeveType || '',
+          sealed: isSealed,
+          photoLabels,
+        }),
       });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Scan failed');
 
-      setForm(f => ({ ...f, ...result, cat: selectedFormat }));
+      const enrichedNotes = [
+        result.notes || '',
+        result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '',
+        result.variant ? 'Variant: ' + result.variant : '',
+        result.matrix_runout ? 'Matrix / Runout: ' + result.matrix_runout : '',
+        result.description ? 'Description: ' + result.description : '',
+      ].filter(Boolean).join('\n\n');
+
+      setForm(f => ({
+        ...f,
+        artist: result.artist || f.artist,
+        title: result.title || f.title,
+        year: result.year || f.year,
+        label: result.label || f.label,
+        catalog_number: result.catalog_number || result.catalogNumber || f.catalog_number,
+        country: result.country || f.country,
+        pressing: result.pressing || result.format_details || f.pressing,
+        genre: result.genre || f.genre,
+        condition: result.condition || f.condition,
+        notes: enrichedNotes || f.notes,
+        cat: selectedFormat,
+      }));
+
       await fetchNextSku(selectedFormat);
 
       const pricingParams = new URLSearchParams({
@@ -340,12 +533,19 @@ export default function Admin() {
         title: result.title || '',
         year: result.year || '',
         country: result.country || '',
-        catalog_number: result.catalog_number || '',
-        pressing: result.pressing || '',
+        catalog_number: result.catalog_number || result.catalogNumber || '',
+        pressing: result.pressing || result.format_details || effectiveSleeveType || '',
         format: selectedFormat || '',
+        genre: result.genre || '',
+        label: result.label || '',
+        condition: result.condition || '',
+        sealed: isSealed ? 'true' : 'false',
       });
+
       fetch('/api/pricing?' + pricingParams.toString())
-        .then(r => r.json()).then(setPricing).catch(() => {});
+        .then(r => r.json())
+        .then(setPricing)
+        .catch(() => {});
 
       setMode('review');
     } catch (err) {
@@ -354,6 +554,7 @@ export default function Admin() {
       await fetchNextSku(selectedFormat);
       setMode('review');
     }
+
     setScanning(false);
   }
 
@@ -432,6 +633,7 @@ export default function Admin() {
       {cameraSlot && (
         <CameraModal
           label={photoSlots.find(s => s.key === cameraSlot)?.label || 'Photo'}
+          selectedFormat={selectedFormat}
           onCapture={file => handleCapture(cameraSlot, file)}
           onClose={() => setCameraSlot(null)}
         />
@@ -605,7 +807,6 @@ export default function Admin() {
                   )}
                 </div>
 
-                {/* DEMAND INDICATOR */}
                 {demand && (
                   <div style={{ background: demand.bg, border: '1px solid ' + demand.color + '44', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
