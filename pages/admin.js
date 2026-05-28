@@ -252,22 +252,65 @@ function CameraModal({ onCapture, onClose, label, selectedFormat }) {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
   }, []);
+function getCropFromGuide(video, guide) {
+  const videoRect = video.getBoundingClientRect();
+  const guideRect = guide.getBoundingClientRect();
 
-  function getCropFromGuide(video, guide) {
-    const videoRect = video.getBoundingClientRect();
-    const guideRect = guide.getBoundingClientRect();
+  const videoW = video.videoWidth;
+  const videoH = video.videoHeight;
 
-    const scaleX = video.videoWidth / videoRect.width;
-    const scaleY = video.videoHeight / videoRect.height;
+  const boxW = videoRect.width;
+  const boxH = videoRect.height;
 
-    return {
-      cropX: (guideRect.left - videoRect.left) * scaleX,
-      cropY: (guideRect.top - videoRect.top) * scaleY,
-      cropW: guideRect.width * scaleX,
-      cropH: guideRect.height * scaleY,
-    };
-  }
+  const coverScale = Math.max(
+    boxW / videoW,
+    boxH / videoH
+  );
 
+  const renderedW = videoW * coverScale;
+  const renderedH = videoH * coverScale;
+
+  const offsetX = (boxW - renderedW) / 2;
+  const offsetY = (boxH - renderedH) / 2;
+
+  const guideX =
+    guideRect.left - videoRect.left;
+
+  const guideY =
+    guideRect.top - videoRect.top;
+
+  let cropX =
+    (guideX - offsetX) / coverScale;
+
+  let cropY =
+    (guideY - offsetY) / coverScale;
+
+  let cropW =
+    guideRect.width / coverScale;
+
+  let cropH =
+    guideRect.height / coverScale;
+
+  cropX = Math.max(0, cropX);
+  cropY = Math.max(0, cropY);
+
+  cropW = Math.min(
+    videoW - cropX,
+    cropW
+  );
+
+  cropH = Math.min(
+    videoH - cropY,
+    cropH
+  );
+
+  return {
+    cropX,
+    cropY,
+    cropW,
+    cropH,
+  };
+}
   function stopCamera() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
