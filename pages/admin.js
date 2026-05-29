@@ -730,34 +730,7 @@ export default function Admin() {
             )}
 
             {selectedFormat && (
-              {photoCount > 0 && (
-  <button
-    onClick={() => {
-      setSelectedFormat(null);
-      setSleeveType(null);
-      setPhotos({});
-      setPreviews({});
-      setDiscCount('1');
-      setCameraSlot(null);
-      setError('');
-    }}
-    style={{
-      position: 'absolute',
-      top: '72px',
-      right: '20px',
-      background: 'transparent',
-      border: 'none',
-      color: '#ffffff',
-      fontSize: '34px',
-      lineHeight: 1,
-      fontWeight: '700',
-      cursor: 'pointer',
-      zIndex: 20,
-    }}
-  >
-    ×
-  </button>
-)}
+
               <>
                 <div style={{ fontSize: '15px', color: '#e8d5b0', fontWeight: '600', marginBottom: '16px' }}>
                   {format?.icon} {selectedFormat}
