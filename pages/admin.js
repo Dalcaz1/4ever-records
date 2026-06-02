@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 7 } });
+export const getServerSideProps = async () => ({ props: { v: 8 } });
 
 import { useState, useEffect } from 'react';
 import CameraModal from '../components/CameraModal';
@@ -171,6 +171,97 @@ function getDemandLabel(wantHave) {
   return { label: 'Low demand', color: '#f87171', bg: '#2a0f0f', tip: 'Price competitively to sell faster' };
 }
 
+function parseMoney(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const cleaned = String(value).replace(/[^0-9.]/g, '');
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function conditionMultiplier(condition, sealed) {
+  const c = String(condition || '').toLowerCase().trim();
+  if (sealed) return 1.45;
+  if (c === 'm') return 1.35;
+  if (c === 'nm') return 1.25;
+  if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 1.12;
+  if (c === 'vg') return 1.0;
+  if (c === 'g') return 0.72;
+  return 1.0;
+}
+
+function isSpanishOrRegional(artist, title, genre, label, catalogCountry) {
+  const text = [artist, title, genre, label, catalogCountry || ''].join(' ').toLowerCase();
+  const terms = ['tejano', 'conjunto', 'norteno', 'norteño', 'regional mexican', 'spanish', 'mexican', 'freddie', 'latin', 'ranchera', 'cumbia', 'spain', 'espana', 'us-regional'];
+  return terms.some(t => text.includes(t));
+}
+
+function getProtectedFloor(releaseType, artist, title, genre, label, catalogCountry, condition, sealed) {
+  const regional = isSpanishOrRegional(artist, title, genre, label, catalogCountry);
+  const c = String(condition || '').toLowerCase().trim();
+  if (releaseType === 'VINYL_LP' && regional) {
+    if (sealed) return 34.99;
+    if (c === 'm' || c === 'nm') return 24.99;
+    if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 19.99;
+    if (c === 'vg') return 17.99;
+    return 16.99;
+  }
+  if (releaseType === 'VINYL_7_SINGLE' && regional) {
+    if (sealed) return 14.99;
+    if (c === 'm' || c === 'nm') return 9.99;
+    if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 7.99;
+    if (c === 'vg') return 5.99;
+    return 4.99;
+  }
+  return null;
+}
+
+function recalculatePrice(pricing, condition, scanResult) {
+  if (!pricing) return null;
+  const sealed = condition === 'M';
+  const overallRange = pricing.overallMarketRange || pricing.marketRange || pricing.collectionValue;
+
+  const floor = getProtectedFloor(
+    pricing?.recordFound?.releaseType || '',
+    scanResult?.artist || '',
+    scanResult?.title || '',
+    scanResult?.genre || '',
+    scanResult?.label || '',
+    pricing?.recordFound?.catalogCountry || '',
+    condition,
+    sealed
+  );
+
+  if (!overallRange) {
+    return floor ? (Math.ceil(floor) - 0.01).toFixed(2) : null;
+  }
+
+  const parts = String(overallRange).replace(/\$/g, '').split('-');
+  const low = parseMoney(parts[0]);
+  const high = parseMoney(parts[1]);
+
+  const medianRaw = pricing?.sourceBreakdown
+    ? (() => {
+        const prices = (pricing.sourceBreakdown || [])
+          .filter(s => s.median && s.matchesUsed > 0)
+          .map(s => parseMoney(s.median))
+          .filter(Boolean)
+          .sort((a, b) => a - b);
+        return prices.length ? prices[Math.floor(prices.length / 2)] : null;
+      })()
+    : null;
+
+  const median = medianRaw || (low && high ? (low + high) / 2 : low || high);
+  if (!median) return null;
+
+  const multiplier = conditionMultiplier(condition, sealed);
+  let suggested = median * multiplier;
+
+  if (floor && suggested < floor) suggested = floor;
+  if (high && suggested > high && !(floor && suggested === floor)) suggested = high;
+
+  return (Math.ceil(suggested) - 0.01).toFixed(2);
+}
+
 function ScanningOverlay() {
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
@@ -208,12 +299,14 @@ export default function Admin() {
   const [mode, setMode] = useState('entry');
   const [scanning, setScanning] = useState(false);
   const [pricing, setPricing] = useState(null);
+  const [scanResult, setScanResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedSku, setSavedSku] = useState(null);
   const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
   const [cameraSlot, setCameraSlot] = useState(null);
   const [showAllEbay, setShowAllEbay] = useState(false);
+  const [adjustedCondition, setAdjustedCondition] = useState(null);
 
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
@@ -227,6 +320,9 @@ export default function Admin() {
   const photoSlots = selectedFormat ? getPhotoSlots(selectedFormat, discCount, effectiveSleeveType) : [];
   const photoCount = Object.keys(photos).length;
 
+  const activeCondition = adjustedCondition || form.condition;
+  const recalcPrice = pricing ? recalculatePrice(pricing, activeCondition, scanResult) : null;
+
   function reset() {
     setSelectedFormat(null);
     setDiscCount('1');
@@ -236,10 +332,12 @@ export default function Admin() {
     setForm(EMPTY_FORM);
     setMode('entry');
     setPricing(null);
+    setScanResult(null);
     setNextSku(null);
     setSavedSku(null);
     setError('');
     setShowAllEbay(false);
+    setAdjustedCondition(null);
   }
 
   function handleCapture(key, file) {
@@ -267,6 +365,7 @@ export default function Admin() {
     setScanning(true);
     setError('');
     setShowAllEbay(false);
+    setAdjustedCondition(null);
     try {
       const toBase64 = file => new Promise((res, rej) => {
         const r = new FileReader();
@@ -290,6 +389,9 @@ export default function Admin() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Scan failed');
+
+      setScanResult(result);
+
       const enrichedNotes = [
         result.notes || '',
         result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '',
@@ -297,6 +399,7 @@ export default function Admin() {
         result.matrix_runout ? 'Matrix / Runout: ' + result.matrix_runout : '',
         result.description ? 'Description: ' + result.description : '',
       ].filter(Boolean).join('\n\n');
+
       setForm(f => ({
         ...f,
         artist: result.artist || f.artist,
@@ -311,7 +414,9 @@ export default function Admin() {
         notes: enrichedNotes || f.notes,
         cat: selectedFormat,
       }));
+
       await fetchNextSku(selectedFormat);
+
       const pricingParams = new URLSearchParams({
         artist: result.artist || '',
         title: result.title || '',
@@ -325,10 +430,12 @@ export default function Admin() {
         condition: result.condition || '',
         sealed: isSealed ? 'true' : 'false',
       });
+
       fetch('/api/pricing?' + pricingParams.toString())
         .then(r => r.json())
         .then(setPricing)
         .catch(() => {});
+
       setMode('review');
     } catch (err) {
       setError('Scanning failed. You can still enter details manually.');
@@ -341,6 +448,7 @@ export default function Admin() {
 
   function handleFormChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+    if (e.target.name === 'condition') setAdjustedCondition(e.target.value);
   }
 
   async function handleSave() {
@@ -348,7 +456,9 @@ export default function Admin() {
     setError('');
     try {
       const formData = new FormData();
-      Object.entries(form).forEach(([k, v]) => formData.append(k, v));
+      const saveForm = { ...form, condition: activeCondition };
+      if (recalcPrice && !form.price) saveForm.price = recalcPrice;
+      Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
       formData.append('discCount', discCount);
       formData.append('sleeveType', effectiveSleeveType || '');
       photoSlots.forEach(slot => {
@@ -404,6 +514,8 @@ export default function Admin() {
         .sleeve-btn { transition: all 0.2s; }
         .sleeve-btn:hover { border-color: #c9a84c !important; }
         .ebay-row:hover { background: #0f1f0f; }
+        .cond-btn { transition: all 0.15s; }
+        .cond-btn:hover { border-color: #c9a84c !important; }
       `}</style>
 
       {cameraSlot && (
@@ -620,15 +732,52 @@ export default function Admin() {
                       <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.fourEverMemories.count} sold</div>
                     </div>
                   )}
-                  {pricing.recommended && (
+                  {(recalcPrice || pricing.recommended) && (
                     <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #2a4a2a' }}>
                       <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
-                      <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended}</div>
+                      <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>
+                        ${recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)}
+                      </div>
                     </div>
                   )}
                 </div>
+
+                {/* Condition adjuster */}
+                <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Adjust Condition — Price Updates Instantly
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {CONDITIONS.map(c => (
+                      <button key={c} className="cond-btn"
+                        onClick={() => {
+                          setAdjustedCondition(c);
+                          setForm(f => ({ ...f, condition: c }));
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'),
+                          background: activeCondition === c ? '#1a1a0a' : '#0a0a0a',
+                          color: activeCondition === c ? '#c9a84c' : '#e8d5b0',
+                          fontWeight: activeCondition === c ? '700' : '400',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          fontFamily: 'Georgia, serif',
+                        }}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  {adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && (
+                    <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>
+                      ✓ Price updated for {adjustedCondition}
+                    </div>
+                  )}
+                </div>
+
                 {pricing.pressingIdentification && pricing.pressingIdentification.confirmed && (
-                  <div style={{ background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
+                  <div style={{ background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', marginTop: '10px' }}>
                     <div style={{ fontSize: '10px', color: '#60a5fa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>45cat</div>
                     <div style={{ fontSize: '11px', color: '#bbb' }}>{pricing.pressingIdentification.status}</div>
                     {pricing.pressingIdentification.countriesFound && pricing.pressingIdentification.countriesFound.length > 0 && (
@@ -679,17 +828,18 @@ export default function Admin() {
                 {pricing.notes && (
                   <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
                 )}
-                {!pricing.recommended && (
+                {!pricing.recommended && !recalcPrice && (
                   <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>
                 )}
-                {pricing.recommended && (
-                  <button onClick={() => setForm(f => ({ ...f, price: typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended }))}
+                {(recalcPrice || pricing.recommended) && (
+                  <button onClick={() => setForm(f => ({ ...f, price: recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended) }))}
                     style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                    {'Use $' + (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended) + ' →'}
+                    {'Use $' + (recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)) + ' →'}
                   </button>
                 )}
               </div>
             )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div style={{ gridColumn: '1/-1' }}>
                 <label style={sectionLabel}>Artist *</label>
@@ -745,7 +895,9 @@ export default function Admin() {
                   style={{ ...inp, resize: 'none', marginBottom: 0 }} />
               </div>
             </div>
+
             {error && <div style={{ color: '#f87171', fontSize: '13px', margin: '12px 0', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
+
             <button onClick={handleSave} disabled={!form.artist || !form.title || !form.price || saving}
               style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
               {saving ? 'Saving...' : '💾 Save to Store →'}
