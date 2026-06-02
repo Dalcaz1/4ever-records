@@ -77,12 +77,10 @@ function buildEbayQueries(artist, title, releaseType, catalog_number, label) {
   var formatTerms = getFormatSearchTerms(releaseType);
   var queries = [];
 
-  // Priority 1 — quoted catalog number + artist (most precise for collectors)
   if (catalog_number) {
     queries.push('"' + stripAccents(catalog_number) + '" ' + stripAccents(artist));
   }
 
-  // Priority 2 — artist + title + catalog number
   if (catalog_number) {
     queries.push(
       [stripAccents(artist), stripAccents(title), catalog_number, formatTerms]
@@ -90,7 +88,6 @@ function buildEbayQueries(artist, title, releaseType, catalog_number, label) {
     );
   }
 
-  // Priority 3 — artist + title + country (when known)
   if (catalogCountry) {
     queries.push(
       [stripAccents(artist), stripAccents(title), catalogCountry, formatTerms]
@@ -98,7 +95,6 @@ function buildEbayQueries(artist, title, releaseType, catalog_number, label) {
     );
   }
 
-  // Priority 4 — artist + title + label
   if (label) {
     queries.push(
       [stripAccents(artist), stripAccents(title), stripAccents(label), formatTerms]
@@ -106,7 +102,6 @@ function buildEbayQueries(artist, title, releaseType, catalog_number, label) {
     );
   }
 
-  // Priority 5 — broad fallback
   queries.push(
     [stripAccents(artist), stripAccents(title), formatTerms]
       .filter(Boolean).join(' ')
@@ -126,7 +121,6 @@ function buildDiscogsSearchUrls(artist, title, catalogAliases, year, countryFilt
     if (url && urls.indexOf(url) === -1) urls.push(url);
   }
 
-  // Priority 1 — catalog number + artist, with country
   catalogAliases.forEach(function(cat) {
     var catUrl =
       'https://api.discogs.com/database/search?catno=' +
@@ -138,7 +132,6 @@ function buildDiscogsSearchUrls(artist, title, catalogAliases, year, countryFilt
     add(catUrl);
   });
 
-  // Priority 2 — catalog number alone (catches label variations)
   if (catalogNumber) {
     var catOnlyUrl =
       'https://api.discogs.com/database/search?catno=' +
@@ -148,7 +141,6 @@ function buildDiscogsSearchUrls(artist, title, catalogAliases, year, countryFilt
     add(catOnlyUrl);
   }
 
-  // Priority 3 — full q search with country
   var qUrl =
     'https://api.discogs.com/database/search?q=' +
     encodeURIComponent(stripAccents([artist, title, label, getFormatSearchTerms(releaseType)].filter(Boolean).join(' '))) +
@@ -156,7 +148,6 @@ function buildDiscogsSearchUrls(artist, title, catalogAliases, year, countryFilt
   if (effectiveCountry) qUrl += '&country=' + encodeURIComponent(effectiveCountry);
   add(qUrl);
 
-  // Priority 4 — title + artist + year with country
   var titleUrl =
     'https://api.discogs.com/database/search?title=' +
     encodeURIComponent(stripAccents(title)) +
@@ -167,7 +158,6 @@ function buildDiscogsSearchUrls(artist, title, catalogAliases, year, countryFilt
   if (effectiveCountry) titleUrl += '&country=' + encodeURIComponent(effectiveCountry);
   add(titleUrl);
 
-  // Priority 5 — broad search without country as last resort
   var broadUrl =
     'https://api.discogs.com/database/search?q=' +
     encodeURIComponent(stripAccents([artist, title, label, getFormatSearchTerms(releaseType)].filter(Boolean).join(' '))) +
@@ -630,17 +620,19 @@ export async function getPopsikePrices(
     var priceMatch;
     while ((priceMatch = pricePattern.exec(html)) !== null) {
       var p = parseMoney(priceMatch[1]);
-      if (p && p > 0.5 && p < 5000) extractedPrices.push(p);
+      // Cap at $500 — anything higher is almost certainly a scrape error for common records
+      if (p && p > 0.5 && p <= 500) extractedPrices.push(p);
     }
 
-    if (extractedPrices.length < 2) {
+    // Require at least 5 raw prices before Popsike contributes to pricing
+    if (extractedPrices.length < 5) {
       return {
         source: 'Popsike',
         sourceType: 'auction_history',
         range: null,
         listings: [],
         matchesUsed: 0,
-        status: 'No Popsike auction data found for this pressing',
+        status: 'Insufficient Popsike auction data — minimum 5 results required',
         searchUrl: buildSearchUrl('Popsike', artist, title, releaseType, catalog_number || '', label || ''),
         rejected: [],
       };
@@ -649,6 +641,20 @@ export async function getPopsikePrices(
     extractedPrices.sort(function(a, b) { return a - b; });
     var trim = Math.max(1, Math.floor(extractedPrices.length * 0.1));
     var trimmed = extractedPrices.slice(trim, extractedPrices.length - trim);
+
+    // Require at least 3 prices after trimming
+    if (trimmed.length < 3) {
+      return {
+        source: 'Popsike',
+        sourceType: 'auction_history',
+        range: null,
+        listings: [],
+        matchesUsed: 0,
+        status: 'Insufficient Popsike auction data after outlier removal',
+        searchUrl: buildSearchUrl('Popsike', artist, title, releaseType, catalog_number || '', label || ''),
+        rejected: [],
+      };
+    }
 
     return {
       source: 'Popsike',
