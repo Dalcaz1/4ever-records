@@ -1,6 +1,7 @@
 export const getServerSideProps = async () => ({ props: { v: 7 } });
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import CameraModal from '../components/CameraModal';
 
 function PinLock({ onUnlock }) {
   const [pin, setPin] = useState('');
@@ -157,165 +158,6 @@ const EMPTY_FORM = {
   genre: 'Rock', condition: 'VG+', price: '', qty: '1', notes: '',
 };
 
-function getGuideText(slotLabel, selectedFormat) {
-  const label = String(slotLabel || '').toLowerCase();
-  const format = String(selectedFormat || '').toLowerCase();
-  if (label.includes('front') && (format.includes('12') || format.includes('cd') || format.includes('cassette'))) {
-    return 'Fit the full front cover or case inside the yellow guide.';
-  }
-  if (label.includes('back')) {
-    return 'Fit the full back cover or case inside the yellow guide.';
-  }
-  if (label.includes('label') || label.includes('side') || label.includes('disc')) {
-    return 'Center the label inside the yellow guide.';
-  }
-  return 'Fit the item clearly inside the yellow guide.';
-}
-
-function CameraModal({ onCapture, onClose, label, selectedFormat }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const guideRef = useRef(null);
-  const streamRef = useRef(null);
-  const [ready, setReady] = useState(false);
-  const [camError, setCamError] = useState('');
-
-  const slotLabel = typeof label === 'string' ? label : label?.label || '';
-  const formatText = String(selectedFormat || '').toLowerCase();
-  const circleGuide = slotLabel.includes('Label') || slotLabel.includes('Disc') || slotLabel.includes('Side');
-  const isSevenInch = formatText.includes('7');
-
-  useEffect(() => {
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
-            frameRate: { ideal: 30 },
-            resizeMode: 'none',
-          },
-          audio: false,
-        });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          setReady(true);
-        }
-        const track = stream.getVideoTracks()[0];
-        if (track?.getCapabilities && track?.applyConstraints) {
-          const capabilities = track.getCapabilities();
-          const advanced = [];
-          if (capabilities.focusMode?.includes('continuous')) advanced.push({ focusMode: 'continuous' });
-          if (capabilities.exposureMode?.includes('continuous')) advanced.push({ exposureMode: 'continuous' });
-          if (capabilities.whiteBalanceMode?.includes('continuous')) advanced.push({ whiteBalanceMode: 'continuous' });
-          if (advanced.length) { try { await track.applyConstraints({ advanced }); } catch {} }
-        }
-      } catch (err) {
-        setCamError('Camera access denied. Please allow camera access in your browser settings.');
-      }
-    }
-    startCamera();
-    return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
-  }, []);
-
-  function getCropFromGuide(video, guide) {
-    const videoRect = video.getBoundingClientRect();
-    const guideRect = guide.getBoundingClientRect();
-    const videoW = video.videoWidth;
-    const videoH = video.videoHeight;
-    const boxW = videoRect.width;
-    const boxH = videoRect.height;
-    const coverScale = Math.max(boxW / videoW, boxH / videoH);
-    const renderedW = videoW * coverScale;
-    const renderedH = videoH * coverScale;
-    const offsetX = (boxW - renderedW) / 2;
-    const offsetY = (boxH - renderedH) / 2;
-    const guideX = guideRect.left - videoRect.left;
-    const guideY = guideRect.top - videoRect.top;
-    let cropX = (guideX - offsetX) / coverScale;
-    let cropY = (guideY - offsetY) / coverScale;
-    let cropW = guideRect.width / coverScale;
-    let cropH = guideRect.height / coverScale;
-    cropX = Math.max(0, cropX);
-    cropY = Math.max(0, cropY);
-    cropW = Math.min(videoW - cropX, cropW);
-    cropH = Math.min(videoH - cropY, cropH);
-    return { cropX, cropY, cropW, cropH };
-  }
-
-  function stopCamera() {
-    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-  }
-
-  function capture() {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const guide = guideRef.current;
-    if (!video || !canvas || !guide) return;
-    const { cropX, cropY, cropW, cropH } = getCropFromGuide(video, guide);
-    canvas.width = cropW;
-    canvas.height = cropH;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, cropW, cropH);
-    if (circleGuide) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cropW / 2, cropH / 2, Math.min(cropW, cropH) / 2, 0, Math.PI * 2);
-      ctx.clip();
-    }
-    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    if (circleGuide) ctx.restore();
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      const file = new File([blob], 'scan-' + Date.now() + '.jpg', { type: 'image/jpeg' });
-      onCapture(file);
-      stopCamera();
-    }, 'image/jpeg', 0.98);
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: '#0a0a0a', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#ffff00', fontSize: '18px', fontFamily: 'Georgia, serif', fontWeight: '900' }}>📷 {slotLabel}</span>
-        <button onClick={() => { stopCamera(); onClose(); }}
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: '30px', cursor: 'pointer' }}>×</button>
-      </div>
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {camError ? (
-          <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif' }}>{camError}</div>
-        ) : (
-          <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        )}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          {circleGuide ? (
-            <div ref={guideRef} style={{ position: 'relative', width: isSevenInch ? '82vw' : '96vw', height: isSevenInch ? '82vw' : '96vw', borderRadius: '50%', boxShadow: '0 0 0 9999px rgba(0,0,0,.28)' }}>
-              <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: isSevenInch ? '70%' : '62%', height: isSevenInch ? '70%' : '62%', borderRadius: '50%', border: '5px solid rgba(255,255,0,.95)', boxShadow: '0 0 20px rgba(255,255,0,.7)' }} />
-            </div>
-          ) : (
-            <div ref={guideRef} style={{ width: '82vw', height: '82vw', border: '6px solid rgba(255,255,0,.95)', boxShadow: '0 0 0 9999px rgba(0,0,0,.28)' }} />
-          )}
-        </div>
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-      </div>
-      {ready && (
-        <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#0a0a0a', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div style={{ color: '#ffff00', fontWeight: '900', marginBottom: '12px', textAlign: 'center', lineHeight: 1.3 }}>
-            {circleGuide ? 'Center the label inside the yellow guide.' : getGuideText(slotLabel, selectedFormat)}
-          </div>
-          <button onClick={capture}
-            style={{ width: '82px', height: '82px', borderRadius: '50%', background: '#fff', border: '5px solid #ffff00', cursor: 'pointer', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            📸
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function getDemandLabel(wantHave) {
   if (!wantHave) return null;
   const parts = wantHave.split('/');
@@ -329,15 +171,9 @@ function getDemandLabel(wantHave) {
   return { label: 'Low demand', color: '#f87171', bg: '#2a0f0f', tip: 'Price competitively to sell faster' };
 }
 
-// ── Scanning overlay with pulsing dots ──
 function ScanningOverlay() {
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: '#0d0d0d',
-      zIndex: 9000, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'Georgia, serif',
-    }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
       <style>{`
         @keyframes pulse4em {
           0%, 100% { opacity: 0.2; transform: scale(0.8); }
@@ -349,24 +185,14 @@ function ScanningOverlay() {
         <circle cx="20" cy="20" r="8" fill="#c9a84c" />
         <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
       </svg>
-      <div style={{ color: '#c9a84c', fontSize: '20px', fontWeight: '700', marginBottom: '8px', letterSpacing: '1px' }}>
-        4 Ever Memories
-      </div>
-      <div style={{ color: '#e8d5b0', fontSize: '15px', marginBottom: '28px' }}>
-        Scanning &amp; identifying item
-      </div>
+      <div style={{ color: '#c9a84c', fontSize: '20px', fontWeight: '700', marginBottom: '8px', letterSpacing: '1px' }}>4 Ever Memories</div>
+      <div style={{ color: '#e8d5b0', fontSize: '15px', marginBottom: '28px' }}>Scanning &amp; identifying item</div>
       <div style={{ display: 'flex', gap: '10px' }}>
         {[0, 1, 2].map(i => (
-          <div key={i} style={{
-            width: '12px', height: '12px', borderRadius: '50%',
-            background: '#c9a84c',
-            animation: `pulse4em 1.2s ease-in-out ${i * 0.4}s infinite`,
-          }} />
+          <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#c9a84c', animation: `pulse4em 1.2s ease-in-out ${i * 0.4}s infinite` }} />
         ))}
       </div>
-      <div style={{ color: '#555', fontSize: '12px', marginTop: '24px', fontStyle: 'italic' }}>
-        Reading label, catalog number, and pressing details
-      </div>
+      <div style={{ color: '#555', fontSize: '12px', marginTop: '24px', fontStyle: 'italic' }}>Reading label, catalog number, and pressing details</div>
     </div>
   );
 }
@@ -394,8 +220,6 @@ export default function Admin() {
   }, []);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
-
-  // Show scanning overlay when scanning is in progress
   if (scanning) return <ScanningOverlay />;
 
   const format = FORMATS.find(f => f.label === selectedFormat);
@@ -443,7 +267,6 @@ export default function Admin() {
     setScanning(true);
     setError('');
     setShowAllEbay(false);
-
     try {
       const toBase64 = file => new Promise((res, rej) => {
         const r = new FileReader();
@@ -451,35 +274,22 @@ export default function Admin() {
         r.onerror = rej;
         r.readAsDataURL(file);
       });
-
       const images = [];
       const photoLabels = [];
-
       for (const slot of photoSlots) {
         if (photos[slot.key]) {
           images.push(await toBase64(photos[slot.key]));
           photoLabels.push(slot.label || slot.key);
         }
       }
-
       const isSealed = effectiveSleeveType === 'Sealed Item' || String(form.pressing || '').toLowerCase().includes('sealed');
-
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images,
-          format: selectedFormat,
-          type: effectiveSleeveType || '',
-          sleeveType: effectiveSleeveType || '',
-          sealed: isSealed,
-          photoLabels,
-        }),
+        body: JSON.stringify({ images, format: selectedFormat, type: effectiveSleeveType || '', sleeveType: effectiveSleeveType || '', sealed: isSealed, photoLabels }),
       });
-
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Scan failed');
-
       const enrichedNotes = [
         result.notes || '',
         result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '',
@@ -487,7 +297,6 @@ export default function Admin() {
         result.matrix_runout ? 'Matrix / Runout: ' + result.matrix_runout : '',
         result.description ? 'Description: ' + result.description : '',
       ].filter(Boolean).join('\n\n');
-
       setForm(f => ({
         ...f,
         artist: result.artist || f.artist,
@@ -502,9 +311,7 @@ export default function Admin() {
         notes: enrichedNotes || f.notes,
         cat: selectedFormat,
       }));
-
       await fetchNextSku(selectedFormat);
-
       const pricingParams = new URLSearchParams({
         artist: result.artist || '',
         title: result.title || '',
@@ -518,12 +325,10 @@ export default function Admin() {
         condition: result.condition || '',
         sealed: isSealed ? 'true' : 'false',
       });
-
       fetch('/api/pricing?' + pricingParams.toString())
         .then(r => r.json())
         .then(setPricing)
         .catch(() => {});
-
       setMode('review');
     } catch (err) {
       setError('Scanning failed. You can still enter details manually.');
@@ -531,7 +336,6 @@ export default function Admin() {
       await fetchNextSku(selectedFormat);
       setMode('review');
     }
-
     setScanning(false);
   }
 
@@ -550,10 +354,8 @@ export default function Admin() {
       photoSlots.forEach(slot => {
         if (photos[slot.key]) formData.append(slot.key, photos[slot.key]);
       });
-
       const res = await fetch('/api/save-record', { method: 'POST', body: formData });
       const data = await res.json();
-
       if (data.success) {
         setSavedSku(data.sku || nextSku);
         setMode('success');
@@ -571,19 +373,16 @@ export default function Admin() {
     fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0',
     marginBottom: '10px',
   };
-
   const backBtn = {
     display: 'flex', alignItems: 'center', gap: '6px', background: '#1a1a1a',
     border: '1px solid #333', color: '#c9a84c', borderRadius: '8px', padding: '8px 14px',
     fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginBottom: '20px',
   };
-
   const navLink = {
     color: '#c9a84c', fontSize: '12px', textDecoration: 'none',
     border: '1px solid #c9a84c44', borderRadius: '6px', padding: '6px 12px',
     fontFamily: 'Georgia, serif',
   };
-
   const sectionLabel = {
     fontSize: '10px', color: '#555', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px',
   };
@@ -644,7 +443,6 @@ export default function Admin() {
                 ← Change Format
               </button>
             )}
-
             {!selectedFormat && (
               <div style={{ marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Select Format</div>
@@ -657,18 +455,12 @@ export default function Admin() {
                     </button>
                   ))}
                 </div>
-                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontStyle: 'italic' }}>
-                  Select a format above to begin
-                </div>
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontStyle: 'italic' }}>Select a format above to begin</div>
               </div>
             )}
-
             {selectedFormat && (
               <>
-                <div style={{ fontSize: '15px', color: '#e8d5b0', fontWeight: '600', marginBottom: '16px' }}>
-                  {format?.icon} {selectedFormat}
-                </div>
-
+                <div style={{ fontSize: '15px', color: '#e8d5b0', fontWeight: '600', marginBottom: '16px' }}>{format?.icon} {selectedFormat}</div>
                 {format?.sleeveOptions && (
                   <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
                     <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Type</div>
@@ -688,7 +480,6 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
-
                 {format?.multiDisc && effectiveSleeveType !== 'Cover Only' && effectiveSleeveType !== 'Sleeve Only' && (
                   <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
                     <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
@@ -702,14 +493,12 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
-
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
                   Photos ({photoCount}/{photoSlots.length})
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
                   {photoSlots.map(slot => (
-                    <div key={slot.key} className="photo-slot"
-                      style={{ border: '2px solid ' + (previews[slot.key] ? '#c9a84c' : '#2a2a2a') }}>
+                    <div key={slot.key} className="photo-slot" style={{ border: '2px solid ' + (previews[slot.key] ? '#c9a84c' : '#2a2a2a') }}>
                       <div className="photo-slot-inner" onClick={() => setCameraSlot(slot.key)}>
                         {previews[slot.key] ? (
                           <>
@@ -732,14 +521,11 @@ export default function Admin() {
                     </div>
                   ))}
                 </div>
-
                 {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
-
                 <button onClick={handleScan} disabled={photoCount === 0 || scanning}
                   style={{ width: '100%', padding: '16px', background: photoCount > 0 ? '#c9a84c' : '#1a1a1a', color: photoCount > 0 ? '#0d0d0d' : '#444', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: photoCount > 0 ? 'pointer' : 'not-allowed', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '10px' }}>
                   {photoCount > 0 ? '🤖 Scan & Identify (' + photoCount + ' photo' + (photoCount > 1 ? 's' : '') + ') →' : 'Tap photos above to begin'}
                 </button>
-
                 <button onClick={async () => { setForm(f => ({ ...f, cat: selectedFormat })); await fetchNextSku(selectedFormat); setMode('review'); }}
                   style={{ width: '100%', padding: '12px', background: 'transparent', color: '#bbb', border: '1px solid #333', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   Skip scanning — enter details manually →
@@ -752,11 +538,9 @@ export default function Admin() {
         {mode === 'review' && (
           <>
             <button style={backBtn} onClick={() => setMode('entry')}>← Back to Photos</button>
-
             <h2 style={{ fontSize: '20px', color: '#e8d5b0', margin: '0 0 16px' }}>
               {form.artist ? '✓ Identified — Review & Save' : 'Enter Details'}
             </h2>
-
             {nextSku && (
               <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
@@ -764,7 +548,6 @@ export default function Admin() {
                 <div style={{ fontSize: '11px', color: '#bbb', marginTop: '6px', fontStyle: 'italic' }}>This will be assigned when you save</div>
               </div>
             )}
-
             {Object.keys(previews).length > 0 && (
               <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 {Object.values(previews).map((src, i) => (
@@ -772,7 +555,6 @@ export default function Admin() {
                 ))}
               </div>
             )}
-
             {pricing && (
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
@@ -783,7 +565,6 @@ export default function Admin() {
                     </span>
                   )}
                 </div>
-
                 {demand && (
                   <div style={{ background: demand.bg, border: '1px solid ' + demand.color + '44', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
@@ -798,8 +579,6 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
-
-                {/* Pricing grid — now includes eBay Sold, Popsike, MusicStack */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
                   {pricing.discogs && (
                     <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
@@ -848,44 +627,33 @@ export default function Admin() {
                     </div>
                   )}
                 </div>
-
-                {/* 45cat pressing confirmation */}
                 {pricing.pressingIdentification && pricing.pressingIdentification.confirmed && (
                   <div style={{ background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '10px', color: '#60a5fa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>45cat</div>
                     <div style={{ fontSize: '11px', color: '#bbb' }}>{pricing.pressingIdentification.status}</div>
                     {pricing.pressingIdentification.countriesFound && pricing.pressingIdentification.countriesFound.length > 0 && (
-                      <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>
-                        Countries found: {pricing.pressingIdentification.countriesFound.join(', ')}
-                      </div>
+                      <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>Countries found: {pricing.pressingIdentification.countriesFound.join(', ')}</div>
                     )}
                   </div>
                 )}
-
-                {/* Regional floor notice */}
                 {pricing.regionalDemandModifier && pricing.regionalDemandModifier.applied && (
                   <div style={{ background: '#1a1a0a', border: '1px solid #3a3a1a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '11px', color: '#fbbf24' }}>
-                      🌎 Spanish/Regional pressing — protected market floor applied
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#fbbf24' }}>🌎 Spanish/Regional pressing — protected market floor applied</div>
                   </div>
                 )}
-
                 {pricing.ebay && pricing.ebay.topListings && pricing.ebay.topListings.length > 0 && (
                   <div style={{ marginBottom: '10px' }}>
                     <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
                       eBay Active listings ({pricing.ebay.count} total)
                     </div>
                     <div style={{ maxHeight: showAllEbay ? '400px' : '120px', overflowY: showAllEbay ? 'auto' : 'hidden', borderRadius: '6px', transition: 'max-height 0.3s' }}>
-                      {pricing.ebay.topListings.map(function (item, i) {
-                        return (
-                          <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="ebay-row"
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', textDecoration: 'none', borderRadius: '4px' }}>
-                            <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                            <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
-                          </a>
-                        );
-                      })}
+                      {pricing.ebay.topListings.map((item, i) => (
+                        <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="ebay-row"
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', textDecoration: 'none', borderRadius: '4px' }}>
+                          <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                          <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
+                        </a>
+                      ))}
                     </div>
                     {pricing.ebay.topListings.length >= 3 && (
                       <button onClick={() => setShowAllEbay(!showAllEbay)}
@@ -895,31 +663,24 @@ export default function Admin() {
                     )}
                   </div>
                 )}
-
-                {/* eBay Sold listings */}
                 {pricing.ebaySold && pricing.ebaySold.topListings && pricing.ebaySold.topListings.length > 0 && (
                   <div style={{ marginBottom: '10px' }}>
                     <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
                       eBay Sold ({pricing.ebaySold.count} transactions)
                     </div>
-                    {pricing.ebaySold.topListings.slice(0, 4).map(function (item, i) {
-                      return (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', borderRadius: '4px' }}>
-                          <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                          <span style={{ fontSize: '11px', color: '#4ade80', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
-                        </div>
-                      );
-                    })}
+                    {pricing.ebaySold.topListings.slice(0, 4).map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                        <span style={{ fontSize: '11px', color: '#4ade80', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
-
                 {pricing.notes && (
                   <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
                 )}
                 {!pricing.recommended && (
-                  <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>
-                    ⚠️ Could not find pricing — please enter manually
-                  </div>
+                  <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>
                 )}
                 {pricing.recommended && (
                   <button onClick={() => setForm(f => ({ ...f, price: typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended }))}
@@ -929,7 +690,6 @@ export default function Admin() {
                 )}
               </div>
             )}
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div style={{ gridColumn: '1/-1' }}>
                 <label style={sectionLabel}>Artist *</label>
@@ -985,15 +745,11 @@ export default function Admin() {
                   style={{ ...inp, resize: 'none', marginBottom: 0 }} />
               </div>
             </div>
-
             {error && <div style={{ color: '#f87171', fontSize: '13px', margin: '12px 0', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
-
-            <button onClick={handleSave}
-              disabled={!form.artist || !form.title || !form.price || saving}
+            <button onClick={handleSave} disabled={!form.artist || !form.title || !form.price || saving}
               style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
               {saving ? 'Saving...' : '💾 Save to Store →'}
             </button>
-
             <button onClick={reset}
               style={{ width: '100%', padding: '10px', background: 'transparent', color: '#bbb', border: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '6px' }}>
               Start over
@@ -1005,9 +761,7 @@ export default function Admin() {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
             <h2 style={{ fontSize: '22px', color: '#4ade80', marginBottom: '8px' }}>Record Saved!</h2>
-            <p style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic', marginBottom: '28px' }}>
-              {form.artist} — {form.title}
-            </p>
+            <p style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic', marginBottom: '28px' }}>{form.artist} — {form.title}</p>
             <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
               <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
               <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
@@ -1017,12 +771,8 @@ export default function Admin() {
               style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '12px' }}>
               ➕ Add Another Record
             </button>
-            <a href="/inventory" style={{ display: 'block', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic', marginBottom: '8px' }}>
-              📋 View Inventory
-            </a>
-            <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>
-              ← Back to Store
-            </a>
+            <a href="/inventory" style={{ display: 'block', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic', marginBottom: '8px' }}>📋 View Inventory</a>
+            <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
           </div>
         )}
 
