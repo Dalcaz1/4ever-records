@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 8 } });
+export const getServerSideProps = async () => ({ props: { v: 9 } });
 
 import { useState, useEffect } from 'react';
 import CameraModal from '../components/CameraModal';
@@ -217,7 +217,7 @@ function getProtectedFloor(releaseType, artist, title, genre, label, catalogCoun
 
 function recalculatePrice(pricing, condition, scanResult) {
   if (!pricing) return null;
-  const sealed = condition === 'M';
+  const sealed = scanResult?.sealed === true || scanResult?.sealed === 'true';
   const overallRange = pricing.overallMarketRange || pricing.marketRange || pricing.collectionValue;
 
   const floor = getProtectedFloor(
@@ -260,6 +260,47 @@ function recalculatePrice(pricing, condition, scanResult) {
   if (high && suggested > high && !(floor && suggested === floor)) suggested = high;
 
   return (Math.ceil(suggested) - 0.01).toFixed(2);
+}
+
+// Compress image for scan — stays under Vercel 4.5MB payload limit
+async function compressForScan(file) {
+  return new Promise((resolve) => {
+    const MAX_PX = 1000;
+    const QUALITY = 0.80;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, MAX_PX / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const base64 = canvas.toDataURL('image/jpeg', QUALITY).split(',')[1];
+          resolve(base64);
+        } catch (err) {
+          // If canvas fails fall back to a smaller quality encode
+          const canvas2 = document.createElement('canvas');
+          canvas2.width = 800;
+          canvas2.height = 800;
+          const ctx2 = canvas2.getContext('2d');
+          ctx2.drawImage(img, 0, 0, 800, 800);
+          resolve(canvas2.toDataURL('image/jpeg', 0.7).split(',')[1]);
+        }
+      };
+      img.onerror = () => {
+        // Last resort — read as base64 directly
+        resolve(e.target.result.split(',')[1]);
+      };
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
 }
 
 function ScanningOverlay() {
@@ -367,26 +408,35 @@ export default function Admin() {
     setShowAllEbay(false);
     setAdjustedCondition(null);
     try {
-      const toBase64 = file => new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result.split(',')[1]);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
       const images = [];
       const photoLabels = [];
+
       for (const slot of photoSlots) {
         if (photos[slot.key]) {
-          images.push(await toBase64(photos[slot.key]));
-          photoLabels.push(slot.label || slot.key);
+          // Compress for scan to stay under Vercel 4.5MB payload limit
+          const compressed = await compressForScan(photos[slot.key]);
+          if (compressed) {
+            images.push(compressed);
+            photoLabels.push(slot.label || slot.key);
+          }
         }
       }
+
       const isSealed = effectiveSleeveType === 'Sealed Item' || String(form.pressing || '').toLowerCase().includes('sealed');
+
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, format: selectedFormat, type: effectiveSleeveType || '', sleeveType: effectiveSleeveType || '', sealed: isSealed, photoLabels }),
+        body: JSON.stringify({
+          images,
+          format: selectedFormat,
+          type: effectiveSleeveType || '',
+          sleeveType: effectiveSleeveType || '',
+          sealed: isSealed,
+          photoLabels,
+        }),
       });
+
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Scan failed');
 
@@ -742,7 +792,6 @@ export default function Admin() {
                   )}
                 </div>
 
-                {/* Condition adjuster */}
                 <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
                   <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Adjust Condition — Price Updates Instantly
@@ -755,15 +804,12 @@ export default function Admin() {
                           setForm(f => ({ ...f, condition: c }));
                         }}
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
+                          padding: '6px 12px', borderRadius: '6px',
                           border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'),
                           background: activeCondition === c ? '#1a1a0a' : '#0a0a0a',
                           color: activeCondition === c ? '#c9a84c' : '#e8d5b0',
                           fontWeight: activeCondition === c ? '700' : '400',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          fontFamily: 'Georgia, serif',
+                          fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif',
                         }}>
                         {c}
                       </button>
