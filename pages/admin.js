@@ -489,7 +489,8 @@ export default function Admin() {
 
       const isSealed = effectiveSleeveType === 'Sealed Item' || String(form.pressing || '').toLowerCase().includes('sealed');
 
-      const res = await fetch('/api/scan', {
+      // CHANGE 1 — now calls FYT scan API directly
+      const res = await fetch('https://findyourtunes.vercel.app/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -532,6 +533,8 @@ export default function Admin() {
 
       await fetchNextSku(selectedFormat);
 
+      // CHANGE 2 — pricingParams now includes physical pressing details
+      // CHANGE 3 — now calls FYT pricing API directly
       const pricingParams = new URLSearchParams({
         artist: result.artist || '',
         title: result.title || '',
@@ -544,9 +547,16 @@ export default function Admin() {
         label: result.label || '',
         condition: result.condition || '',
         sealed: isSealed ? 'true' : 'false',
+        // Physical pressing details — feed the pressing scorer in FYT pricing engine
+        vinyl_color: result.vinyl_color || result.vinylColor || '',
+        matrix_runout: result.matrix_runout || result.matrixRunout || '',
+        variant: result.variant || result.variantClues || '',
+        label_details: result.label_details || '',
+        pressing_evidence: result.pressing_evidence || result.pressingEvidence || '',
+        cover_details: result.cover_details || result.coverDetails || '',
       });
 
-      fetch('/api/pricing?' + pricingParams.toString())
+      fetch('https://findyourtunes.vercel.app/api/pricing?' + pricingParams.toString())
         .then(r => r.json())
         .then(setPricing)
         .catch(() => {});
