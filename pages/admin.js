@@ -1,7 +1,31 @@
-export const getServerSideProps = async () => ({ props: { v: 10 } });
+export const getServerSideProps = async () => ({ props: { v: 11 } });
 
 import { useState, useEffect } from 'react';
 import CameraModal from '../components/CameraModal';
+
+// ─── Session persistence helpers ───────────────────────────────────────────
+const SESSION_KEY = '4em_admin_state';
+
+function saveSession(state) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {}
+  return null;
+}
+
+function clearSession() {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {}
+}
+// ───────────────────────────────────────────────────────────────────────────
 
 function PinLock({ onUnlock }) {
   const [pin, setPin] = useState('');
@@ -338,6 +362,7 @@ export default function Admin() {
   const [sleeveType, setSleeveType] = useState(null);
   const [photos, setPhotos] = useState({});
   const [previews, setPreviews] = useState({});
+  const [restoredSlots, setRestoredSlots] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('entry');
   const [scanning, setScanning] = useState(false);
@@ -351,9 +376,43 @@ export default function Admin() {
   const [showAllEbay, setShowAllEbay] = useState(false);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
 
+  // ─── Restore session on mount ─────────────────────────────────────────────
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
+    const saved = loadSession();
+    if (saved) {
+      if (saved.selectedFormat) setSelectedFormat(saved.selectedFormat);
+      if (saved.discCount) setDiscCount(saved.discCount);
+      if (saved.sleeveType) setSleeveType(saved.sleeveType);
+      if (saved.form) setForm(saved.form);
+      if (saved.mode) setMode(saved.mode);
+      if (saved.pricing) setPricing(saved.pricing);
+      if (saved.scanResult) setScanResult(saved.scanResult);
+      if (saved.nextSku) setNextSku(saved.nextSku);
+      if (saved.adjustedCondition) setAdjustedCondition(saved.adjustedCondition);
+      if (saved.restoredSlots && saved.restoredSlots.length > 0) {
+        setRestoredSlots(saved.restoredSlots);
+      }
+    }
   }, []);
+
+  // ─── Save session whenever key state changes ──────────────────────────────
+  useEffect(() => {
+    if (!authed) return;
+    saveSession({
+      selectedFormat,
+      discCount,
+      sleeveType,
+      form,
+      mode,
+      pricing,
+      scanResult,
+      nextSku,
+      adjustedCondition,
+      restoredSlots,
+    });
+  }, [authed, selectedFormat, discCount, sleeveType, form, mode, pricing, scanResult, nextSku, adjustedCondition, restoredSlots]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
@@ -372,6 +431,7 @@ export default function Admin() {
     setSleeveType(null);
     setPhotos({});
     setPreviews({});
+    setRestoredSlots([]);
     setForm(EMPTY_FORM);
     setMode('entry');
     setPricing(null);
@@ -381,10 +441,12 @@ export default function Admin() {
     setError('');
     setShowAllEbay(false);
     setAdjustedCondition(null);
+    clearSession();
   }
 
   function handleCapture(key, file) {
     setPhotos(p => ({ ...p, [key]: file }));
+    setRestoredSlots(r => r.filter(k => k !== key));
     const reader = new FileReader();
     reader.onload = e => setPreviews(p => ({ ...p, [key]: e.target.result }));
     reader.readAsDataURL(file);
@@ -394,6 +456,7 @@ export default function Admin() {
   function removePhoto(key) {
     setPhotos(p => { const n = { ...p }; delete n[key]; return n; });
     setPreviews(p => { const n = { ...p }; delete n[key]; return n; });
+    setRestoredSlots(r => r.filter(k => k !== key));
   }
 
   async function fetchNextSku(cat) {
@@ -409,6 +472,7 @@ export default function Admin() {
     setError('');
     setShowAllEbay(false);
     setAdjustedCondition(null);
+    setRestoredSlots([]);
     try {
       const images = [];
       const photoLabels = [];
@@ -520,6 +584,7 @@ export default function Admin() {
       if (data.success) {
         setSavedSku(data.sku || nextSku);
         setMode('success');
+        clearSession();
       } else {
         setError(data.error || 'Failed to save.');
       }
@@ -602,7 +667,7 @@ export default function Admin() {
         {mode === 'entry' && (
           <>
             {selectedFormat && (
-              <button style={backBtn} onClick={() => { setSelectedFormat(null); setSleeveType(null); setPhotos({}); setPreviews({}); setDiscCount('1'); }}>
+              <button style={backBtn} onClick={() => { setSelectedFormat(null); setSleeveType(null); setPhotos({}); setPreviews({}); setRestoredSlots([]); setDiscCount('1'); }}>
                 ← Change Format
               </button>
             )}
@@ -612,7 +677,7 @@ export default function Admin() {
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {FORMATS.map(fmt => (
                     <button key={fmt.label}
-                      onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setDiscCount('1'); setSleeveType(null); }}
+                      onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setRestoredSlots([]); setDiscCount('1'); setSleeveType(null); }}
                       style={{ padding: '8px 14px', background: '#111', color: '#e8d5b0', border: '1px solid #333', borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
                       {fmt.icon} {fmt.label}
                     </button>
@@ -633,7 +698,7 @@ export default function Admin() {
                         const slots = getPhotoSlots(selectedFormat, discCount, opt);
                         return (
                           <button key={opt} className="sleeve-btn"
-                            onClick={() => { setSleeveType(opt); setPhotos({}); setPreviews({}); }}
+                            onClick={() => { setSleeveType(opt); setPhotos({}); setPreviews({}); setRestoredSlots([]); }}
                             style={{ padding: '10px 8px', background: isActive ? '#c9a84c' : '#0a0a0a', color: isActive ? '#0d0d0d' : '#e8d5b0', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: isActive ? '700' : '400', textAlign: 'center' }}>
                             {opt}<br />
                             <span style={{ fontSize: '10px', opacity: 0.7 }}>{slots.length} photo{slots.length !== 1 ? 's' : ''}</span>
@@ -648,7 +713,7 @@ export default function Admin() {
                     <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {['1', '2', '3', '4'].map(n => (
-                        <button key={n} onClick={() => { setDiscCount(n); setPhotos({}); setPreviews({}); }}
+                        <button key={n} onClick={() => { setDiscCount(n); setPhotos({}); setPreviews({}); setRestoredSlots([]); }}
                           style={{ flex: 1, padding: '10px', background: discCount === n ? '#c9a84c' : '#0a0a0a', color: discCount === n ? '#0d0d0d' : '#e8d5b0', border: '1px solid ' + (discCount === n ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: discCount === n ? '700' : '400' }}>
                           {n}
                         </button>
@@ -659,30 +724,41 @@ export default function Admin() {
                 <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
                   Photos ({photoCount}/{photoSlots.length})
                 </div>
+
+                {restoredSlots.length > 0 && (
+                  <div style={{ background: '#1a1a0a', border: '1px solid #3a3a1a', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: '#fbbf24' }}>
+                    📱 Welcome back — your scan results are restored. Photos need to be retaken before saving.
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-                  {photoSlots.map(slot => (
-                    <div key={slot.key} className="photo-slot" style={{ border: '2px solid ' + (previews[slot.key] ? '#c9a84c' : '#2a2a2a') }}>
-                      <div className="photo-slot-inner" onClick={() => setCameraSlot(slot.key)}>
-                        {previews[slot.key] ? (
-                          <>
-                            <img src={previews[slot.key]} alt={slot.label} />
-                            <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
-                          </>
-                        ) : (
-                          <div className="photo-slot-empty">
-                            <span style={{ fontSize: '28px' }}>{slot.icon}</span>
-                            <span style={{ fontSize: '11px', color: '#ddd' }}>{slot.label}</span>
+                  {photoSlots.map(slot => {
+                    const isRestored = restoredSlots.includes(slot.key);
+                    const hasPrev = !!previews[slot.key];
+                    return (
+                      <div key={slot.key} className="photo-slot" style={{ border: '2px solid ' + (hasPrev ? '#c9a84c' : isRestored ? '#fbbf24' : '#2a2a2a') }}>
+                        <div className="photo-slot-inner" onClick={() => setCameraSlot(slot.key)}>
+                          {hasPrev ? (
+                            <>
+                              <img src={previews[slot.key]} alt={slot.label} />
+                              <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
+                            </>
+                          ) : (
+                            <div className="photo-slot-empty">
+                              <span style={{ fontSize: '28px' }}>{isRestored ? '🔄' : slot.icon}</span>
+                              <span style={{ fontSize: '11px', color: isRestored ? '#fbbf24' : '#ddd' }}>{slot.label}</span>
+                            </div>
+                          )}
+                          <div className="photo-slot-label" style={{ color: hasPrev ? '#c9a84c' : isRestored ? '#fbbf24' : '#e8d5b0' }}>
+                            {hasPrev ? '📷 Tap to retake' : isRestored ? '📷 Tap to retake' : '📷 Tap to photograph'}
                           </div>
-                        )}
-                        <div className="photo-slot-label" style={{ color: previews[slot.key] ? '#c9a84c' : '#e8d5b0' }}>
-                          {previews[slot.key] ? '📷 Tap to retake' : '📷 Tap to photograph'}
                         </div>
+                        {hasPrev && (
+                          <button className="remove-btn" onClick={e => { e.stopPropagation(); removePhoto(slot.key); }}>✕</button>
+                        )}
                       </div>
-                      {previews[slot.key] && (
-                        <button className="remove-btn" onClick={e => { e.stopPropagation(); removePhoto(slot.key); }}>✕</button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
                 <button onClick={handleScan} disabled={photoCount === 0 || scanning}
@@ -693,6 +769,13 @@ export default function Admin() {
                   style={{ width: '100%', padding: '12px', background: 'transparent', color: '#bbb', border: '1px solid #333', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   Skip scanning — enter details manually →
                 </button>
+
+                {scanResult && mode === 'entry' && (
+                  <button onClick={() => setMode('review')}
+                    style={{ width: '100%', padding: '12px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '8px' }}>
+                    ← Return to scan results
+                  </button>
+                )}
               </>
             )}
           </>
@@ -718,6 +801,17 @@ export default function Admin() {
                 ))}
               </div>
             )}
+
+            {restoredSlots.length > 0 && (
+              <div style={{ background: '#2a1a0a', border: '1px solid #4a3a1a', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '12px', color: '#fbbf24' }}>
+                ⚠️ Photos were lost when the app was backgrounded. Go back and retake them before saving.
+                <button onClick={() => setMode('entry')}
+                  style={{ display: 'block', marginTop: '8px', background: 'transparent', border: '1px solid #fbbf24', color: '#fbbf24', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  ← Go retake photos
+                </button>
+              </div>
+            )}
+
             {pricing && (
               <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
@@ -792,7 +886,6 @@ export default function Admin() {
                     </div>
                   )}
                 </div>
-
                 <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
                   <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Adjust Condition — Price Updates Instantly
@@ -800,29 +893,16 @@ export default function Admin() {
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {CONDITIONS.map(c => (
                       <button key={c} className="cond-btn"
-                        onClick={() => {
-                          setAdjustedCondition(c);
-                          setForm(f => ({ ...f, condition: c }));
-                        }}
-                        style={{
-                          padding: '6px 12px', borderRadius: '6px',
-                          border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'),
-                          background: activeCondition === c ? '#1a1a0a' : '#0a0a0a',
-                          color: activeCondition === c ? '#c9a84c' : '#e8d5b0',
-                          fontWeight: activeCondition === c ? '700' : '400',
-                          fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif',
-                        }}>
+                        onClick={() => { setAdjustedCondition(c); setForm(f => ({ ...f, condition: c })); }}
+                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'), background: activeCondition === c ? '#1a1a0a' : '#0a0a0a', color: activeCondition === c ? '#c9a84c' : '#e8d5b0', fontWeight: activeCondition === c ? '700' : '400', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                         {c}
                       </button>
                     ))}
                   </div>
                   {adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && (
-                    <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>
-                      ✓ Price updated for {adjustedCondition}
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition}</div>
                   )}
                 </div>
-
                 {pricing.pressingIdentification && pricing.pressingIdentification.confirmed && (
                   <div style={{ background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', marginTop: '10px' }}>
                     <div style={{ fontSize: '10px', color: '#60a5fa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>45cat</div>
