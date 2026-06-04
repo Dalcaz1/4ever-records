@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 9 } });
+export const getServerSideProps = async () => ({ props: { v: 10 } });
 
 import { useState, useEffect } from 'react';
 import CameraModal from '../components/CameraModal';
@@ -81,74 +81,81 @@ function getPhotoSlots(format, discCount, sleeveType) {
   switch (format) {
     case '7" Vinyl':
       if (sleeveType === 'Picture Sleeve') return [
-        { key: 'front', label: 'Front Sleeve', icon: '📄' },
-        { key: 'back', label: 'Back Sleeve', icon: '📄' },
-        { key: 'a', label: 'A Side Label', icon: '🎵' },
-        { key: 'b', label: 'B Side Label', icon: '🎶' },
+        { key: 'front', label: 'Front Sleeve', icon: '📄', frame: 'square' },
+        { key: 'back',  label: 'Back Sleeve',  icon: '📄', frame: 'square' },
+        { key: 'a',     label: 'A Side Label', icon: '🎵', frame: 'vinyl-circle' },
+        { key: 'b',     label: 'B Side Label', icon: '🎶', frame: 'vinyl-circle' },
       ];
       if (sleeveType === 'Sleeve Only') return [
-        { key: 'front', label: 'Front Sleeve', icon: '📄' },
-        { key: 'back', label: 'Back Sleeve', icon: '📄' },
+        { key: 'front', label: 'Front Sleeve', icon: '📄', frame: 'square' },
+        { key: 'back',  label: 'Back Sleeve',  icon: '📄', frame: 'square' },
       ];
       return [
-        { key: 'a', label: 'A Side Label', icon: '🎵' },
-        { key: 'b', label: 'B Side Label', icon: '🎶' },
+        { key: 'a', label: 'A Side Label', icon: '🎵', frame: 'vinyl-circle' },
+        { key: 'b', label: 'B Side Label', icon: '🎶', frame: 'vinyl-circle' },
       ];
+
     case '12" Vinyl': {
       if (sleeveType === 'Cover Only') return [
-        { key: 'front', label: 'Front Cover', icon: '🖼️' },
-        { key: 'back', label: 'Back Cover', icon: '📋' },
+        { key: 'front', label: 'Front Cover', icon: '🖼️', frame: 'square' },
+        { key: 'back',  label: 'Back Cover',  icon: '📋', frame: 'square' },
       ];
       if (sleeveType === 'Generic Cover') {
         const slots = [];
         for (let d = 1; d <= count; d++) {
-          slots.push({ key: 'disc' + d + 'a', label: count > 1 ? 'Disc ' + d + ' A Side' : 'A Side Label', icon: '🎵' });
-          slots.push({ key: 'disc' + d + 'b', label: count > 1 ? 'Disc ' + d + ' B Side' : 'B Side Label', icon: '🎶' });
+          slots.push({ key: 'disc' + d + 'a', label: count > 1 ? 'Disc ' + d + ' A Side' : 'A Side Label', icon: '🎵', frame: 'vinyl-circle' });
+          slots.push({ key: 'disc' + d + 'b', label: count > 1 ? 'Disc ' + d + ' B Side' : 'B Side Label', icon: '🎶', frame: 'vinyl-circle' });
         }
         return slots;
       }
       const slots = [
-        { key: 'front', label: 'Front Cover', icon: '🖼️' },
-        { key: 'back', label: 'Back Cover', icon: '📋' },
+        { key: 'front', label: 'Front Cover', icon: '🖼️', frame: 'square' },
+        { key: 'back',  label: 'Back Cover',  icon: '📋', frame: 'square' },
       ];
       for (let d = 1; d <= count; d++) {
-        slots.push({ key: 'disc' + d + 'a', label: count > 1 ? 'Disc ' + d + ' A Side' : 'A Side Label', icon: '🎵' });
-        slots.push({ key: 'disc' + d + 'b', label: count > 1 ? 'Disc ' + d + ' B Side' : 'B Side Label', icon: '🎶' });
+        slots.push({ key: 'disc' + d + 'a', label: count > 1 ? 'Disc ' + d + ' A Side' : 'A Side Label', icon: '🎵', frame: 'vinyl-circle' });
+        slots.push({ key: 'disc' + d + 'b', label: count > 1 ? 'Disc ' + d + ' B Side' : 'B Side Label', icon: '🎶', frame: 'vinyl-circle' });
       }
       return slots;
     }
+
     case 'CD': {
       if (sleeveType === 'Generic Case') {
         const slots = [];
         for (let d = 1; d <= count; d++) {
-          slots.push({ key: 'disc' + d + 'front', label: count > 1 ? 'Disc ' + d + ' Front' : 'CD Front', icon: '📀' });
-          slots.push({ key: 'disc' + d + 'back', label: count > 1 ? 'Disc ' + d + ' Back' : 'CD Back', icon: '📀' });
+          slots.push({ key: 'disc' + d + 'front', label: count > 1 ? 'Disc ' + d + ' Front' : 'CD Front', icon: '📀', frame: 'cd-circle' });
+          slots.push({ key: 'disc' + d + 'back',  label: count > 1 ? 'Disc ' + d + ' Back'  : 'CD Back',  icon: '📀', frame: 'cd-circle' });
         }
         return slots;
       }
       const slots = [
-        { key: 'front', label: 'Front Case', icon: '📗' },
-        { key: 'back', label: 'Back Case', icon: '📘' },
+        { key: 'front', label: 'Front Case', icon: '📗', frame: 'rectangle' },
+        { key: 'back',  label: 'Back Case',  icon: '📘', frame: 'rectangle' },
       ];
       for (let d = 1; d <= count; d++) {
-        slots.push({ key: 'disc' + d + 'front', label: count > 1 ? 'Disc ' + d + ' Front' : 'CD Front', icon: '📀' });
-        slots.push({ key: 'disc' + d + 'back', label: count > 1 ? 'Disc ' + d + ' Back' : 'CD Back', icon: '📀' });
+        slots.push({ key: 'disc' + d + 'front', label: count > 1 ? 'Disc ' + d + ' Front' : 'CD Front', icon: '📀', frame: 'cd-circle' });
+        slots.push({ key: 'disc' + d + 'back',  label: count > 1 ? 'Disc ' + d + ' Back'  : 'CD Back',  icon: '📀', frame: 'cd-circle' });
       }
       return slots;
     }
+
     case 'Cassette':
-      if (sleeveType === 'Generic Case') return [{ key: 'tape', label: 'Tape', icon: '📼' }];
-      return [
-        { key: 'front', label: 'Front Case', icon: '📼' },
-        { key: 'back', label: 'Back Case', icon: '📼' },
+      if (sleeveType === 'Generic Case') return [
+        { key: 'tape', label: 'Tape', icon: '📼', frame: 'cassette-rect' },
       ];
+      return [
+        { key: 'front', label: 'Front Case', icon: '📼', frame: 'cassette-rect' },
+        { key: 'back',  label: 'Back Case',  icon: '📼', frame: 'cassette-rect' },
+      ];
+
     case '8-Track':
       return [
-        { key: 'a', label: 'Side 1', icon: '📟' },
-        { key: 'b', label: 'Side 2', icon: '📟' },
+        { key: 'a', label: 'Side 1', icon: '📟', frame: '8track-rect' },
+        { key: 'b', label: 'Side 2', icon: '📟', frame: '8track-rect' },
       ];
+
     default:
-      return [{ key: 'front', label: 'Photo', icon: '📷' }];
+      return [{ key: 'front', label: 'Photo', icon: '📷', frame: 'square' }];
   }
 }
 
@@ -262,7 +269,6 @@ function recalculatePrice(pricing, condition, scanResult) {
   return (Math.ceil(suggested) - 0.01).toFixed(2);
 }
 
-// Compress image for scan — stays under Vercel 4.5MB payload limit
 async function compressForScan(file) {
   return new Promise((resolve) => {
     const MAX_PX = 1000;
@@ -282,8 +288,7 @@ async function compressForScan(file) {
           ctx.drawImage(img, 0, 0, w, h);
           const base64 = canvas.toDataURL('image/jpeg', QUALITY).split(',')[1];
           resolve(base64);
-        } catch (err) {
-          // If canvas fails fall back to a smaller quality encode
+        } catch {
           const canvas2 = document.createElement('canvas');
           canvas2.width = 800;
           canvas2.height = 800;
@@ -292,10 +297,7 @@ async function compressForScan(file) {
           resolve(canvas2.toDataURL('image/jpeg', 0.7).split(',')[1]);
         }
       };
-      img.onerror = () => {
-        // Last resort — read as base64 directly
-        resolve(e.target.result.split(',')[1]);
-      };
+      img.onerror = () => resolve(e.target.result.split(',')[1]);
       img.src = e.target.result;
     };
     reader.onerror = () => resolve('');
@@ -413,7 +415,6 @@ export default function Admin() {
 
       for (const slot of photoSlots) {
         if (photos[slot.key]) {
-          // Compress for scan to stay under Vercel 4.5MB payload limit
           const compressed = await compressForScan(photos[slot.key]);
           if (compressed) {
             images.push(compressed);
@@ -522,7 +523,7 @@ export default function Admin() {
       } else {
         setError(data.error || 'Failed to save.');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to save. Please try again.');
     }
     setSaving(false);
@@ -570,7 +571,7 @@ export default function Admin() {
 
       {cameraSlot && (
         <CameraModal
-          label={photoSlots.find(s => s.key === cameraSlot)?.label || 'Photo'}
+          label={photoSlots.find(s => s.key === cameraSlot) || 'Photo'}
           selectedFormat={selectedFormat}
           onCapture={file => handleCapture(cameraSlot, file)}
           onClose={() => setCameraSlot(null)}
