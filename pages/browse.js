@@ -383,20 +383,15 @@ function RecordRequestButton() {
                 <>
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Your Name *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" style={inp} />
-
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Email</label>
                   <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={inp} />
-
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Phone</label>
                   <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="(956) 555-0000" style={inp} />
-
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>What are you looking for? *</label>
                   <textarea value={form.request} onChange={e => setForm(f => ({ ...f, request: e.target.value }))}
                     placeholder="e.g. Elvis Presley 45rpm on RCA Victor, Selena anything, Beatles Abbey Road original pressing..."
                     rows={4} style={{ ...inp, resize: 'none', marginBottom: '12px' }} />
-
                   {error && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{error}</div>}
-
                   <button onClick={handleSubmit} disabled={sending}
                     style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '8px' }}>
                     {sending ? 'Sending...' : '🎵 Send Request →'}
@@ -436,6 +431,9 @@ export default function Browse() {
     try { localStorage.setItem('4em_cart', JSON.stringify(cart)); } catch {}
   }, [cart]);
 
+  // CHANGE 1 — fromFyt state added, detected from ?from=fyt URL param
+  const [fromFyt, setFromFyt] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -443,6 +441,9 @@ export default function Browse() {
       if (q) {
         setSearch(q);
         setSearchInput(q);
+      }
+      if (params.get('from') === 'fyt') {
+        setFromFyt(true);
       }
       const recordId = params.get('record');
       if (recordId) {
@@ -532,8 +533,7 @@ export default function Browse() {
     setAddedId(record.id);
     setTimeout(() => setAddedId(null), 1500);
     setShowCart(true);
-    // Check if crossing $100 threshold for free shipping
-    const newSubtotal = prev.reduce((s, i) => s + parseFloat(i.price) * i.qty, 0) + parseFloat(record.price);
+    const newSubtotal = cart.reduce((s, i) => s + parseFloat(i.price) * i.qty, 0) + parseFloat(record.price);
     if (newSubtotal >= 100 && !freeShippingShown) {
       setShowFreeShippingPopup(true);
       setFreeShippingShown(true);
@@ -630,10 +630,21 @@ export default function Browse() {
             </div>
           </a>
         </div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <a href="/" style={{ color: '#e8d5b0', fontSize: '14px', textDecoration: 'none', background: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px' }}>🏠 Home</a>
+
+        {/* CHANGE 2 — back to FYT button + Get the App added to nav */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {fromFyt && (
+            <button onClick={() => window.history.back()}
+              style={{ color: '#ffff00', fontSize: '12px', background: '#1a1a00', border: '1px solid #ffff0044', borderRadius: '8px', padding: '7px 12px', fontFamily: 'Georgia, serif', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+              ← Find Your Tunes
+            </button>
+          )}
+          <a href="/install" style={{ color: '#c9a84c', fontSize: '12px', textDecoration: 'none', background: '#1a1a0a', border: '1px solid #c9a84c44', borderRadius: '8px', padding: '7px 12px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+            📲 Get the App
+          </a>
+          <a href="/" style={{ color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', background: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '8px 14px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px' }}>🏠 Home</a>
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }}
-            style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 18px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             🛒 Cart
             {totalQty > 0 && <span style={{ background: '#c9a84c', color: '#0d0d0d', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700' }}>{totalQty}</span>}
           </button>
@@ -919,22 +930,6 @@ export default function Browse() {
                           <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '20px', color: '#c9a84c', fontWeight: '700' }}>${total2.toFixed(2)}</span>
                         </div>
                       </div>
-                      {subtotal < 100 && (
-                        <div style={{ marginTop: '12px', marginBottom: '4px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '11px', color: '#aaa' }}>Add ${(100 - subtotal).toFixed(2)} more for free shipping</span>
-                            <span style={{ fontSize: '11px', color: '#c9a84c' }}>${subtotal.toFixed(2)} / $100</span>
-                          </div>
-                          <div style={{ background: '#1a1a1a', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
-                            <div style={{ background: '#c9a84c', height: '100%', width: Math.min((subtotal / 100) * 100, 100) + '%', borderRadius: '4px', transition: 'width 0.3s' }} />
-                          </div>
-                        </div>
-                      )}
-                      {subtotal >= 100 && (
-                        <div style={{ marginTop: '12px', background: '#0a1a0a', border: '1px solid #4ade80', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
-                          <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: '700' }}>🎉 Free shipping unlocked!</span>
-                        </div>
-                      )}
                       <button onClick={() => setCheckoutStep('info')}
                         style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
                         Proceed to Checkout →
