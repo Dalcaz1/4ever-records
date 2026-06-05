@@ -37,25 +37,97 @@ function VinylPlaceholder({ color = '#c9a84c' }) {
   );
 }
 
-function InstallBanner() {
-  const [show, setShow] = useState(false);
+// ─── PWA Install Hook ─────────────────────────────────────────────────────────
+function useInstallPrompt() {
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
   const [isIos, setIsIos] = useState(false);
+  const [showIosInstructions, setShowIosInstructions] = useState(false);
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+    setIsInstalled(isStandalone);
+    setIsIos(/iPhone|iPad|iPod/i.test(navigator.userAgent));
+
+    function handleBeforeInstall(e) {
+      e.preventDefault();
+      setInstallPrompt(e);
+    }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', () => setIsInstalled(true));
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    };
+  }, []);
+
+  async function triggerInstall() {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const result = await installPrompt.userChoice;
+      if (result.outcome === 'accepted') {
+        setIsInstalled(true);
+        setInstallPrompt(null);
+      }
+    } else if (isIos) {
+      setShowIosInstructions(true);
+    }
+  }
+
+  return { installPrompt, isInstalled, isIos, triggerInstall, showIosInstructions, setShowIosInstructions };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function IosInstallModal({ onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#111', border: '1px solid #c9a84c44', borderRadius: '20px', width: '100%', maxWidth: '440px', padding: '28px 24px', fontFamily: 'Georgia, serif' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ fontSize: '16px', color: '#e8d5b0', fontWeight: '700' }}>📲 Add to Home Screen</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+          <img src="/icons/icon-192.png" alt="App icon" style={{ width: '56px', height: '56px', borderRadius: '12px', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: '15px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
+            <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic' }}>Record Store</div>
+          </div>
+        </div>
+        {[
+          { step: '1', icon: '⬆️', text: 'Tap the Share button at the bottom of your browser (the box with an arrow pointing up)' },
+          { step: '2', icon: '➕', text: 'Scroll down and tap "Add to Home Screen"' },
+          { step: '3', icon: '✅', text: 'Tap "Add" — the 4 Ever Memories icon will appear on your home screen' },
+        ].map(s => (
+          <div key={s.step} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div style={{ width: '28px', height: '28px', background: '#c9a84c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: '700', color: '#0d0d0d', flexShrink: 0 }}>{s.step}</div>
+            <div style={{ fontSize: '13px', color: '#ccc', lineHeight: 1.5, paddingTop: '4px' }}>{s.text}</div>
+          </div>
+        ))}
+        <button onClick={onClose} style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '8px' }}>
+          Got it ✓
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InstallBanner({ installPrompt, isInstalled, isIos, triggerInstall }) {
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const dismissed = localStorage.getItem('4em_install_dismissed');
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    setIsIos(ios);
-    if (!isStandalone && !dismissed && isMobile) setShow(true);
-  }, []);
+    if (!isStandalone && !dismissed && isMobile && !isInstalled) setShow(true);
+  }, [isInstalled]);
 
   function dismiss() {
     localStorage.setItem('4em_install_dismissed', 'true');
     setShow(false);
   }
 
-  if (!show) return null;
+  if (!show || isInstalled) return null;
 
   return (
     <div style={{ background: '#1a1a0a', borderBottom: '1px solid #c9a84c44', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
@@ -64,11 +136,80 @@ function InstallBanner() {
         <div>
           <div style={{ fontSize: '12px', color: '#c9a84c', fontWeight: '700', fontFamily: 'Georgia, serif' }}>Add to Home Screen</div>
           <div style={{ fontSize: '11px', color: '#ccc', fontFamily: 'Georgia, serif' }}>
-            {isIos ? 'Tap the Share button then "Add to Home Screen"' : 'Tap the menu then "Add to Home screen"'}
+            {isIos ? 'Tap Share then "Add to Home Screen"' : 'Install the app for quick access'}
           </div>
         </div>
       </div>
-      <button onClick={dismiss} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '20px', cursor: 'pointer', padding: '4px', flexShrink: 0 }}>✕</button>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+        {!isIos && installPrompt && (
+          <button onClick={triggerInstall} style={{ background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+            Install
+          </button>
+        )}
+        {isIos && (
+          <button onClick={triggerInstall} style={{ background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+            How to Install
+          </button>
+        )}
+        <button onClick={dismiss} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '20px', cursor: 'pointer', padding: '4px' }}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+function ShareButton() {
+  const [copied, setCopied] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const url = 'https://www.4evermemoriesrecordstore.com';
+  const text = '🎵 Check out 4 Ever Memories Record Store — vintage vinyl, CDs, cassettes and more!';
+
+  async function handleShare() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: '4 Ever Memories Record Store', text, url });
+        return;
+      } catch {}
+    }
+    setShowMenu(true);
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => { setCopied(false); setShowMenu(false); }, 2000);
+    } catch {}
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={handleShare}
+        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap' }}>
+        🔗 Share
+      </button>
+      {showMenu && (
+        <div style={{ position: 'absolute', top: '44px', right: 0, background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '8px', zIndex: 200, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
+          <button onClick={copyLink} style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: copied ? '#4ade80' : '#e8d5b0', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', borderRadius: '6px' }}>
+            {copied ? '✓ Link copied!' : '📋 Copy link'}
+          </button>
+          <a href={'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url)} target="_blank" rel="noreferrer"
+            style={{ display: 'block', padding: '10px 14px', color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', fontFamily: 'Georgia, serif', borderRadius: '6px' }}>
+            📘 Share on Facebook
+          </a>
+          <a href={'sms:?body=' + encodeURIComponent(text + ' ' + url)}
+            style={{ display: 'block', padding: '10px 14px', color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', fontFamily: 'Georgia, serif', borderRadius: '6px' }}>
+            💬 Send via Text
+          </a>
+          <a href={'mailto:?subject=4 Ever Memories Record Store&body=' + encodeURIComponent(text + '\n\n' + url)}
+            style={{ display: 'block', padding: '10px 14px', color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', fontFamily: 'Georgia, serif', borderRadius: '6px' }}>
+            📧 Send via Email
+          </a>
+          <button onClick={() => setShowMenu(false)} style={{ width: '100%', padding: '8px 14px', background: 'none', border: 'none', color: '#aaa', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', borderRadius: '6px' }}>
+            ✕ Cancel
+          </button>
+        </div>
+      )}
+      {showMenu && <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setShowMenu(false)} />}
     </div>
   );
 }
@@ -399,20 +540,15 @@ function RecordRequestButton() {
                 <>
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Your Name *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" style={inp} />
-
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Email</label>
                   <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="your@email.com" style={inp} />
-
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Phone</label>
                   <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="(956) 555-0000" style={inp} />
-
                   <label style={{ fontSize: '10px', color: '#ccc', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>What are you looking for? *</label>
                   <textarea value={form.request} onChange={e => setForm(f => ({ ...f, request: e.target.value }))}
                     placeholder="e.g. Elvis Presley 45rpm on RCA Victor, Selena anything, Beatles Abbey Road original pressing..."
                     rows={4} style={{ ...inp, resize: 'none', marginBottom: '12px' }} />
-
                   {error && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{error}</div>}
-
                   <button onClick={handleSubmit} disabled={sending}
                     style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '8px' }}>
                     {sending ? 'Sending...' : '🎵 Send Request →'}
@@ -449,6 +585,9 @@ export default function Home() {
   const [lightboxRecord, setLightboxRecord] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', address: '', city: '', state: '', zip: '' });
   const [formError, setFormError] = useState('');
+
+  const { installPrompt, isInstalled, isIos, triggerInstall, showIosInstructions, setShowIosInstructions } = useInstallPrompt();
+  const showInstallButton = !isInstalled && (installPrompt || isIos);
 
   const totalQty = cart.reduce((s, i) => s + i.qty, 0);
   const subtotal = cart.reduce((s, i) => s + parseFloat(i.price) * i.qty, 0);
@@ -558,6 +697,7 @@ export default function Home() {
         }
       `}</style>
 
+      {showIosInstructions && <IosInstallModal onClose={() => setShowIosInstructions(false)} />}
       {lightboxRecord && <PhotoLightbox record={lightboxRecord} onClose={() => setLightboxRecord(null)} onAddToCart={addToCart} />}
 
       {/* FREE SHIPPING POPUP */}
@@ -579,7 +719,7 @@ export default function Home() {
         </span>
       </div>
 
-      <InstallBanner />
+      <InstallBanner installPrompt={installPrompt} isInstalled={isInstalled} isIos={isIos} triggerInstall={triggerInstall} />
 
       {/* NAV */}
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', position: 'sticky', top: 0, zIndex: 50 }}>
@@ -595,6 +735,8 @@ export default function Home() {
             <div style={{ fontSize: '9px', letterSpacing: '3px', color: '#c9a84c', textTransform: 'uppercase' }}>Record Store</div>
           </div>
         </div>
+
+        {/* DESKTOP NAV */}
         <div className="nav-desktop" style={{ gap: '12px', alignItems: 'center' }}>
           <a href="/browse" style={{ color: '#c9a84c', fontSize: '13px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', letterSpacing: '1px' }}>🎵 Browse All Records</a>
           <a href="/contact" className="sell-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0d0d0d', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>🎵 Sell Your Records</a>
@@ -604,14 +746,29 @@ export default function Home() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
             Facebook
           </a>
+          <ShareButton />
+          {showInstallButton && (
+            <button onClick={triggerInstall}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', color: '#c9a84c', border: '1px solid #c9a84c', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap' }}>
+              📲 Install App
+            </button>
+          )}
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }} style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 18px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             🛒 Cart
             {totalQty > 0 && <span style={{ background: '#c9a84c', color: '#0d0d0d', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700' }}>{totalQty}</span>}
           </button>
         </div>
+
+        {/* MOBILE NAV */}
         <div className="nav-mobile" style={{ gap: '8px', alignItems: 'center' }}>
           <a href="/browse" style={{ color: '#c9a84c', fontSize: '12px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '7px 10px', fontFamily: 'Georgia, serif' }}>🎵 Browse</a>
           <a href="/contact" style={{ background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0d0d0d', padding: '7px 10px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: '700' }}>Sell</a>
+          {showInstallButton && (
+            <button onClick={triggerInstall}
+              style={{ background: 'transparent', color: '#c9a84c', border: '1px solid #c9a84c44', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px' }}>
+              📲
+            </button>
+          )}
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }} style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             🛒
             {totalQty > 0 && <span style={{ background: '#c9a84c', color: '#0d0d0d', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700' }}>{totalQty}</span>}
@@ -719,6 +876,12 @@ export default function Home() {
           <div>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '20px', color: '#e8d5b0', fontWeight: '700', marginBottom: '8px' }}>4 Ever Memories Records</div>
             <p style={{ fontSize: '13px', color: '#aaa', lineHeight: 1.7, fontStyle: 'italic', maxWidth: '300px' }}>Store full of memories and vinyls. Vintage records from every era, carefully graded and ready to spin.</p>
+            {showInstallButton && (
+              <button onClick={triggerInstall}
+                style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', background: '#1a1a0a', border: '1px solid #c9a84c44', color: '#c9a84c', borderRadius: '8px', padding: '10px 16px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                📲 Add to Home Screen
+              </button>
+            )}
           </div>
           <div>
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Shop</div>
@@ -733,7 +896,8 @@ export default function Home() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
               Follow us on Facebook
             </a>
-            <a href="tel:+19568733818" style={{ color: '#bbb', textDecoration: 'none', fontSize: '13px', display: 'block' }}>📱 (956) 873-3818</a>
+            <a href="tel:+19568733818" style={{ color: '#bbb', textDecoration: 'none', fontSize: '13px', display: 'block', marginBottom: '8px' }}>📱 (956) 873-3818</a>
+            <div style={{ marginTop: '4px' }}><ShareButton /></div>
           </div>
         </div>
         <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
