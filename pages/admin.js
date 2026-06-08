@@ -319,83 +319,7 @@ function getDemandLabel(wantHave) {
   return { label: 'Low demand', color: '#f87171', bg: '#2a0f0f', tip: 'Price competitively to sell faster' };
 }
 
-function parseMoney(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const cleaned = String(value).replace(/[^0-9.]/g, '');
-  const n = parseFloat(cleaned);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function conditionMultiplier(condition, sealed) {
-  const c = String(condition || '').toLowerCase().trim();
-  if (sealed) return 2.80;
-  if (c === 'm') return 2.50;
-  if (c === 'nm') return 1.60;
-  if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 1.25;
-  if (c === 'vg') return 1.0;
-  if (c === 'g') return 0.60;
-  return 1.0;
-}
-
-function isSpanishOrRegional(artist, title, genre, label, catalogCountry) {
-  const text = [artist, title, genre, label, catalogCountry || ''].join(' ').toLowerCase();
-  const terms = ['tejano', 'conjunto', 'norteno', 'norteño', 'regional mexican', 'spanish', 'mexican', 'freddie', 'latin', 'ranchera', 'cumbia', 'spain', 'espana', 'us-regional'];
-  return terms.some(t => text.includes(t));
-}
-
-function getProtectedFloor(releaseType, artist, title, genre, label, catalogCountry, condition, sealed) {
-  const regional = isSpanishOrRegional(artist, title, genre, label, catalogCountry);
-  const c = String(condition || '').toLowerCase().trim();
-  if (releaseType === 'VINYL_LP' && regional) {
-    if (sealed) return 34.99;
-    if (c === 'm' || c === 'nm') return 24.99;
-    if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 19.99;
-    if (c === 'vg') return 17.99;
-    return 16.99;
-  }
-  if (releaseType === 'VINYL_7_SINGLE' && regional) {
-    if (sealed) return 14.99;
-    if (c === 'm' || c === 'nm') return 9.99;
-    if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 7.99;
-    if (c === 'vg') return 5.99;
-    return 4.99;
-  }
-  return null;
-}
-
-function recalculatePrice(pricing, condition, scanResult) {
-  if (!pricing) return null;
-  const sealed = scanResult?.sealed === true || scanResult?.sealed === 'true';
-  const overallRange = pricing.overallMarketRange || pricing.marketRange || pricing.collectionValue;
-  const floor = getProtectedFloor(
-    pricing?.recordFound?.releaseType || '',
-    scanResult?.artist || '', scanResult?.title || '',
-    scanResult?.genre || '', scanResult?.label || '',
-    pricing?.recordFound?.catalogCountry || '',
-    condition, sealed
-  );
-  if (!overallRange) return floor ? (Math.ceil(floor) - 0.01).toFixed(2) : null;
-  const parts = String(overallRange).replace(/\$/g, '').split('-');
-  const low = parseMoney(parts[0]);
-  const high = parseMoney(parts[1]);
-  const medianRaw = pricing?.sourceBreakdown
-    ? (() => {
-        const prices = (pricing.sourceBreakdown || [])
-          .filter(s => s.median && s.matchesUsed > 0)
-          .map(s => parseMoney(s.median))
-          .filter(Boolean)
-          .sort((a, b) => a - b);
-        return prices.length ? prices[Math.floor(prices.length / 2)] : null;
-      })()
-    : null;
-  const median = medianRaw || (low && high ? (low + high) / 2 : low || high);
-  if (!median) return null;
-  const multiplier = conditionMultiplier(condition, sealed);
-  let suggested = median * multiplier;
-  if (floor && suggested < floor) suggested = floor;
-  if (high && suggested > high && !(floor && suggested === floor)) suggested = high;
-  return (Math.ceil(suggested) - 0.01).toFixed(2);
-}
+// Pricing comes entirely from FYT — no local recalculation needed
 
 async function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -482,7 +406,7 @@ export default function Admin() {
   if (scanning) return <ScanningOverlay />;
 
   const activeCondition = adjustedCondition || form.condition;
-  const recalcPrice = pricing ? recalculatePrice(pricing, activeCondition, scanResult) : null;
+  const recalcPrice = pricing?.recommendedPrice ? Number(pricing.recommendedPrice).toFixed(2) : null;
 
   // ─── Full reset ──────────────────────────────────────────────────────────
   function reset() {
@@ -616,7 +540,7 @@ export default function Admin() {
         cover_details: result.cover_details || '',
       });
 
-      fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' } })
+      fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: fytHeaders() })
         .then(r => r.json())
         .then(setPricing)
         .catch(() => {});
