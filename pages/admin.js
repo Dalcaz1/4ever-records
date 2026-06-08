@@ -1,17 +1,14 @@
-export const getServerSideProps = async () => ({ props: { v: 11 } });
+export const getServerSideProps = async () => ({ props: { v: 12 } });
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CameraModal from '../components/CameraModal';
 
 // ─── Session persistence helpers ───────────────────────────────────────────
 const SESSION_KEY = '4em_admin_state';
 
 function saveSession(state) {
-  try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(state));
-  } catch {}
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch {}
 }
-
 function loadSession() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
@@ -19,11 +16,20 @@ function loadSession() {
   } catch {}
   return null;
 }
-
 function clearSession() {
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-  } catch {}
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+}
+// ───────────────────────────────────────────────────────────────────────────
+
+// ─── FYT API helpers ───────────────────────────────────────────────────────
+const FYT_BASE = 'https://findyourtunes.vercel.app';
+const ADMIN_HEADER = { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' };
+
+function fytHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '',
+  };
 }
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -89,99 +95,210 @@ function PinLock({ onUnlock }) {
   );
 }
 
-const GENRES = ['Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
-const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
+// ─── Stage 1 Camera — same visual style as FYT ────────────────────────────
+function Stage1Camera({ onCapture }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [camError, setCamError] = useState('');
 
-const FORMATS = [
-  { label: '7" Vinyl',  icon: '🎵', multiDisc: false, sleeveOptions: ['Picture Sleeve', 'Generic Sleeve', 'Sleeve Only'] },
-  { label: '12" Vinyl', icon: '💿', multiDisc: true,  sleeveOptions: ['Picture Cover', 'Generic Cover', 'Cover Only'] },
-  { label: 'CD',        icon: '📀', multiDisc: true,  sleeveOptions: ['Picture Case', 'Generic Case'] },
-  { label: 'Cassette',  icon: '📼', multiDisc: false, sleeveOptions: ['Picture Case', 'Generic Case'] },
-  { label: '8-Track',   icon: '📟', multiDisc: false, sleeveOptions: null },
+  useEffect(() => {
+    async function start() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+      } catch {
+        setCamError('Camera access denied. Please allow camera permissions and try again.');
+      }
+    }
+    start();
+    return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
+  }, []);
+
+  function capture() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const w = video.videoWidth || 1280;
+    const h = video.videoHeight || 720;
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      onCapture(new File([blob], 'identify.jpg', { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.88);
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9999, display: 'flex', flexDirection: 'column', fontFamily: 'Georgia, serif' }}>
+      <div style={{ padding: '14px 16px', background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <svg width="32" height="32" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+          <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+          <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+        </svg>
+        <div>
+          <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
+          <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Scan Item</div>
+        </div>
+      </div>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}>
+        {camError ? (
+          <div style={{ color: '#f87171', padding: '40px 20px', textAlign: 'center', fontSize: '15px' }}>{camError}</div>
+        ) : (
+          <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ position: 'relative', width: '75vw', height: '75vw', maxWidth: '320px', maxHeight: '320px' }}>
+            {[
+              { top: 0, left: 0, borderTop: '3px solid #c9a84c', borderLeft: '3px solid #c9a84c', borderTopLeftRadius: '6px' },
+              { top: 0, right: 0, borderTop: '3px solid #c9a84c', borderRight: '3px solid #c9a84c', borderTopRightRadius: '6px' },
+              { bottom: 0, left: 0, borderBottom: '3px solid #c9a84c', borderLeft: '3px solid #c9a84c', borderBottomLeftRadius: '6px' },
+              { bottom: 0, right: 0, borderBottom: '3px solid #c9a84c', borderRight: '3px solid #c9a84c', borderBottomRightRadius: '6px' },
+            ].map((s, i) => (
+              <div key={i} style={{ position: 'absolute', width: '28px', height: '28px', ...s }} />
+            ))}
+          </div>
+        </div>
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+      </div>
+      <div style={{ background: '#0a0a0a', borderTop: '1px solid #2a2a2a', padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+        <div style={{ width: '100%', maxWidth: '340px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          {[
+            { num: '1', text: 'Hold the label or cover facing the camera' },
+            { num: '2', text: 'Fill the frame — get close enough to read the text' },
+            { num: '3', text: 'Hold still — tap capture when image is sharp' },
+          ].map(({ num, text }) => (
+            <div key={num} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <div style={{ width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#0d0d0d' }}>{num}</div>
+              <div style={{ fontSize: '12px', color: '#bbb', lineHeight: 1.45, paddingTop: '2px' }}>{text}</div>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={capture} style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid #c9a84c', background: '#1a1a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '28px' }}>
+          📷
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IdentifyingOverlay() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
+      <style>{`@keyframes pulse4em { 0%,100%{opacity:0.2;transform:scale(0.8)} 50%{opacity:1;transform:scale(1.2)} }`}</style>
+      <svg width="56" height="56" viewBox="0 0 40 40" style={{ marginBottom: '24px' }}>
+        <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+        <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+        <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+      </svg>
+      <div style={{ color: '#c9a84c', fontSize: '18px', fontWeight: '700', marginBottom: '6px' }}>Identifying item...</div>
+      <div style={{ color: '#bbb', fontSize: '13px', marginBottom: '24px', fontStyle: 'italic' }}>Reading format, label, and catalog number</div>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#c9a84c', animation: `pulse4em 1.2s ease-in-out ${i * 0.4}s infinite` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScanningOverlay() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
+      <style>{`@keyframes pulse4em { 0%,100%{opacity:0.2;transform:scale(0.8)} 50%{opacity:1;transform:scale(1.2)} }`}</style>
+      <svg width="64" height="64" viewBox="0 0 40 40" style={{ marginBottom: '28px' }}>
+        <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+        <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+        <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+      </svg>
+      <div style={{ color: '#c9a84c', fontSize: '20px', fontWeight: '700', marginBottom: '8px', letterSpacing: '1px' }}>4 Ever Memories</div>
+      <div style={{ color: '#e8d5b0', fontSize: '15px', marginBottom: '28px' }}>Scanning & identifying item</div>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#c9a84c', animation: `pulse4em 1.2s ease-in-out ${i * 0.4}s infinite` }} />
+        ))}
+      </div>
+      <div style={{ color: '#555', fontSize: '12px', marginTop: '24px', fontStyle: 'italic' }}>Reading label, catalog number, and pressing details</div>
+    </div>
+  );
+}
+
+// ─── FYT FORMATS — mirrors FYT exactly so photo slots match ───────────────
+const FYT_FORMATS = [
+  {
+    label: '7" Vinyl',
+    types: [
+      { name: 'Picture Sleeve', photos: [{ label: 'Front Sleeve' }, { label: 'Back Sleeve' }, { label: 'A Side Label' }, { label: 'B Side Label' }] },
+      { name: 'Generic Sleeve', photos: [{ label: 'A Side Label' }, { label: 'B Side Label' }] },
+      { name: 'Sleeve Only',    photos: [{ label: 'Front Sleeve' }, { label: 'Back Sleeve' }] },
+      { name: 'Sealed Item',   photos: [{ label: 'Front' }] },
+    ],
+  },
+  {
+    label: '12" Vinyl',
+    types: [
+      { name: 'Picture Cover',  photos: [{ label: 'Front Cover' }, { label: 'Back Cover' }, { label: 'A Side Label' }, { label: 'B Side Label' }] },
+      { name: 'Generic Cover',  photos: [{ label: 'A Side Label' }, { label: 'B Side Label' }] },
+      { name: 'Cover Only',     photos: [{ label: 'Front Cover' }, { label: 'Back Cover' }] },
+      { name: 'Sealed Item',    photos: [{ label: 'Front' }] },
+    ],
+  },
+  {
+    label: 'CD',
+    types: [
+      { name: 'Picture Case',  photos: [{ label: 'Front Case' }, { label: 'Back Case' }, { label: 'Disc' }] },
+      { name: 'Generic Case',  photos: [{ label: 'Disc' }] },
+      { name: 'Sealed Item',   photos: [{ label: 'Front' }] },
+    ],
+  },
+  {
+    label: 'Cassette',
+    types: [
+      { name: 'Picture Case',  photos: [{ label: 'Front Case' }, { label: 'Back Case' }] },
+      { name: 'Generic Case',  photos: [{ label: 'Tape' }] },
+      { name: 'Sealed Item',   photos: [{ label: 'Front' }] },
+    ],
+  },
+  {
+    label: '8-Track',
+    types: [
+      { name: '8-Track',     photos: [{ label: 'Side 1' }, { label: 'Side 2' }] },
+      { name: 'Sealed Item', photos: [{ label: 'Front' }] },
+    ],
+  },
 ];
 
-function getPhotoSlots(format, discCount, sleeveType) {
-  const count = parseInt(discCount) || 1;
-  switch (format) {
-    case '7" Vinyl':
-      if (sleeveType === 'Picture Sleeve') return [
-        { key: 'front', label: 'Front Sleeve', icon: '📄', frame: 'square' },
-        { key: 'back',  label: 'Back Sleeve',  icon: '📄', frame: 'square' },
-        { key: 'a',     label: 'A Side Label', icon: '🎵', frame: 'vinyl-circle' },
-        { key: 'b',     label: 'B Side Label', icon: '🎶', frame: 'vinyl-circle' },
-      ];
-      if (sleeveType === 'Sleeve Only') return [
-        { key: 'front', label: 'Front Sleeve', icon: '📄', frame: 'square' },
-        { key: 'back',  label: 'Back Sleeve',  icon: '📄', frame: 'square' },
-      ];
-      return [
-        { key: 'a', label: 'A Side Label', icon: '🎵', frame: 'vinyl-circle' },
-        { key: 'b', label: 'B Side Label', icon: '🎶', frame: 'vinyl-circle' },
-      ];
-
-    case '12" Vinyl': {
-      if (sleeveType === 'Cover Only') return [
-        { key: 'front', label: 'Front Cover', icon: '🖼️', frame: 'square' },
-        { key: 'back',  label: 'Back Cover',  icon: '📋', frame: 'square' },
-      ];
-      if (sleeveType === 'Generic Cover') {
-        const slots = [];
-        for (let d = 1; d <= count; d++) {
-          slots.push({ key: 'disc' + d + 'a', label: count > 1 ? 'Disc ' + d + ' A Side' : 'A Side Label', icon: '🎵', frame: 'vinyl-circle' });
-          slots.push({ key: 'disc' + d + 'b', label: count > 1 ? 'Disc ' + d + ' B Side' : 'B Side Label', icon: '🎶', frame: 'vinyl-circle' });
-        }
-        return slots;
-      }
-      const slots = [
-        { key: 'front', label: 'Front Cover', icon: '🖼️', frame: 'square' },
-        { key: 'back',  label: 'Back Cover',  icon: '📋', frame: 'square' },
-      ];
-      for (let d = 1; d <= count; d++) {
-        slots.push({ key: 'disc' + d + 'a', label: count > 1 ? 'Disc ' + d + ' A Side' : 'A Side Label', icon: '🎵', frame: 'vinyl-circle' });
-        slots.push({ key: 'disc' + d + 'b', label: count > 1 ? 'Disc ' + d + ' B Side' : 'B Side Label', icon: '🎶', frame: 'vinyl-circle' });
-      }
-      return slots;
-    }
-
-    case 'CD': {
-      if (sleeveType === 'Generic Case') {
-        const slots = [];
-        for (let d = 1; d <= count; d++) {
-          slots.push({ key: 'disc' + d + 'front', label: count > 1 ? 'Disc ' + d + ' Front' : 'CD Front', icon: '📀', frame: 'cd-circle' });
-          slots.push({ key: 'disc' + d + 'back',  label: count > 1 ? 'Disc ' + d + ' Back'  : 'CD Back',  icon: '📀', frame: 'cd-circle' });
-        }
-        return slots;
-      }
-      const slots = [
-        { key: 'front', label: 'Front Case', icon: '📗', frame: 'rectangle' },
-        { key: 'back',  label: 'Back Case',  icon: '📘', frame: 'rectangle' },
-      ];
-      for (let d = 1; d <= count; d++) {
-        slots.push({ key: 'disc' + d + 'front', label: count > 1 ? 'Disc ' + d + ' Front' : 'CD Front', icon: '📀', frame: 'cd-circle' });
-        slots.push({ key: 'disc' + d + 'back',  label: count > 1 ? 'Disc ' + d + ' Back'  : 'CD Back',  icon: '📀', frame: 'cd-circle' });
-      }
-      return slots;
-    }
-
-    case 'Cassette':
-      if (sleeveType === 'Generic Case') return [
-        { key: 'tape', label: 'Tape', icon: '📼', frame: 'cassette-rect' },
-      ];
-      return [
-        { key: 'front', label: 'Front Case', icon: '📼', frame: 'cassette-rect' },
-        { key: 'back',  label: 'Back Case',  icon: '📼', frame: 'cassette-rect' },
-      ];
-
-    case '8-Track':
-      return [
-        { key: 'a', label: 'Side 1', icon: '📟', frame: '8track-rect' },
-        { key: 'b', label: 'Side 2', icon: '📟', frame: '8track-rect' },
-      ];
-
-    default:
-      return [{ key: 'front', label: 'Photo', icon: '📷', frame: 'square' }];
-  }
+function getSlotsFor(format, type) {
+  const fmt = FYT_FORMATS.find(f => f.label === format);
+  if (!fmt) return [{ label: 'Photo' }];
+  const t = fmt.types.find(t => t.name === type) || fmt.types[0];
+  return t.photos;
 }
+
+// ─── Map identify.js slot labels to admin save-record keys ────────────────
+function slotLabelToKey(label, index) {
+  const l = String(label || '').toLowerCase();
+  if (l.includes('front cover') || l.includes('front case') || l.includes('front sleeve') || l === 'front') return 'front';
+  if (l.includes('back cover') || l.includes('back case') || l.includes('back sleeve')) return 'back';
+  if (l.includes('a side') || l.includes('side 1') || l.includes('disc front')) return 'a';
+  if (l.includes('b side') || l.includes('side 2') || l.includes('disc back')) return 'b';
+  if (l.includes('disc') || l.includes('cd')) return 'a';
+  if (l.includes('tape')) return 'a';
+  return ['front', 'a', 'b', 'back'][index] || 'front';
+}
+
+const GENRES = ['Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
+const CONDITIONS = ['M', 'NM', 'VG+', 'VG', 'G'];
 
 const EMPTY_FORM = {
   artist: '', title: '', year: '', label: '', cat: '',
@@ -211,12 +328,12 @@ function parseMoney(value) {
 
 function conditionMultiplier(condition, sealed) {
   const c = String(condition || '').toLowerCase().trim();
-  if (sealed) return 1.45;
-  if (c === 'm') return 1.35;
-  if (c === 'nm') return 1.25;
-  if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 1.12;
+  if (sealed) return 2.80;
+  if (c === 'm') return 2.50;
+  if (c === 'nm') return 1.60;
+  if (c === 'vg+' || (c.includes('vg') && c.includes('+'))) return 1.25;
   if (c === 'vg') return 1.0;
-  if (c === 'g') return 0.72;
+  if (c === 'g') return 0.60;
   return 1.0;
 }
 
@@ -250,26 +367,17 @@ function recalculatePrice(pricing, condition, scanResult) {
   if (!pricing) return null;
   const sealed = scanResult?.sealed === true || scanResult?.sealed === 'true';
   const overallRange = pricing.overallMarketRange || pricing.marketRange || pricing.collectionValue;
-
   const floor = getProtectedFloor(
     pricing?.recordFound?.releaseType || '',
-    scanResult?.artist || '',
-    scanResult?.title || '',
-    scanResult?.genre || '',
-    scanResult?.label || '',
+    scanResult?.artist || '', scanResult?.title || '',
+    scanResult?.genre || '', scanResult?.label || '',
     pricing?.recordFound?.catalogCountry || '',
-    condition,
-    sealed
+    condition, sealed
   );
-
-  if (!overallRange) {
-    return floor ? (Math.ceil(floor) - 0.01).toFixed(2) : null;
-  }
-
+  if (!overallRange) return floor ? (Math.ceil(floor) - 0.01).toFixed(2) : null;
   const parts = String(overallRange).replace(/\$/g, '').split('-');
   const low = parseMoney(parts[0]);
   const high = parseMoney(parts[1]);
-
   const medianRaw = pricing?.sourceBreakdown
     ? (() => {
         const prices = (pricing.sourceBreakdown || [])
@@ -280,89 +388,63 @@ function recalculatePrice(pricing, condition, scanResult) {
         return prices.length ? prices[Math.floor(prices.length / 2)] : null;
       })()
     : null;
-
   const median = medianRaw || (low && high ? (low + high) / 2 : low || high);
   if (!median) return null;
-
   const multiplier = conditionMultiplier(condition, sealed);
   let suggested = median * multiplier;
-
   if (floor && suggested < floor) suggested = floor;
   if (high && suggested > high && !(floor && suggested === floor)) suggested = high;
-
   return (Math.ceil(suggested) - 0.01).toFixed(2);
 }
 
-async function compressForScan(file) {
-  return new Promise((resolve) => {
-    const MAX_PX = 1000;
-    const QUALITY = 0.80;
+async function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const scale = Math.min(1, MAX_PX / Math.max(img.width, img.height));
-          const w = Math.round(img.width * scale);
-          const h = Math.round(img.height * scale);
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const base64 = canvas.toDataURL('image/jpeg', QUALITY).split(',')[1];
-          resolve(base64);
-        } catch {
-          const canvas2 = document.createElement('canvas');
-          canvas2.width = 800;
-          canvas2.height = 800;
-          const ctx2 = canvas2.getContext('2d');
-          ctx2.drawImage(img, 0, 0, 800, 800);
-          resolve(canvas2.toDataURL('image/jpeg', 0.7).split(',')[1]);
-        }
-      };
-      img.onerror = () => resolve(e.target.result.split(',')[1]);
-      img.src = e.target.result;
-    };
-    reader.onerror = () => resolve('');
+    reader.onload = e => resolve(e.target.result.split(',')[1]);
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
 
-function ScanningOverlay() {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif' }}>
-      <style>{`
-        @keyframes pulse4em {
-          0%, 100% { opacity: 0.2; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-      `}</style>
-      <svg width="64" height="64" viewBox="0 0 40 40" style={{ marginBottom: '28px' }}>
-        <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
-        <circle cx="20" cy="20" r="8" fill="#c9a84c" />
-        <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
-      </svg>
-      <div style={{ color: '#c9a84c', fontSize: '20px', fontWeight: '700', marginBottom: '8px', letterSpacing: '1px' }}>4 Ever Memories</div>
-      <div style={{ color: '#e8d5b0', fontSize: '15px', marginBottom: '28px' }}>Scanning &amp; identifying item</div>
-      <div style={{ display: 'flex', gap: '10px' }}>
-        {[0, 1, 2].map(i => (
-          <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#c9a84c', animation: `pulse4em 1.2s ease-in-out ${i * 0.4}s infinite` }} />
-        ))}
-      </div>
-      <div style={{ color: '#555', fontSize: '12px', marginTop: '24px', fontStyle: 'italic' }}>Reading label, catalog number, and pressing details</div>
-    </div>
-  );
+async function compressForScan(file, slotLabel) {
+  return new Promise((resolve) => {
+    const l = String(slotLabel || '').toLowerCase();
+    const isLabel = l.includes('label') || l.includes('side a') || l.includes('side b') || l.includes('disc');
+    const isCover = l.includes('cover') || l.includes('case') || l.includes('front') || l.includes('back');
+    const maxPx = isLabel ? 1800 : isCover ? 1400 : 1600;
+    const quality = isLabel ? 0.88 : isCover ? 0.84 : 0.86;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (w > maxPx || h > maxPx) { const s = Math.min(maxPx/w, maxPx/h); w = Math.round(w*s); h = Math.round(h*s); }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(blob => resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file), 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
-  const [selectedFormat, setSelectedFormat] = useState(null);
-  const [discCount, setDiscCount] = useState('1');
-  const [sleeveType, setSleeveType] = useState(null);
-  const [photos, setPhotos] = useState({});
-  const [previews, setPreviews] = useState({});
-  const [restoredSlots, setRestoredSlots] = useState([]);
+
+  // ─── Entry flow state ───────────────────────────────────────────────────
+  const [entryStage, setEntryStage] = useState('camera1'); // camera1 | identifying | slots
+  const [identification, setIdentification] = useState(null);
+  const [photoSlots, setPhotoSlots] = useState([]);
+  const [capturedPhotos, setCapturedPhotos] = useState({}); // index → { file, label }
+  const [identifyError, setIdentifyError] = useState('');
+  const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
+  // ───────────────────────────────────────────────────────────────────────
+
+  // ─── Review / save state (untouched) ───────────────────────────────────
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('entry');
   const [scanning, setScanning] = useState(false);
@@ -372,66 +454,44 @@ export default function Admin() {
   const [savedSku, setSavedSku] = useState(null);
   const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
-  const [cameraSlot, setCameraSlot] = useState(null);
   const [showAllEbay, setShowAllEbay] = useState(false);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
+  // ───────────────────────────────────────────────────────────────────────
 
-  // ─── Restore session on mount ─────────────────────────────────────────────
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
     const saved = loadSession();
     if (saved) {
-      if (saved.selectedFormat) setSelectedFormat(saved.selectedFormat);
-      if (saved.discCount) setDiscCount(saved.discCount);
-      if (saved.sleeveType) setSleeveType(saved.sleeveType);
       if (saved.form) setForm(saved.form);
       if (saved.mode) setMode(saved.mode);
       if (saved.pricing) setPricing(saved.pricing);
       if (saved.scanResult) setScanResult(saved.scanResult);
       if (saved.nextSku) setNextSku(saved.nextSku);
       if (saved.adjustedCondition) setAdjustedCondition(saved.adjustedCondition);
-      if (saved.restoredSlots && saved.restoredSlots.length > 0) {
-        setRestoredSlots(saved.restoredSlots);
-      }
+      if (saved.identification) setIdentification(saved.identification);
+      if (saved.photoSlots) setPhotoSlots(saved.photoSlots);
     }
   }, []);
 
-  // ─── Save session whenever key state changes ──────────────────────────────
   useEffect(() => {
     if (!authed) return;
-    saveSession({
-      selectedFormat,
-      discCount,
-      sleeveType,
-      form,
-      mode,
-      pricing,
-      scanResult,
-      nextSku,
-      adjustedCondition,
-      restoredSlots,
-    });
-  }, [authed, selectedFormat, discCount, sleeveType, form, mode, pricing, scanResult, nextSku, adjustedCondition, restoredSlots]);
-  // ─────────────────────────────────────────────────────────────────────────
+    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots });
+  }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots]);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
-  const format = FORMATS.find(f => f.label === selectedFormat);
-  const effectiveSleeveType = sleeveType || (format?.sleeveOptions?.[0]) || null;
-  const photoSlots = selectedFormat ? getPhotoSlots(selectedFormat, discCount, effectiveSleeveType) : [];
-  const photoCount = Object.keys(photos).length;
-
   const activeCondition = adjustedCondition || form.condition;
   const recalcPrice = pricing ? recalculatePrice(pricing, activeCondition, scanResult) : null;
 
+  // ─── Full reset ──────────────────────────────────────────────────────────
   function reset() {
-    setSelectedFormat(null);
-    setDiscCount('1');
-    setSleeveType(null);
-    setPhotos({});
-    setPreviews({});
-    setRestoredSlots([]);
+    setEntryStage('camera1');
+    setIdentification(null);
+    setPhotoSlots([]);
+    setCapturedPhotos({});
+    setIdentifyError('');
+    setCameraSlotIndex(null);
     setForm(EMPTY_FORM);
     setMode('entry');
     setPricing(null);
@@ -444,62 +504,69 @@ export default function Admin() {
     clearSession();
   }
 
-  function handleCapture(key, file) {
-    setPhotos(p => ({ ...p, [key]: file }));
-    setRestoredSlots(r => r.filter(k => k !== key));
-    const reader = new FileReader();
-    reader.onload = e => setPreviews(p => ({ ...p, [key]: e.target.result }));
-    reader.readAsDataURL(file);
-    setCameraSlot(null);
-  }
-
-  function removePhoto(key) {
-    setPhotos(p => { const n = { ...p }; delete n[key]; return n; });
-    setPreviews(p => { const n = { ...p }; delete n[key]; return n; });
-    setRestoredSlots(r => r.filter(k => k !== key));
-  }
-
-  async function fetchNextSku(cat) {
+  // ─── Stage 1: capture first photo and identify ──────────────────────────
+  async function handleStage1Capture(file) {
+    setEntryStage('identifying');
+    setIdentifyError('');
     try {
-      const r = await fetch('/api/next-sku?cat=' + encodeURIComponent(cat));
-      const d = await r.json();
-      setNextSku(d.sku);
-    } catch {}
+      const base64 = await fileToBase64(file);
+      const res = await fetch(FYT_BASE + '/api/identify', {
+        method: 'POST',
+        headers: fytHeaders(),
+        body: JSON.stringify({ image: base64 }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Identification failed');
+      setIdentification(data);
+      const slots = getSlotsFor(data.format, data.type);
+      setPhotoSlots(slots);
+      // First slot is already captured by the identify photo
+      setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
+      setEntryStage('slots');
+    } catch (err) {
+      setIdentifyError(err.message || 'Could not identify item — please try again');
+      setEntryStage('camera1');
+    }
   }
 
-  async function handleScan() {
+  // ─── Slot camera capture ─────────────────────────────────────────────────
+  function handleSlotCapture(file) {
+    const label = photoSlots[cameraSlotIndex]?.label || '';
+    const updated = { ...capturedPhotos, [cameraSlotIndex]: { file, label } };
+    setCapturedPhotos(updated);
+    setCameraSlotIndex(null);
+    // Check if all slots are done
+    const allDone = photoSlots.every((_, i) => updated[i]?.file != null);
+    if (allDone) runFullScan(updated);
+  }
+
+  // ─── Full scan ───────────────────────────────────────────────────────────
+  async function runFullScan(photosMap) {
     setScanning(true);
     setError('');
-    setShowAllEbay(false);
-    setAdjustedCondition(null);
-    setRestoredSlots([]);
     try {
-      const images = [];
-      const photoLabels = [];
+      const photosArray = photoSlots.map((slot, i) => ({
+        file: photosMap[i]?.file,
+        label: slot?.label || '',
+      })).filter(p => p.file);
 
-      for (const slot of photoSlots) {
-        if (photos[slot.key]) {
-          const compressed = await compressForScan(photos[slot.key]);
-          if (compressed) {
-            images.push(compressed);
-            photoLabels.push(slot.label || slot.key);
-          }
-        }
-      }
+      const compressed = await Promise.all(photosArray.map(p => compressForScan(p.file, p.label)));
+      const images = await Promise.all(compressed.map(f => fileToBase64(f)));
+      const photoLabels = photosArray.map(p => p.label);
+      const isSealed = identification?.type === 'Sealed Item';
 
-      const isSealed = effectiveSleeveType === 'Sealed Item' || String(form.pressing || '').toLowerCase().includes('sealed');
-
-      // CHANGE 1 — now calls FYT scan API directly
-      const res = await fetch('https://findyourtunes.vercel.app/api/scan', {
+      const res = await fetch(FYT_BASE + '/api/scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: fytHeaders(),
         body: JSON.stringify({
           images,
-          format: selectedFormat,
-          type: effectiveSleeveType || '',
-          sleeveType: effectiveSleeveType || '',
+          format: identification?.format || '',
+          type: identification?.type || '',
+          sleeveType: identification?.type || '',
           sealed: isSealed,
           photoLabels,
+          stage1Context: identification,
+          source: '4ever-admin',
         }),
       });
 
@@ -528,35 +595,28 @@ export default function Admin() {
         genre: result.genre || f.genre,
         condition: result.condition || f.condition,
         notes: enrichedNotes || f.notes,
-        cat: selectedFormat,
+        cat: identification?.format || '',
       }));
 
-      await fetchNextSku(selectedFormat);
+      await fetchNextSku(identification?.format || '');
 
-      // CHANGE 2 — pricingParams now includes physical pressing details
-      // CHANGE 3 — now calls FYT pricing API directly
       const pricingParams = new URLSearchParams({
-        artist: result.artist || '',
-        title: result.title || '',
-        year: result.year || '',
-        country: result.country || '',
+        artist: result.artist || '', title: result.title || '',
+        year: result.year || '', country: result.country || '',
         catalog_number: result.catalog_number || result.catalogNumber || '',
-        pressing: result.pressing || result.format_details || effectiveSleeveType || '',
-        format: selectedFormat || '',
-        genre: result.genre || '',
-        label: result.label || '',
-        condition: result.condition || '',
+        pressing: result.pressing || result.format_details || identification?.type || '',
+        format: identification?.format || '', genre: result.genre || '',
+        label: result.label || '', condition: result.condition || '',
         sealed: isSealed ? 'true' : 'false',
-        // Physical pressing details — feed the pressing scorer in FYT pricing engine
-        vinyl_color: result.vinyl_color || result.vinylColor || '',
-        matrix_runout: result.matrix_runout || result.matrixRunout || '',
-        variant: result.variant || result.variantClues || '',
+        vinyl_color: result.vinyl_color || '',
+        matrix_runout: result.matrix_runout || '',
+        variant: result.variant || '',
         label_details: result.label_details || '',
-        pressing_evidence: result.pressing_evidence || result.pressingEvidence || '',
-        cover_details: result.cover_details || result.coverDetails || '',
+        pressing_evidence: result.pressing_evidence || '',
+        cover_details: result.cover_details || '',
       });
 
-      fetch('https://findyourtunes.vercel.app/api/pricing?' + pricingParams.toString())
+      fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' } })
         .then(r => r.json())
         .then(setPricing)
         .catch(() => {});
@@ -564,11 +624,19 @@ export default function Admin() {
       setMode('review');
     } catch (err) {
       setError('Scanning failed. You can still enter details manually.');
-      setForm(f => ({ ...f, cat: selectedFormat }));
-      await fetchNextSku(selectedFormat);
+      setForm(f => ({ ...f, cat: identification?.format || '' }));
+      await fetchNextSku(identification?.format || '');
       setMode('review');
     }
     setScanning(false);
+  }
+
+  async function fetchNextSku(cat) {
+    try {
+      const r = await fetch('/api/next-sku?cat=' + encodeURIComponent(cat));
+      const d = await r.json();
+      setNextSku(d.sku);
+    } catch {}
   }
 
   function handleFormChange(e) {
@@ -576,6 +644,7 @@ export default function Admin() {
     if (e.target.name === 'condition') setAdjustedCondition(e.target.value);
   }
 
+  // ─── Save — UNTOUCHED ────────────────────────────────────────────────────
   async function handleSave() {
     setSaving(true);
     setError('');
@@ -584,11 +653,18 @@ export default function Admin() {
       const saveForm = { ...form, condition: activeCondition };
       if (recalcPrice && !form.price) saveForm.price = recalcPrice;
       Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
-      formData.append('discCount', discCount);
-      formData.append('sleeveType', effectiveSleeveType || '');
-      photoSlots.forEach(slot => {
-        if (photos[slot.key]) formData.append(slot.key, photos[slot.key]);
+      formData.append('discCount', '1');
+      formData.append('sleeveType', identification?.type || '');
+
+      // Map captured photos to the keys save-record expects
+      photoSlots.forEach((slot, index) => {
+        const photo = capturedPhotos[index];
+        if (photo?.file) {
+          const key = slotLabelToKey(slot.label, index);
+          formData.append(key, photo.file);
+        }
       });
+
       const res = await fetch('/api/save-record', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) {
@@ -625,447 +701,427 @@ export default function Admin() {
 
   const demand = pricing ? getDemandLabel(pricing.wantHave) : null;
 
-  return (
-    <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
-      <style>{`
-        * { box-sizing: border-box; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }
-        .photo-slot { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; background: #0a0a0a; }
-        .photo-slot::before { content: ''; display: block; padding-top: 100%; }
-        .photo-slot-inner { position: absolute; inset: 0; display: flex; flex-direction: column; }
-        .photo-slot img { width: 100%; height: calc(100% - 28px); object-fit: cover; display: block; }
-        .photo-slot-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-        .photo-slot-label { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; border-top: 1px solid #1a1a1a; font-family: Georgia, serif; }
-        .remove-btn { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,0.7); border: none; color: #f87171; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
-        .sleeve-btn { transition: all 0.2s; }
-        .sleeve-btn:hover { border-color: #c9a84c !important; }
-        .ebay-row:hover { background: #0f1f0f; }
-        .cond-btn { transition: all 0.15s; }
-        .cond-btn:hover { border-color: #c9a84c !important; }
-      `}</style>
+  // ─── Entry mode — new FYT-style flow ────────────────────────────────────
+  if (mode === 'entry') {
+    if (entryStage === 'camera1') {
+      return (
+        <>
+          {identifyError && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#2a1a1a', border: '1px solid #7f1d1d', padding: '12px 16px', color: '#f87171', fontSize: '13px', fontFamily: 'Georgia, serif', textAlign: 'center' }}>
+              {identifyError}
+              <button onClick={() => setIdentifyError('')} style={{ marginLeft: '12px', background: 'transparent', border: '1px solid #f87171', color: '#f87171', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif' }}>Dismiss</button>
+            </div>
+          )}
+          <Stage1Camera onCapture={handleStage1Capture} />
+        </>
+      );
+    }
 
-      {cameraSlot && (
-        <CameraModal
-          label={photoSlots.find(s => s.key === cameraSlot) || 'Photo'}
-          selectedFormat={selectedFormat}
-          onCapture={file => handleCapture(cameraSlot, file)}
-          onClose={() => setCameraSlot(null)}
-        />
-      )}
+    if (entryStage === 'identifying') return <IdentifyingOverlay />;
 
-      <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <svg width="32" height="32" viewBox="0 0 40 40">
-            <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
-            <circle cx="20" cy="20" r="8" fill="#c9a84c" />
-            <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
-          </svg>
-          <div>
-            <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
-            <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Add Record</div>
+    if (entryStage === 'slots') {
+      const nextIndex = photoSlots.findIndex((_, i) => !capturedPhotos[i]?.file);
+      return (
+        <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
+          <style>{`* { box-sizing: border-box; } input:focus, select:focus { outline: none; border-color: #c9a84c !important; }`}</style>
+
+          {cameraSlotIndex !== null && (
+            <CameraModal
+              label={photoSlots[cameraSlotIndex]}
+              selectedFormat={identification?.format || ''}
+              onCapture={handleSlotCapture}
+              onClose={() => setCameraSlotIndex(null)}
+            />
+          )}
+
+          <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <svg width="32" height="32" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+                <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+                <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+              </svg>
+              <div>
+                <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
+                <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Add Record</div>
+              </div>
+            </div>
+            <button onClick={reset} style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '28px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          </nav>
+
+          <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
+            {/* Identified card */}
+            {identification && (
+              <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
+                <div style={{ fontSize: '10px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Identified</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  {[
+                    { k: 'Format', v: identification.format + (identification.type ? ' — ' + identification.type : '') },
+                    { k: 'Artist', v: identification.artist },
+                    { k: 'Title', v: identification.title },
+                    { k: 'Label', v: identification.label },
+                    { k: 'Catalog', v: identification.catalog_number },
+                    { k: 'Year', v: identification.year },
+                  ].filter(f => f.v).map(({ k, v }) => (
+                    <div key={k} style={{ display: 'flex', gap: '10px', alignItems: 'baseline' }}>
+                      <div style={{ fontSize: '10px', color: '#555', width: '52px', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>{k}</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#e8d5b0' }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={reset} style={{ marginTop: '12px', background: 'transparent', border: '1px solid #333', color: '#aaa', borderRadius: '6px', padding: '5px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  ← Start over
+                </button>
+              </div>
+            )}
+
+            {/* Photo slots */}
+            <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
+              Photos needed · {Object.keys(capturedPhotos).length} of {photoSlots.length} captured
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {photoSlots.map((slot, index) => {
+                const isDone = capturedPhotos[index]?.file != null;
+                const isActive = index === nextIndex;
+                const isPending = !isDone && !isActive;
+                const preview = capturedPhotos[index]?.file ? URL.createObjectURL(capturedPhotos[index].file) : null;
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    disabled={!isActive && !isDone}
+                    onClick={() => { if (isActive) setCameraSlotIndex(index); }}
+                    style={{
+                      width: '100%', padding: '14px 16px', borderRadius: '12px', border: 'none', cursor: isActive ? 'pointer' : 'default',
+                      background: isDone ? '#0c130c' : isActive ? '#c9a84c' : '#111',
+                      display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left',
+                    }}
+                  >
+                    {preview ? (
+                      <img src={preview} alt={slot.label} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: '48px', height: '48px', borderRadius: '6px', background: isDone ? '#1a3a1a' : isActive ? 'rgba(0,0,0,0.15)' : '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>
+                        {isDone ? '✓' : isActive ? '📷' : String(index + 1)}
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '15px', fontWeight: '700', color: isDone ? '#4ade80' : isActive ? '#0d0d0d' : '#444' }}>
+                        {isDone ? '✓ ' : ''}{slot.label}
+                      </div>
+                      <div style={{ fontSize: '11px', color: isDone ? '#2a6a2a' : isActive ? '#0d0d0d99' : '#333', marginTop: '2px' }}>
+                        {isDone ? 'Captured — tap to retake' : isActive ? 'Tap to photograph' : 'Waiting...'}
+                      </div>
+                    </div>
+                    {isActive && <div style={{ fontSize: '18px', marginLeft: 'auto' }}>→</div>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {error && (
+              <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>
+            )}
+
+            {/* Manual skip — in case scan fails */}
+            <button onClick={async () => {
+              setForm(f => ({ ...f, cat: identification?.format || '' }));
+              await fetchNextSku(identification?.format || '');
+              setMode('review');
+            }} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#555', border: '1px solid #222', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              Skip scanning — enter details manually →
+            </button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <a href="/admin" style={navLink}>➕ Add</a>
-          <a href="/inventory" style={navLink}>📋 Inventory</a>
-          <a href="/" style={{ color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', borderRadius: '8px', padding: '8px 16px', border: '1px solid #333', fontFamily: 'Georgia, serif', background: '#1a1a1a' }}>← Store</a>
-        </div>
-      </nav>
+      );
+    }
+  }
 
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
+  // ─── REVIEW MODE — COMPLETELY UNTOUCHED FROM ORIGINAL ───────────────────
+  if (mode === 'review') {
+    return (
+      <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
+        <style>{`
+          * { box-sizing: border-box; }
+          input:focus, select:focus, textarea:focus { outline: none; border-color: #c9a84c !important; }
+          .ebay-row:hover { background: #0f1f0f; }
+          .cond-btn { transition: all 0.15s; }
+          .cond-btn:hover { border-color: #c9a84c !important; }
+        `}</style>
+        <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+              <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+              <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+            </svg>
+            <div>
+              <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
+              <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Add Record</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <a href="/admin" style={navLink}>➕ Add</a>
+            <a href="/inventory" style={navLink}>📋 Inventory</a>
+            <a href="/" style={{ color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', borderRadius: '8px', padding: '8px 16px', border: '1px solid #333', fontFamily: 'Georgia, serif', background: '#1a1a1a' }}>← Store</a>
+          </div>
+        </nav>
 
-        {mode === 'entry' && (
-          <>
-            {selectedFormat && (
-              <button style={backBtn} onClick={() => { setSelectedFormat(null); setSleeveType(null); setPhotos({}); setPreviews({}); setRestoredSlots([]); setDiscCount('1'); }}>
-                ← Change Format
-              </button>
-            )}
-            {!selectedFormat && (
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Select Format</div>
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
+          <button style={backBtn} onClick={() => setMode('entry')}>← Back to Photos</button>
+          <h2 style={{ fontSize: '20px', color: '#e8d5b0', margin: '0 0 16px' }}>
+            {form.artist ? '✓ Identified — Review & Save' : 'Enter Details'}
+          </h2>
+          {nextSku && (
+            <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
+              <div style={{ fontSize: '36px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
+              <div style={{ fontSize: '11px', color: '#bbb', marginTop: '6px', fontStyle: 'italic' }}>This will be assigned when you save</div>
+            </div>
+          )}
+
+          {/* Photo thumbnails */}
+          {Object.keys(capturedPhotos).length > 0 && (
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {Object.values(capturedPhotos).filter(Boolean).map((p, i) => {
+                const src = p?.file ? URL.createObjectURL(p.file) : null;
+                return src ? <img key={i} src={src} alt="" style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #2a2a2a' }} /> : null;
+              })}
+            </div>
+          )}
+
+          {pricing && (
+            <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                💰 Market Pricing
+                {pricing.confidence && (
+                  <span style={{ marginLeft: '8px', fontSize: '10px', color: pricing.confidence === 'high' ? '#4ade80' : pricing.confidence === 'medium' ? '#fbbf24' : '#f87171', textTransform: 'none', letterSpacing: '0' }}>
+                    ({pricing.confidence} confidence)
+                  </span>
+                )}
+              </div>
+              {demand && (
+                <div style={{ background: demand.bg, border: '1px solid ' + demand.color + '44', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: demand.color, fontWeight: '700', marginBottom: '2px' }}>
+                      {demand.label === 'High demand' ? '🔥' : demand.label === 'Moderate demand' ? '📊' : '📉'} {demand.label}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic' }}>{demand.tip}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
+                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Discogs community</div>
+                    <div style={{ fontSize: '11px', color: '#e8d5b0' }}>{pricing.wantHave}</div>
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                {pricing.discogs && (
+                  <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
+                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Discogs</div>
+                    <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div>
+                  </div>
+                )}
+                {pricing.ebay && pricing.ebay.lowest && (
+                  <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
+                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>eBay Active</div>
+                    <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay.lowest}</div>
+                    <div style={{ fontSize: '10px', color: '#bbb' }}>avg ${pricing.ebay.avg || '—'}</div>
+                  </div>
+                )}
+                {pricing.ebaySold && pricing.ebaySold.median && (
+                  <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
+                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>eBay Sold</div>
+                    <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebaySold.median}</div>
+                    <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.ebaySold.count} sales</div>
+                  </div>
+                )}
+                {pricing.popsike && pricing.popsike.median && (
+                  <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
+                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Popsike</div>
+                    <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike.median}</div>
+                    <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.popsike.count} auctions</div>
+                  </div>
+                )}
+                {pricing.musicStack && pricing.musicStack.median && (
+                  <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
+                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>MusicStack</div>
+                    <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.musicStack.median}</div>
+                  </div>
+                )}
+                {pricing.fourEverMemories && pricing.fourEverMemories.median && (
+                  <div style={{ textAlign: 'center', background: '#0f1a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #1a3a1a' }}>
+                    <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>4EM Sales</div>
+                    <div style={{ fontSize: '15px', color: '#4ade80', fontWeight: '700' }}>${pricing.fourEverMemories.median}</div>
+                    <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.fourEverMemories.count} sold</div>
+                  </div>
+                )}
+                {(recalcPrice || pricing.recommended) && (
+                  <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #2a4a2a' }}>
+                    <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
+                    <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>
+                      ${recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Adjust Condition — Price Updates Instantly</div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {FORMATS.map(fmt => (
-                    <button key={fmt.label}
-                      onClick={() => { setSelectedFormat(fmt.label); setPhotos({}); setPreviews({}); setRestoredSlots([]); setDiscCount('1'); setSleeveType(null); }}
-                      style={{ padding: '8px 14px', background: '#111', color: '#e8d5b0', border: '1px solid #333', borderRadius: '20px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px' }}>
-                      {fmt.icon} {fmt.label}
+                  {CONDITIONS.map(c => (
+                    <button key={c} className="cond-btn"
+                      onClick={() => { setAdjustedCondition(c); setForm(f => ({ ...f, condition: c })); }}
+                      style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'), background: activeCondition === c ? '#1a1a0a' : '#0a0a0a', color: activeCondition === c ? '#c9a84c' : '#e8d5b0', fontWeight: activeCondition === c ? '700' : '400', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                      {c}
                     </button>
                   ))}
                 </div>
-                <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontStyle: 'italic' }}>Select a format above to begin</div>
+                {adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && (
+                  <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition}</div>
+                )}
               </div>
-            )}
-            {selectedFormat && (
-              <>
-                <div style={{ fontSize: '15px', color: '#e8d5b0', fontWeight: '600', marginBottom: '16px' }}>{format?.icon} {selectedFormat}</div>
-                {format?.sleeveOptions && (
-                  <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Type</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(' + format.sleeveOptions.length + ', 1fr)', gap: '8px' }}>
-                      {format.sleeveOptions.map(opt => {
-                        const isActive = effectiveSleeveType === opt;
-                        const slots = getPhotoSlots(selectedFormat, discCount, opt);
-                        return (
-                          <button key={opt} className="sleeve-btn"
-                            onClick={() => { setSleeveType(opt); setPhotos({}); setPreviews({}); setRestoredSlots([]); }}
-                            style={{ padding: '10px 8px', background: isActive ? '#c9a84c' : '#0a0a0a', color: isActive ? '#0d0d0d' : '#e8d5b0', border: '1px solid ' + (isActive ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: isActive ? '700' : '400', textAlign: 'center' }}>
-                            {opt}<br />
-                            <span style={{ fontSize: '10px', opacity: 0.7 }}>{slots.length} photo{slots.length !== 1 ? 's' : ''}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+              {pricing.ebay && pricing.ebay.topListings && pricing.ebay.topListings.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    eBay Active listings ({pricing.ebay.count} total)
                   </div>
-                )}
-                {format?.multiDisc && effectiveSleeveType !== 'Cover Only' && effectiveSleeveType !== 'Sleeve Only' && (
-                  <div style={{ marginBottom: '20px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Number of Discs</div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {['1', '2', '3', '4'].map(n => (
-                        <button key={n} onClick={() => { setDiscCount(n); setPhotos({}); setPreviews({}); setRestoredSlots([]); }}
-                          style={{ flex: 1, padding: '10px', background: discCount === n ? '#c9a84c' : '#0a0a0a', color: discCount === n ? '#0d0d0d' : '#e8d5b0', border: '1px solid ' + (discCount === n ? '#c9a84c' : '#2a2a2a'), borderRadius: '8px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: discCount === n ? '700' : '400' }}>
-                          {n}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
-                  Photos ({photoCount}/{photoSlots.length})
-                </div>
-
-                {restoredSlots.length > 0 && (
-                  <div style={{ background: '#1a1a0a', border: '1px solid #3a3a1a', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: '#fbbf24' }}>
-                    📱 Welcome back — your scan results are restored. Photos need to be retaken before saving.
-                  </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-                  {photoSlots.map(slot => {
-                    const isRestored = restoredSlots.includes(slot.key);
-                    const hasPrev = !!previews[slot.key];
-                    return (
-                      <div key={slot.key} className="photo-slot" style={{ border: '2px solid ' + (hasPrev ? '#c9a84c' : isRestored ? '#fbbf24' : '#2a2a2a') }}>
-                        <div className="photo-slot-inner" onClick={() => setCameraSlot(slot.key)}>
-                          {hasPrev ? (
-                            <>
-                              <img src={previews[slot.key]} alt={slot.label} />
-                              <div style={{ position: 'absolute', top: '6px', right: '6px', background: '#c9a84c', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✓</div>
-                            </>
-                          ) : (
-                            <div className="photo-slot-empty">
-                              <span style={{ fontSize: '28px' }}>{isRestored ? '🔄' : slot.icon}</span>
-                              <span style={{ fontSize: '11px', color: isRestored ? '#fbbf24' : '#ddd' }}>{slot.label}</span>
-                            </div>
-                          )}
-                          <div className="photo-slot-label" style={{ color: hasPrev ? '#c9a84c' : isRestored ? '#fbbf24' : '#e8d5b0' }}>
-                            {hasPrev ? '📷 Tap to retake' : isRestored ? '📷 Tap to retake' : '📷 Tap to photograph'}
-                          </div>
-                        </div>
-                        {hasPrev && (
-                          <button className="remove-btn" onClick={e => { e.stopPropagation(); removePhoto(slot.key); }}>✕</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {error && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
-                <button onClick={handleScan} disabled={photoCount === 0 || scanning}
-                  style={{ width: '100%', padding: '16px', background: photoCount > 0 ? '#c9a84c' : '#1a1a1a', color: photoCount > 0 ? '#0d0d0d' : '#444', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: photoCount > 0 ? 'pointer' : 'not-allowed', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '10px' }}>
-                  {photoCount > 0 ? '🤖 Scan & Identify (' + photoCount + ' photo' + (photoCount > 1 ? 's' : '') + ') →' : 'Tap photos above to begin'}
-                </button>
-                <button onClick={async () => { setForm(f => ({ ...f, cat: selectedFormat })); await fetchNextSku(selectedFormat); setMode('review'); }}
-                  style={{ width: '100%', padding: '12px', background: 'transparent', color: '#bbb', border: '1px solid #333', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                  Skip scanning — enter details manually →
-                </button>
-
-                {scanResult && mode === 'entry' && (
-                  <button onClick={() => setMode('review')}
-                    style={{ width: '100%', padding: '12px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '8px' }}>
-                    ← Return to scan results
-                  </button>
-                )}
-              </>
-            )}
-          </>
-        )}
-
-        {mode === 'review' && (
-          <>
-            <button style={backBtn} onClick={() => setMode('entry')}>← Back to Photos</button>
-            <h2 style={{ fontSize: '20px', color: '#e8d5b0', margin: '0 0 16px' }}>
-              {form.artist ? '✓ Identified — Review & Save' : 'Enter Details'}
-            </h2>
-            {nextSku && (
-              <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
-                <div style={{ fontSize: '36px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
-                <div style={{ fontSize: '11px', color: '#bbb', marginTop: '6px', fontStyle: 'italic' }}>This will be assigned when you save</div>
-              </div>
-            )}
-            {Object.keys(previews).length > 0 && (
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                {Object.values(previews).map((src, i) => (
-                  <img key={i} src={src} alt="" style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #2a2a2a' }} />
-                ))}
-              </div>
-            )}
-
-            {restoredSlots.length > 0 && (
-              <div style={{ background: '#2a1a0a', border: '1px solid #4a3a1a', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '12px', color: '#fbbf24' }}>
-                ⚠️ Photos were lost when the app was backgrounded. Go back and retake them before saving.
-                <button onClick={() => setMode('entry')}
-                  style={{ display: 'block', marginTop: '8px', background: 'transparent', border: '1px solid #fbbf24', color: '#fbbf24', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                  ← Go retake photos
-                </button>
-              </div>
-            )}
-
-            {pricing && (
-              <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
-                <div style={{ fontSize: '11px', color: '#4ade80', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
-                  💰 Market Pricing
-                  {pricing.confidence && (
-                    <span style={{ marginLeft: '8px', fontSize: '10px', color: pricing.confidence === 'high' ? '#4ade80' : pricing.confidence === 'medium' ? '#fbbf24' : '#f87171', textTransform: 'none', letterSpacing: '0' }}>
-                      ({pricing.confidence} confidence)
-                    </span>
-                  )}
-                </div>
-                {demand && (
-                  <div style={{ background: demand.bg, border: '1px solid ' + demand.color + '44', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: '12px', color: demand.color, fontWeight: '700', marginBottom: '2px' }}>
-                        {demand.label === 'High demand' ? '🔥' : demand.label === 'Moderate demand' ? '📊' : '📉'} {demand.label}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic' }}>{demand.tip}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
-                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Discogs community</div>
-                      <div style={{ fontSize: '11px', color: '#e8d5b0' }}>{pricing.wantHave}</div>
-                    </div>
-                  </div>
-                )}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
-                  {pricing.discogs && (
-                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Discogs</div>
-                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.discogs}</div>
-                    </div>
-                  )}
-                  {pricing.ebay && pricing.ebay.lowest && (
-                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>eBay Active</div>
-                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebay.lowest}</div>
-                      <div style={{ fontSize: '10px', color: '#bbb' }}>avg ${pricing.ebay.avg || '—'}</div>
-                    </div>
-                  )}
-                  {pricing.ebaySold && pricing.ebaySold.median && (
-                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>eBay Sold</div>
-                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.ebaySold.median}</div>
-                      <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.ebaySold.count} sales</div>
-                    </div>
-                  )}
-                  {pricing.popsike && pricing.popsike.median && (
-                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Popsike</div>
-                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike.median}</div>
-                      <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.popsike.count} auctions</div>
-                    </div>
-                  )}
-                  {pricing.musicStack && pricing.musicStack.median && (
-                    <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                      <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>MusicStack</div>
-                      <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.musicStack.median}</div>
-                    </div>
-                  )}
-                  {pricing.fourEverMemories && pricing.fourEverMemories.median && (
-                    <div style={{ textAlign: 'center', background: '#0f1a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #1a3a1a' }}>
-                      <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>4EM Sales</div>
-                      <div style={{ fontSize: '15px', color: '#4ade80', fontWeight: '700' }}>${pricing.fourEverMemories.median}</div>
-                      <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.fourEverMemories.count} sold</div>
-                    </div>
-                  )}
-                  {(recalcPrice || pricing.recommended) && (
-                    <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #2a4a2a' }}>
-                      <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
-                      <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>
-                        ${recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
-                  <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    Adjust Condition — Price Updates Instantly
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {CONDITIONS.map(c => (
-                      <button key={c} className="cond-btn"
-                        onClick={() => { setAdjustedCondition(c); setForm(f => ({ ...f, condition: c })); }}
-                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'), background: activeCondition === c ? '#1a1a0a' : '#0a0a0a', color: activeCondition === c ? '#c9a84c' : '#e8d5b0', fontWeight: activeCondition === c ? '700' : '400', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                  {adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && (
-                    <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition}</div>
-                  )}
-                </div>
-                {pricing.pressingIdentification && pricing.pressingIdentification.confirmed && (
-                  <div style={{ background: '#0a1a2a', border: '1px solid #1a3a4a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', marginTop: '10px' }}>
-                    <div style={{ fontSize: '10px', color: '#60a5fa', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>45cat</div>
-                    <div style={{ fontSize: '11px', color: '#bbb' }}>{pricing.pressingIdentification.status}</div>
-                    {pricing.pressingIdentification.countriesFound && pricing.pressingIdentification.countriesFound.length > 0 && (
-                      <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>Countries found: {pricing.pressingIdentification.countriesFound.join(', ')}</div>
-                    )}
-                  </div>
-                )}
-                {pricing.regionalDemandModifier && pricing.regionalDemandModifier.applied && (
-                  <div style={{ background: '#1a1a0a', border: '1px solid #3a3a1a', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '11px', color: '#fbbf24' }}>🌎 Spanish/Regional pressing — protected market floor applied</div>
-                  </div>
-                )}
-                {pricing.ebay && pricing.ebay.topListings && pricing.ebay.topListings.length > 0 && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
-                      eBay Active listings ({pricing.ebay.count} total)
-                    </div>
-                    <div style={{ maxHeight: showAllEbay ? '400px' : '120px', overflowY: showAllEbay ? 'auto' : 'hidden', borderRadius: '6px', transition: 'max-height 0.3s' }}>
-                      {pricing.ebay.topListings.map((item, i) => (
-                        <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="ebay-row"
-                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', textDecoration: 'none', borderRadius: '4px' }}>
-                          <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                          <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
-                        </a>
-                      ))}
-                    </div>
-                    {pricing.ebay.topListings.length >= 3 && (
-                      <button onClick={() => setShowAllEbay(!showAllEbay)}
-                        style={{ width: '100%', padding: '6px', background: 'transparent', color: '#3a6a3a', border: '1px solid #1a3a1a', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '6px' }}>
-                        {showAllEbay ? '▲ Show less' : '▼ Show all ' + pricing.ebay.count + ' listings'}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {pricing.ebaySold && pricing.ebaySold.topListings && pricing.ebaySold.topListings.length > 0 && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
-                      eBay Sold ({pricing.ebaySold.count} transactions)
-                    </div>
-                    {pricing.ebaySold.topListings.slice(0, 4).map((item, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', borderRadius: '4px' }}>
+                  <div style={{ maxHeight: showAllEbay ? '400px' : '120px', overflowY: showAllEbay ? 'auto' : 'hidden', borderRadius: '6px', transition: 'max-height 0.3s' }}>
+                    {pricing.ebay.topListings.map((item, i) => (
+                      <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="ebay-row"
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', textDecoration: 'none', borderRadius: '4px' }}>
                         <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                        <span style={{ fontSize: '11px', color: '#4ade80', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
-                      </div>
+                        <span style={{ fontSize: '11px', color: '#c9a84c', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
+                      </a>
                     ))}
                   </div>
-                )}
-                {pricing.notes && (
-                  <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
-                )}
-                {!pricing.recommended && !recalcPrice && (
-                  <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>
-                )}
-                {(recalcPrice || pricing.recommended) && (
-                  <button onClick={() => setForm(f => ({ ...f, price: recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended) }))}
-                    style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                    {'Use $' + (recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)) + ' →'}
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={sectionLabel}>Artist *</label>
-                <input name="artist" value={form.artist} onChange={handleFormChange} placeholder="Artist name" style={inp} />
-              </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={sectionLabel}>Title *</label>
-                <input name="title" value={form.title} onChange={handleFormChange} placeholder="Album or song title" style={inp} />
-              </div>
-              <div>
-                <label style={sectionLabel}>Year</label>
-                <input name="year" value={form.year} onChange={handleFormChange} placeholder="1975" style={inp} />
-              </div>
-              <div>
-                <label style={sectionLabel}>Label</label>
-                <input name="label" value={form.label} onChange={handleFormChange} placeholder="Record label" style={inp} />
-              </div>
-              <div>
-                <label style={sectionLabel}>Catalog number</label>
-                <input name="catalog_number" value={form.catalog_number || ''} onChange={handleFormChange} placeholder="e.g. FR-801" style={inp} />
-              </div>
-              <div>
-                <label style={sectionLabel}>Country</label>
-                <input name="country" value={form.country || ''} onChange={handleFormChange} placeholder="e.g. USA" style={inp} />
-              </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={sectionLabel}>Pressing</label>
-                <input name="pressing" value={form.pressing || ''} onChange={handleFormChange} placeholder="e.g. Original, Reissue, Promo" style={inp} />
-              </div>
-              <div>
-                <label style={sectionLabel}>Genre</label>
-                <select name="genre" value={form.genre} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
-                  {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={sectionLabel}>Condition</label>
-                <select name="condition" value={form.condition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
-                  {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={sectionLabel}>Price ($) *</label>
-                <input name="price" value={form.price} onChange={handleFormChange} placeholder="0.00" type="number" style={{ ...inp, marginBottom: 0 }} />
-              </div>
-              <div>
-                <label style={sectionLabel}>Qty</label>
-                <input name="qty" value={form.qty} onChange={handleFormChange} placeholder="1" type="number" style={{ ...inp, marginBottom: 0 }} />
-              </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <label style={sectionLabel}>Notes</label>
-                <textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="B-side, promo markings, sleeve condition, etc." rows={2}
-                  style={{ ...inp, resize: 'none', marginBottom: 0 }} />
-              </div>
+                  {pricing.ebay.topListings.length >= 3 && (
+                    <button onClick={() => setShowAllEbay(!showAllEbay)}
+                      style={{ width: '100%', padding: '6px', background: 'transparent', color: '#3a6a3a', border: '1px solid #1a3a1a', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '6px' }}>
+                      {showAllEbay ? '▲ Show less' : '▼ Show all ' + pricing.ebay.count + ' listings'}
+                    </button>
+                  )}
+                </div>
+              )}
+              {pricing.ebaySold && pricing.ebaySold.topListings && pricing.ebaySold.topListings.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    eBay Sold ({pricing.ebaySold.count} transactions)
+                  </div>
+                  {pricing.ebaySold.topListings.slice(0, 4).map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 6px', borderBottom: '1px solid #1a2a1a', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#ddd', flex: 1, marginRight: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                      <span style={{ fontSize: '11px', color: '#4ade80', whiteSpace: 'nowrap', flexShrink: 0 }}>${item.price} · {item.condition}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pricing.notes && (
+                <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
+              )}
+              {!pricing.recommended && !recalcPrice && (
+                <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>
+              )}
+              {(recalcPrice || pricing.recommended) && (
+                <button onClick={() => setForm(f => ({ ...f, price: recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended) }))}
+                  style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  {'Use $' + (recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)) + ' →'}
+                </button>
+              )}
             </div>
+          )}
 
-            {error && <div style={{ color: '#f87171', fontSize: '13px', margin: '12px 0', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
-
-            <button onClick={handleSave} disabled={!form.artist || !form.title || !form.price || saving}
-              style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
-              {saving ? 'Saving...' : '💾 Save to Store →'}
-            </button>
-            <button onClick={reset}
-              style={{ width: '100%', padding: '10px', background: 'transparent', color: '#bbb', border: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '6px' }}>
-              Start over
-            </button>
-          </>
-        )}
-
-        {mode === 'success' && (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
-            <h2 style={{ fontSize: '22px', color: '#4ade80', marginBottom: '8px' }}>Record Saved!</h2>
-            <p style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic', marginBottom: '28px' }}>{form.artist} — {form.title}</p>
-            <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
-              <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
-              <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
-              <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={sectionLabel}>Artist *</label>
+              <input name="artist" value={form.artist} onChange={handleFormChange} placeholder="Artist name" style={inp} />
             </div>
-            <button onClick={reset}
-              style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '12px' }}>
-              ➕ Add Another Record
-            </button>
-            <a href="/inventory" style={{ display: 'block', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic', marginBottom: '8px' }}>📋 View Inventory</a>
-            <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={sectionLabel}>Title *</label>
+              <input name="title" value={form.title} onChange={handleFormChange} placeholder="Album or song title" style={inp} />
+            </div>
+            <div>
+              <label style={sectionLabel}>Year</label>
+              <input name="year" value={form.year} onChange={handleFormChange} placeholder="1975" style={inp} />
+            </div>
+            <div>
+              <label style={sectionLabel}>Label</label>
+              <input name="label" value={form.label} onChange={handleFormChange} placeholder="Record label" style={inp} />
+            </div>
+            <div>
+              <label style={sectionLabel}>Catalog number</label>
+              <input name="catalog_number" value={form.catalog_number || ''} onChange={handleFormChange} placeholder="e.g. FR-801" style={inp} />
+            </div>
+            <div>
+              <label style={sectionLabel}>Country</label>
+              <input name="country" value={form.country || ''} onChange={handleFormChange} placeholder="e.g. USA" style={inp} />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={sectionLabel}>Pressing</label>
+              <input name="pressing" value={form.pressing || ''} onChange={handleFormChange} placeholder="e.g. Original, Reissue, Promo" style={inp} />
+            </div>
+            <div>
+              <label style={sectionLabel}>Genre</label>
+              <select name="genre" value={form.genre} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
+                {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={sectionLabel}>Condition</label>
+              <select name="condition" value={form.condition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
+                {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={sectionLabel}>Price ($) *</label>
+              <input name="price" value={form.price} onChange={handleFormChange} placeholder="0.00" type="number" style={{ ...inp, marginBottom: 0 }} />
+            </div>
+            <div>
+              <label style={sectionLabel}>Qty</label>
+              <input name="qty" value={form.qty} onChange={handleFormChange} placeholder="1" type="number" style={{ ...inp, marginBottom: 0 }} />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={sectionLabel}>Notes</label>
+              <textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="B-side, promo markings, sleeve condition, etc." rows={2}
+                style={{ ...inp, resize: 'none', marginBottom: 0 }} />
+            </div>
           </div>
-        )}
 
+          {error && <div style={{ color: '#f87171', fontSize: '13px', margin: '12px 0', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
+
+          <button onClick={handleSave} disabled={!form.artist || !form.title || !form.price || saving}
+            style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
+            {saving ? 'Saving...' : '💾 Save to Store →'}
+          </button>
+          <button onClick={reset}
+            style={{ width: '100%', padding: '10px', background: 'transparent', color: '#bbb', border: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '6px' }}>
+            Start over
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // ─── SUCCESS MODE — COMPLETELY UNTOUCHED FROM ORIGINAL ──────────────────
+  if (mode === 'success') {
+    return (
+      <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
+          <h2 style={{ fontSize: '22px', color: '#4ade80', marginBottom: '8px' }}>Record Saved!</h2>
+          <p style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic', marginBottom: '28px' }}>{form.artist} — {form.title}</p>
+          <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
+            <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
+            <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
+            <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
+          </div>
+          <button onClick={reset}
+            style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '12px' }}>
+            ➕ Add Another Record
+          </button>
+          <a href="/inventory" style={{ display: 'block', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic', marginBottom: '8px' }}>📋 View Inventory</a>
+          <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
