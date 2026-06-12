@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 12 } });
+export const getServerSideProps = async () => ({ props: { v: 13 } });
 
 import { useState, useEffect, useRef } from 'react';
 import CameraModal from '../components/CameraModal';
@@ -23,13 +23,74 @@ function clearSession() {
 
 // ─── FYT API helpers ───────────────────────────────────────────────────────
 const FYT_BASE = 'https://findyourtunes.vercel.app';
-const ADMIN_HEADER = { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' };
 
 function fytHeaders() {
   return {
     'Content-Type': 'application/json',
     'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '',
   };
+}
+// ───────────────────────────────────────────────────────────────────────────
+
+// ─── Condition multipliers — mirrors FYT exactly ───────────────────────────
+const CONDITION_MULTIPLIERS = {
+  'Sealed': 2.80,
+  'M':      2.50,
+  'NM':     1.60,
+  'VG+':    1.25,
+  'VG':     1.0,
+  'G':      0.60,
+};
+
+function isSpanishOrRegionalLikely(artist, label, genre, country) {
+  const haystack = [artist, label, genre, country].join(' ').toLowerCase();
+  return /tejano|conjunto|norteno|norteño|regional mexican|spanish|mexican|freddie|latin|ranchera|cumbia|spain|espana/.test(haystack);
+}
+
+function getSpanishFloor(format, condition) {
+  const isLP = /lp|12/i.test(format);
+  if (isLP) {
+    return { 'Sealed': 34.99, 'M': 24.99, 'NM': 24.99, 'VG+': 19.99, 'VG': 17.99, 'G': 16.99 }[condition] || 17.99;
+  }
+  return { 'Sealed': 14.99, 'M': 9.99, 'NM': 9.99, 'VG+': 7.99, 'VG': 5.99, 'G': 4.99 }[condition] || 5.99;
+}
+
+function hasPictureSleeve(identification) {
+  const t = (identification?.type || '').toLowerCase();
+  return t.includes('picture');
+}
+
+function getPictureSleeveMultiplier(identification) {
+  const fmt = (identification?.format || '').toLowerCase();
+  const hasSleeve = hasPictureSleeve(identification);
+  if (!hasSleeve) return 1.0;
+  if (fmt.includes('7')) return 1.40;
+  return 1.25;
+}
+
+function recalcPriceForCondition(basePrice, condition, identification, form) {
+  if (!basePrice) return null;
+  const base = parseFloat(basePrice);
+  if (isNaN(base)) return null;
+
+  // Get the VG+ base (pricing API returns VG+ by default)
+  const vgPlusMultiplier = CONDITION_MULTIPLIERS['VG+'];
+  const baseAtVG = base / vgPlusMultiplier;
+
+  const multiplier = CONDITION_MULTIPLIERS[condition] || 1.0;
+  let price = baseAtVG * multiplier;
+
+  // Apply picture sleeve premium
+  const sleeveMult = getPictureSleeveMultiplier(identification);
+  price = price * sleeveMult;
+
+  // Apply Spanish/Regional floor
+  if (isSpanishOrRegionalLikely(form.artist, form.label, form.genre, form.country)) {
+    const floor = getSpanishFloor(identification?.format || '', condition);
+    if (price < floor) price = floor;
+  }
+
+  return price.toFixed(2);
 }
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -95,7 +156,7 @@ function PinLock({ onUnlock }) {
   );
 }
 
-// ─── Stage 1 Camera — same visual style as FYT ────────────────────────────
+// ─── Stage 1 Camera ────────────────────────────────────────────────────────
 function Stage1Camera({ onCapture }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -233,7 +294,7 @@ function ScanningOverlay() {
   );
 }
 
-// ─── FYT FORMATS — mirrors FYT exactly so photo slots match ───────────────
+// ─── FYT FORMATS ──────────────────────────────────────────────────────────
 const FYT_FORMATS = [
   {
     label: '7" Vinyl',
@@ -285,7 +346,6 @@ function getSlotsFor(format, type) {
   return t.photos;
 }
 
-// ─── Map identify.js slot labels to admin save-record keys ────────────────
 function slotLabelToKey(label, index) {
   const l = String(label || '').toLowerCase();
   if (l.includes('front cover') || l.includes('front case') || l.includes('front sleeve') || l === 'front') return 'front';
@@ -318,8 +378,6 @@ function getDemandLabel(wantHave) {
   if (ratio >= 1) return { label: 'Moderate demand', color: '#fbbf24', bg: '#2a2a0a', tip: 'Fair market pricing' };
   return { label: 'Low demand', color: '#f87171', bg: '#2a0f0f', tip: 'Price competitively to sell faster' };
 }
-
-// Pricing comes entirely from FYT — no local recalculation needed
 
 async function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -359,16 +417,13 @@ async function compressForScan(file, slotLabel) {
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
 
-  // ─── Entry flow state ───────────────────────────────────────────────────
-  const [entryStage, setEntryStage] = useState('camera1'); // camera1 | identifying | slots
+  const [entryStage, setEntryStage] = useState('camera1');
   const [identification, setIdentification] = useState(null);
   const [photoSlots, setPhotoSlots] = useState([]);
-  const [capturedPhotos, setCapturedPhotos] = useState({}); // index → { file, label }
+  const [capturedPhotos, setCapturedPhotos] = useState({});
   const [identifyError, setIdentifyError] = useState('');
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
-  // ───────────────────────────────────────────────────────────────────────
 
-  // ─── Review / save state (untouched) ───────────────────────────────────
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('entry');
   const [scanning, setScanning] = useState(false);
@@ -380,7 +435,7 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [showAllEbay, setShowAllEbay] = useState(false);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
-  // ───────────────────────────────────────────────────────────────────────
+  const [displayPrice, setDisplayPrice] = useState(null);
 
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
@@ -394,19 +449,27 @@ export default function Admin() {
       if (saved.adjustedCondition) setAdjustedCondition(saved.adjustedCondition);
       if (saved.identification) setIdentification(saved.identification);
       if (saved.photoSlots) setPhotoSlots(saved.photoSlots);
+      if (saved.displayPrice) setDisplayPrice(saved.displayPrice);
     }
   }, []);
 
   useEffect(() => {
     if (!authed) return;
-    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots });
-  }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots]);
+    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice });
+  }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice]);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
   const activeCondition = adjustedCondition || form.condition;
-  const recalcPrice = pricing?.recommendedPrice ? Number(pricing.recommendedPrice).toFixed(2) : null;
+
+  // ─── Base recommended price from FYT — reads correct field name ──────────
+  const baseRecommended = pricing?.recommended
+    ? String(pricing.recommended).replace('$', '')
+    : null;
+
+  // displayPrice is what the user sees — recalculated when condition changes
+  const shownPrice = displayPrice || baseRecommended;
 
   // ─── Full reset ──────────────────────────────────────────────────────────
   function reset() {
@@ -425,6 +488,7 @@ export default function Admin() {
     setError('');
     setShowAllEbay(false);
     setAdjustedCondition(null);
+    setDisplayPrice(null);
     clearSession();
   }
 
@@ -444,7 +508,6 @@ export default function Admin() {
       setIdentification(data);
       const slots = getSlotsFor(data.format, data.type);
       setPhotoSlots(slots);
-      // First slot is already captured by the identify photo
       setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
       setEntryStage('slots');
     } catch (err) {
@@ -459,7 +522,6 @@ export default function Admin() {
     const updated = { ...capturedPhotos, [cameraSlotIndex]: { file, label } };
     setCapturedPhotos(updated);
     setCameraSlotIndex(null);
-    // Check if all slots are done
     const allDone = photoSlots.every((_, i) => updated[i]?.file != null);
     if (allDone) runFullScan(updated);
   }
@@ -507,20 +569,21 @@ export default function Admin() {
         result.description ? 'Description: ' + result.description : '',
       ].filter(Boolean).join('\n\n');
 
-      setForm(f => ({
-        ...f,
-        artist: result.artist || f.artist,
-        title: result.title || f.title,
-        year: result.year || f.year,
-        label: result.label || f.label,
-        catalog_number: result.catalog_number || result.catalogNumber || f.catalog_number,
-        country: result.country || f.country,
-        pressing: result.pressing || result.format_details || f.pressing,
-        genre: result.genre || f.genre,
-        condition: result.condition || f.condition,
-        notes: enrichedNotes || f.notes,
+      const updatedForm = {
+        ...form,
+        artist: result.artist || form.artist,
+        title: result.title || form.title,
+        year: result.year || form.year,
+        label: result.label || form.label,
+        catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number,
+        country: result.country || form.country,
+        pressing: result.pressing || result.format_details || form.pressing,
+        genre: result.genre || form.genre,
+        condition: result.condition || form.condition,
+        notes: enrichedNotes || form.notes,
         cat: identification?.format || '',
-      }));
+      };
+      setForm(updatedForm);
 
       await fetchNextSku(identification?.format || '');
 
@@ -542,7 +605,17 @@ export default function Admin() {
 
       fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: fytHeaders() })
         .then(r => r.json())
-        .then(setPricing)
+        .then(p => {
+          setPricing(p);
+          // Set initial display price from FYT recommended
+          const base = p?.recommended ? String(p.recommended).replace('$', '') : null;
+          if (base) {
+            // Recalc for whatever condition the scan returned
+            const scanCondition = result.condition || 'VG+';
+            const recalced = recalcPriceForCondition(base, scanCondition, identification, updatedForm);
+            setDisplayPrice(recalced || base);
+          }
+        })
         .catch(() => {});
 
       setMode('review');
@@ -565,22 +638,35 @@ export default function Admin() {
 
   function handleFormChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
-    if (e.target.name === 'condition') setAdjustedCondition(e.target.value);
+    if (e.target.name === 'condition') {
+      setAdjustedCondition(e.target.value);
+      if (baseRecommended) {
+        const recalced = recalcPriceForCondition(baseRecommended, e.target.value, identification, form);
+        if (recalced) setDisplayPrice(recalced);
+      }
+    }
   }
 
-  // ─── Save — UNTOUCHED ────────────────────────────────────────────────────
+  function handleConditionChange(c) {
+    setAdjustedCondition(c);
+    setForm(f => ({ ...f, condition: c }));
+    if (baseRecommended) {
+      const recalced = recalcPriceForCondition(baseRecommended, c, identification, form);
+      if (recalced) setDisplayPrice(recalced);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     setError('');
     try {
       const formData = new FormData();
       const saveForm = { ...form, condition: activeCondition };
-      if (recalcPrice && !form.price) saveForm.price = recalcPrice;
+      if (shownPrice && !form.price) saveForm.price = shownPrice;
       Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
       formData.append('discCount', '1');
       formData.append('sleeveType', identification?.type || '');
 
-      // Map captured photos to the keys save-record expects
       photoSlots.forEach((slot, index) => {
         const photo = capturedPhotos[index];
         if (photo?.file) {
@@ -625,7 +711,7 @@ export default function Admin() {
 
   const demand = pricing ? getDemandLabel(pricing.wantHave) : null;
 
-  // ─── Entry mode — new FYT-style flow ────────────────────────────────────
+  // ─── Entry mode ──────────────────────────────────────────────────────────
   if (mode === 'entry') {
     if (entryStage === 'camera1') {
       return (
@@ -674,7 +760,6 @@ export default function Admin() {
           </nav>
 
           <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
-            {/* Identified card */}
             {identification && (
               <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
                 <div style={{ fontSize: '10px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Identified</div>
@@ -699,7 +784,6 @@ export default function Admin() {
               </div>
             )}
 
-            {/* Photo slots */}
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
               Photos needed · {Object.keys(capturedPhotos).length} of {photoSlots.length} captured
             </div>
@@ -707,7 +791,6 @@ export default function Admin() {
               {photoSlots.map((slot, index) => {
                 const isDone = capturedPhotos[index]?.file != null;
                 const isActive = index === nextIndex;
-                const isPending = !isDone && !isActive;
                 const preview = capturedPhotos[index]?.file ? URL.createObjectURL(capturedPhotos[index].file) : null;
                 return (
                   <button
@@ -746,7 +829,6 @@ export default function Admin() {
               <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '16px', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>
             )}
 
-            {/* Manual skip — in case scan fails */}
             <button onClick={async () => {
               setForm(f => ({ ...f, cat: identification?.format || '' }));
               await fetchNextSku(identification?.format || '');
@@ -760,7 +842,7 @@ export default function Admin() {
     }
   }
 
-  // ─── REVIEW MODE — COMPLETELY UNTOUCHED FROM ORIGINAL ───────────────────
+  // ─── REVIEW MODE ─────────────────────────────────────────────────────────
   if (mode === 'review') {
     return (
       <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
@@ -803,7 +885,6 @@ export default function Admin() {
             </div>
           )}
 
-          {/* Photo thumbnails */}
           {Object.keys(capturedPhotos).length > 0 && (
             <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
               {Object.values(capturedPhotos).filter(Boolean).map((p, i) => {
@@ -865,12 +946,6 @@ export default function Admin() {
                     <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.popsike.count} auctions</div>
                   </div>
                 )}
-                {pricing.musicStack && pricing.musicStack.median && (
-                  <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}>
-                    <div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>MusicStack</div>
-                    <div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.musicStack.median}</div>
-                  </div>
-                )}
                 {pricing.fourEverMemories && pricing.fourEverMemories.median && (
                   <div style={{ textAlign: 'center', background: '#0f1a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #1a3a1a' }}>
                     <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>4EM Sales</div>
@@ -878,30 +953,32 @@ export default function Admin() {
                     <div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.fourEverMemories.count} sold</div>
                   </div>
                 )}
-                {(recalcPrice || pricing.recommended) && (
+                {shownPrice && (
                   <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #2a4a2a' }}>
                     <div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div>
-                    <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>
-                      ${recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)}
-                    </div>
+                    <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${shownPrice}</div>
+                    <div style={{ fontSize: '10px', color: '#bbb' }}>{activeCondition}</div>
                   </div>
                 )}
               </div>
+
+              {/* Condition adjuster — now actually recalculates price */}
               <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
                 <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Adjust Condition — Price Updates Instantly</div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {CONDITIONS.map(c => (
                     <button key={c} className="cond-btn"
-                      onClick={() => { setAdjustedCondition(c); setForm(f => ({ ...f, condition: c })); }}
+                      onClick={() => handleConditionChange(c)}
                       style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'), background: activeCondition === c ? '#1a1a0a' : '#0a0a0a', color: activeCondition === c ? '#c9a84c' : '#e8d5b0', fontWeight: activeCondition === c ? '700' : '400', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                       {c}
                     </button>
                   ))}
                 </div>
                 {adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && (
-                  <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition}</div>
+                  <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition} — ${shownPrice}</div>
                 )}
               </div>
+
               {pricing.ebay && pricing.ebay.topListings && pricing.ebay.topListings.length > 0 && (
                 <div style={{ marginBottom: '10px' }}>
                   <div style={{ fontSize: '10px', color: '#3a5a3a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>
@@ -940,13 +1017,13 @@ export default function Admin() {
               {pricing.notes && (
                 <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>
               )}
-              {!pricing.recommended && !recalcPrice && (
+              {!shownPrice && (
                 <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>
               )}
-              {(recalcPrice || pricing.recommended) && (
-                <button onClick={() => setForm(f => ({ ...f, price: recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended) }))}
+              {shownPrice && (
+                <button onClick={() => setForm(f => ({ ...f, price: shownPrice }))}
                   style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                  {'Use $' + (recalcPrice || (typeof pricing.recommended === 'string' ? pricing.recommended.replace('$', '') : pricing.recommended)) + ' →'}
+                  {'Use $' + shownPrice + ' →'}
                 </button>
               )}
             </div>
@@ -989,7 +1066,7 @@ export default function Admin() {
             </div>
             <div>
               <label style={sectionLabel}>Condition</label>
-              <select name="condition" value={form.condition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
+              <select name="condition" value={activeCondition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>
                 {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -1023,7 +1100,7 @@ export default function Admin() {
     );
   }
 
-  // ─── SUCCESS MODE — COMPLETELY UNTOUCHED FROM ORIGINAL ──────────────────
+  // ─── SUCCESS MODE ────────────────────────────────────────────────────────
   if (mode === 'success') {
     return (
       <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
