@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
-// Real-world dimensions — matches FYT GuideControls exactly
+// ─── Guide settings — mirrors FYT GuideControls exactly ───────────────────────
 const GUIDE_SETTINGS = {
   'square': {
     vw: 82, aspect: 1,
@@ -36,6 +36,14 @@ const GUIDE_SETTINGS = {
   },
 };
 
+const DEFAULT_GUIDE_SIZE = 100;
+const GUIDE_SIZE_MIN = 80;
+const GUIDE_SIZE_MAX = 115;
+
+function clampGuideSize(v) {
+  return Math.min(GUIDE_SIZE_MAX, Math.max(GUIDE_SIZE_MIN, v));
+}
+
 function getSettings(frame, is7inch) {
   if (frame === 'square' && is7inch) return GUIDE_SETTINGS['7-square'];
   if (frame === 'vinyl-circle' && is7inch) return GUIDE_SETTINGS['7-circle'];
@@ -67,6 +75,12 @@ function getCropFromGuide(video, guide) {
   return { cropX, cropY, cropW, cropH };
 }
 
+// ─── 4 Ever brand colors ───────────────────────────────────────────────────────
+const GOLD = '#c9a84c';
+const GOLD_GLOW = 'rgba(201,168,76,0.7)';
+const GOLD_DIM = 'rgba(201,168,76,0.5)';
+const OVERLAY = 'rgba(0,0,0,0.28)';
+
 export default function CameraModal({ onCapture, onClose, label, selectedFormat }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -74,6 +88,7 @@ export default function CameraModal({ onCapture, onClose, label, selectedFormat 
   const streamRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [camError, setCamError] = useState('');
+  const [guideSize, setGuideSize] = useState(DEFAULT_GUIDE_SIZE);
 
   const slotLabel = typeof label === 'string' ? label : label?.label || '';
   const frame = typeof label === 'object' ? label?.frame || 'square' : 'square';
@@ -82,7 +97,9 @@ export default function CameraModal({ onCapture, onClose, label, selectedFormat 
   const isDual = frame === 'vinyl-circle';
   const settings = getSettings(frame, is7inch);
 
-  const outerVW = settings.outerVW || settings.vw || 82;
+  // Guide size multiplier — same as FYT GuideControls
+  const multiplier = guideSize / 100;
+  const outerVW = Math.round((settings.outerVW || settings.vw || 82) * multiplier);
   const maxSize = 'calc(100vh - 260px)';
   const guideWidth = `min(${outerVW}vw, ${maxSize})`;
   const guideHeight = isCircle
@@ -166,17 +183,32 @@ export default function CameraModal({ onCapture, onClose, label, selectedFormat 
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: '#0a0a0a', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#ffff00', fontSize: '18px', fontFamily: 'Georgia, serif', fontWeight: '900' }}>📷 {slotLabel}</span>
+
+      {/* Header */}
+      <div style={{ background: '#0a0a0a', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #2a2a2a' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <svg width="28" height="28" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+            <circle cx="20" cy="20" r="8" fill={GOLD} />
+            <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+          </svg>
+          <span style={{ color: GOLD, fontSize: '15px', fontFamily: 'Georgia, serif', fontWeight: '900', letterSpacing: '1px' }}>
+            {slotLabel}
+          </span>
+        </div>
         <button onClick={() => { stopCamera(); onClose(); }}
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: '30px', cursor: 'pointer' }}>×</button>
+          style={{ background: 'none', border: 'none', color: '#e8d5b0', fontSize: '30px', cursor: 'pointer', lineHeight: 1 }}>×</button>
       </div>
+
+      {/* Camera viewport */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {camError ? (
-          <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif' }}>{camError}</div>
+          <div style={{ color: '#f87171', textAlign: 'center', padding: '40px 20px', fontFamily: 'Georgia, serif', fontSize: '15px' }}>{camError}</div>
         ) : (
           <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
+
+        {/* Guide overlay */}
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           {isCircle ? (
             <div ref={guideRef} style={{
@@ -184,8 +216,8 @@ export default function CameraModal({ onCapture, onClose, label, selectedFormat 
               width: guideWidth,
               height: guideHeight,
               borderRadius: '50%',
-              border: '6px solid rgba(255,255,0,.95)',
-              boxShadow: '0 0 0 9999px rgba(0,0,0,.28), 0 0 20px rgba(255,255,0,.7)',
+              border: `5px solid ${GOLD}`,
+              boxShadow: `0 0 0 9999px ${OVERLAY}, 0 0 20px ${GOLD_GLOW}`,
             }}>
               {isDual && (
                 <div style={{
@@ -194,8 +226,8 @@ export default function CameraModal({ onCapture, onClose, label, selectedFormat 
                   width: `${(settings.innerRatio || 0.363) * 100}%`,
                   height: `${(settings.innerRatio || 0.363) * 100}%`,
                   borderRadius: '50%',
-                  border: '4px solid rgba(255,255,0,.7)',
-                  boxShadow: '0 0 12px rgba(255,255,0,.5)',
+                  border: `3px solid ${GOLD_DIM}`,
+                  boxShadow: `0 0 10px ${GOLD_DIM}`,
                 }} />
               )}
             </div>
@@ -203,21 +235,48 @@ export default function CameraModal({ onCapture, onClose, label, selectedFormat 
             <div ref={guideRef} style={{
               width: guideWidth,
               height: guideHeight,
-              border: '6px solid rgba(255,255,0,.95)',
-              boxShadow: '0 0 0 9999px rgba(0,0,0,.28)',
+              border: `5px solid ${GOLD}`,
+              boxShadow: `0 0 0 9999px ${OVERLAY}, 0 0 16px ${GOLD_GLOW}`,
             }} />
           )}
         </div>
         <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>
+
+      {/* Controls */}
       {ready && (
-        <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#0a0a0a', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div style={{ color: '#ffff00', fontWeight: '900', marginBottom: '12px', textAlign: 'center', lineHeight: 1.3, fontSize: '13px' }}>
+        <div style={{ padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', background: '#0a0a0a', borderTop: '1px solid #2a2a2a' }}>
+
+          {/* Instruction */}
+          <div style={{ color: GOLD, fontWeight: '700', textAlign: 'center', lineHeight: 1.4, fontSize: '13px', fontFamily: 'Georgia, serif' }}>
             {settings.instruction}
           </div>
+
+          {/* Guide size slider — fine-tune framing */}
+          <div style={{ width: '100%', maxWidth: '300px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '11px', color: '#888', fontFamily: 'Georgia, serif', width: '28px', textAlign: 'right' }}>–</span>
+            <input
+              type="range"
+              min={GUIDE_SIZE_MIN}
+              max={GUIDE_SIZE_MAX}
+              value={guideSize}
+              onChange={e => setGuideSize(clampGuideSize(Number(e.target.value)))}
+              style={{ flex: 1, accentColor: GOLD, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '11px', color: '#888', fontFamily: 'Georgia, serif', width: '28px' }}>+</span>
+          </div>
+
+          {/* Capture button */}
           <button onClick={capture}
-            style={{ width: '82px', height: '82px', borderRadius: '50%', background: '#fff', border: '5px solid #ffff00', cursor: 'pointer', fontSize: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            📸
+            style={{
+              width: '80px', height: '80px', borderRadius: '50%',
+              background: '#1a1a0a',
+              border: `4px solid ${GOLD}`,
+              boxShadow: `0 0 16px ${GOLD_GLOW}`,
+              cursor: 'pointer', fontSize: '30px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            📷
           </button>
         </div>
       )}
