@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 13 } });
+export const getServerSideProps = async () => ({ props: { v: 14 } });
 
 import { useState, useEffect, useRef } from 'react';
 import CameraModal from '../components/CameraModal';
@@ -73,7 +73,7 @@ function recalcPriceForCondition(basePrice, condition, identification, form) {
   const base = parseFloat(basePrice);
   if (isNaN(base)) return null;
 
-  // Get the VG+ base (pricing API returns VG+ by default)
+  // Base price from FYT is at VG+ — normalize back to VG baseline first
   const vgPlusMultiplier = CONDITION_MULTIPLIERS['VG+'];
   const baseAtVG = base / vgPlusMultiplier;
 
@@ -299,42 +299,42 @@ const FYT_FORMATS = [
   {
     label: '7" Vinyl',
     types: [
-      { name: 'Picture Sleeve', photos: [{ label: 'Front Sleeve' }, { label: 'Back Sleeve' }, { label: 'A Side Label' }, { label: 'B Side Label' }] },
-      { name: 'Generic Sleeve', photos: [{ label: 'A Side Label' }, { label: 'B Side Label' }] },
-      { name: 'Sleeve Only',    photos: [{ label: 'Front Sleeve' }, { label: 'Back Sleeve' }] },
-      { name: 'Sealed Item',   photos: [{ label: 'Front' }] },
+      { name: 'Picture Sleeve', photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
+      { name: 'Generic Sleeve', photos: [{ label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
+      { name: 'Sleeve Only',    photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }] },
+      { name: 'Sealed Item',   photos: [{ label: 'Front', frame: 'square' }] },
     ],
   },
   {
     label: '12" Vinyl',
     types: [
-      { name: 'Picture Cover',  photos: [{ label: 'Front Cover' }, { label: 'Back Cover' }, { label: 'A Side Label' }, { label: 'B Side Label' }] },
-      { name: 'Generic Cover',  photos: [{ label: 'A Side Label' }, { label: 'B Side Label' }] },
-      { name: 'Cover Only',     photos: [{ label: 'Front Cover' }, { label: 'Back Cover' }] },
-      { name: 'Sealed Item',    photos: [{ label: 'Front' }] },
+      { name: 'Picture Cover',  photos: [{ label: 'Front Cover', frame: 'square' }, { label: 'Back Cover', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
+      { name: 'Generic Cover',  photos: [{ label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
+      { name: 'Cover Only',     photos: [{ label: 'Front Cover', frame: 'square' }, { label: 'Back Cover', frame: 'square' }] },
+      { name: 'Sealed Item',    photos: [{ label: 'Front', frame: 'square' }] },
     ],
   },
   {
     label: 'CD',
     types: [
-      { name: 'Picture Case',  photos: [{ label: 'Front Case' }, { label: 'Back Case' }, { label: 'Disc' }] },
-      { name: 'Generic Case',  photos: [{ label: 'Disc' }] },
-      { name: 'Sealed Item',   photos: [{ label: 'Front' }] },
+      { name: 'Picture Case',  photos: [{ label: 'Front Case', frame: 'square' }, { label: 'Back Case', frame: 'square' }, { label: 'Disc', frame: 'cd-circle' }] },
+      { name: 'Generic Case',  photos: [{ label: 'Disc', frame: 'cd-circle' }] },
+      { name: 'Sealed Item',   photos: [{ label: 'Front', frame: 'square' }] },
     ],
   },
   {
     label: 'Cassette',
     types: [
-      { name: 'Picture Case',  photos: [{ label: 'Front Case' }, { label: 'Back Case' }] },
-      { name: 'Generic Case',  photos: [{ label: 'Tape' }] },
-      { name: 'Sealed Item',   photos: [{ label: 'Front' }] },
+      { name: 'Picture Case',  photos: [{ label: 'Front Case', frame: 'square' }, { label: 'Back Case', frame: 'square' }] },
+      { name: 'Generic Case',  photos: [{ label: 'Tape', frame: 'cassette-rect' }] },
+      { name: 'Sealed Item',   photos: [{ label: 'Front', frame: 'square' }] },
     ],
   },
   {
     label: '8-Track',
     types: [
-      { name: '8-Track',     photos: [{ label: 'Side 1' }, { label: 'Side 2' }] },
-      { name: 'Sealed Item', photos: [{ label: 'Front' }] },
+      { name: '8-Track',     photos: [{ label: 'Side 1', frame: '8track-rect' }, { label: 'Side 2', frame: '8track-rect' }] },
+      { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
     ],
   },
 ];
@@ -463,12 +463,11 @@ export default function Admin() {
 
   const activeCondition = adjustedCondition || form.condition;
 
-  // ─── Base recommended price from FYT — reads correct field name ──────────
+  // ─── Base recommended price — reads correct field name from FYT ──────────
   const baseRecommended = pricing?.recommended
     ? String(pricing.recommended).replace('$', '')
     : null;
 
-  // displayPrice is what the user sees — recalculated when condition changes
   const shownPrice = displayPrice || baseRecommended;
 
   // ─── Full reset ──────────────────────────────────────────────────────────
@@ -607,10 +606,9 @@ export default function Admin() {
         .then(r => r.json())
         .then(p => {
           setPricing(p);
-          // Set initial display price from FYT recommended
+          // Read correct field name and set initial display price
           const base = p?.recommended ? String(p.recommended).replace('$', '') : null;
           if (base) {
-            // Recalc for whatever condition the scan returned
             const scanCondition = result.condition || 'VG+';
             const recalced = recalcPriceForCondition(base, scanCondition, identification, updatedForm);
             setDisplayPrice(recalced || base);
@@ -647,6 +645,7 @@ export default function Admin() {
     }
   }
 
+  // ─── Condition button handler — actually recalculates price ─────────────
   function handleConditionChange(c) {
     setAdjustedCondition(c);
     setForm(f => ({ ...f, condition: c }));
@@ -962,7 +961,6 @@ export default function Admin() {
                 )}
               </div>
 
-              {/* Condition adjuster — now actually recalculates price */}
               <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
                 <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Adjust Condition — Price Updates Instantly</div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
