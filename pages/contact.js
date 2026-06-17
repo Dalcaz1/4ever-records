@@ -107,6 +107,20 @@ export default function Contact() {
           </div>
         </div>
 
+        {/* ACCOUNT & DATA DELETION */}
+        <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '16px', padding: '28px', marginTop: '32px', textAlign: 'center' }}>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '16px', color: '#e8d5b0', fontWeight: '700', marginBottom: '12px' }}>
+            Request Account or Data Deletion
+          </div>
+          <p style={{ fontSize: '13px', color: '#888', lineHeight: 1.8, margin: 0, fontStyle: 'italic' }}>
+            To request deletion of your Find Your Tunes account or any personal data we have on file, email us at{' '}
+            <a href="mailto:4evermemoriesrecordstore@gmail.com" style={{ color: '#c9a84c', textDecoration: 'underline' }}>
+              4evermemoriesrecordstore@gmail.com
+            </a>{' '}
+            with the subject line "Account Deletion Request." We will process your request and confirm once it is complete.
+          </p>
+        </div>
+
       </div>
 
       {/* FOOTER */}
