@@ -146,7 +146,7 @@ function PinLock({ onUnlock }) {
 }
 
 // ─── Stage 1 Camera ────────────────────────────────────────────────────────
-function Stage1Camera({ onCapture }) {
+function Stage1Camera({ onCapture, onDiscogs }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -190,16 +190,19 @@ function Stage1Camera({ onCapture }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', zIndex: 9999, display: 'flex', flexDirection: 'column', fontFamily: 'Georgia, serif' }}>
-      <div style={{ padding: '14px 16px', background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <svg width="32" height="32" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
-          <circle cx="20" cy="20" r="8" fill="#c9a84c" />
-          <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
-        </svg>
-        <div>
-          <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
-          <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Scan Item</div>
+      <div style={{ padding: '14px 16px', background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <svg width="32" height="32" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+            <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+            <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+          </svg>
+          <div>
+            <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
+            <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Scan Item</div>
+          </div>
         </div>
+        <button onClick={onDiscogs} style={{ background: 'transparent', border: '1px solid #2a2a2a', color: '#c9a84c', borderRadius: '6px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', letterSpacing: '1px' }}>📦 Discogs</button>
       </div>
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}>
         {camError ? (
@@ -719,7 +722,7 @@ export default function Admin() {
               <button onClick={() => setIdentifyError('')} style={{ marginLeft: '12px', background: 'transparent', border: '1px solid #f87171', color: '#f87171', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Georgia, serif' }}>Dismiss</button>
             </div>
           )}
-          <Stage1Camera onCapture={handleStage1Capture} />
+          <Stage1Camera onCapture={handleStage1Capture} onDiscogs={() => setMode('discogs')} />
         </>
       );
     }
