@@ -1,4 +1,4 @@
-export const getServerSideProps = async () => ({ props: { v: 14 } });
+export const getServerSideProps = async () => ({ props: { v: 15 } });
 
 import { useState, useEffect, useRef } from 'react';
 import CameraModal from '../components/CameraModal';
@@ -19,7 +19,6 @@ function loadSession() {
 function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); } catch {}
 }
-// ───────────────────────────────────────────────────────────────────────────
 
 // ─── FYT API helpers ───────────────────────────────────────────────────────
 const FYT_BASE = 'https://findyourtunes.vercel.app';
@@ -30,7 +29,6 @@ function fytHeaders() {
     'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '',
   };
 }
-// ───────────────────────────────────────────────────────────────────────────
 
 // ─── Condition multipliers — mirrors FYT exactly ───────────────────────────
 const CONDITION_MULTIPLIERS = {
@@ -72,27 +70,18 @@ function recalcPriceForCondition(basePrice, condition, identification, form) {
   if (!basePrice) return null;
   const base = parseFloat(basePrice);
   if (isNaN(base)) return null;
-
-  // Base price from FYT is at VG+ — normalize back to VG baseline first
   const vgPlusMultiplier = CONDITION_MULTIPLIERS['VG+'];
   const baseAtVG = base / vgPlusMultiplier;
-
   const multiplier = CONDITION_MULTIPLIERS[condition] || 1.0;
   let price = baseAtVG * multiplier;
-
-  // Apply picture sleeve premium
   const sleeveMult = getPictureSleeveMultiplier(identification);
   price = price * sleeveMult;
-
-  // Apply Spanish/Regional floor
   if (isSpanishOrRegionalLikely(form.artist, form.label, form.genre, form.country)) {
     const floor = getSpanishFloor(identification?.format || '', condition);
     if (price < floor) price = floor;
   }
-
   return price.toFixed(2);
 }
-// ───────────────────────────────────────────────────────────────────────────
 
 function PinLock({ onUnlock }) {
   const [pin, setPin] = useState('');
@@ -436,6 +425,8 @@ export default function Admin() {
   const [showAllEbay, setShowAllEbay] = useState(false);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
   const [displayPrice, setDisplayPrice] = useState(null);
+  const [discogsPublishing, setDiscogsPublishing] = useState(false);
+  const [discogsResult, setDiscogsResult] = useState(null);
 
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
@@ -463,14 +454,12 @@ export default function Admin() {
 
   const activeCondition = adjustedCondition || form.condition;
 
-  // ─── Base recommended price — reads correct field name from FYT ──────────
   const baseRecommended = pricing?.recommended
     ? String(pricing.recommended).replace('$', '')
     : null;
 
   const shownPrice = displayPrice || baseRecommended;
 
-  // ─── Full reset ──────────────────────────────────────────────────────────
   function reset() {
     setEntryStage('camera1');
     setIdentification(null);
@@ -488,10 +477,10 @@ export default function Admin() {
     setShowAllEbay(false);
     setAdjustedCondition(null);
     setDisplayPrice(null);
+    setDiscogsResult(null);
     clearSession();
   }
 
-  // ─── Stage 1: capture first photo and identify ──────────────────────────
   async function handleStage1Capture(file) {
     setEntryStage('identifying');
     setIdentifyError('');
@@ -515,7 +504,6 @@ export default function Admin() {
     }
   }
 
-  // ─── Slot camera capture ─────────────────────────────────────────────────
   function handleSlotCapture(file) {
     const label = photoSlots[cameraSlotIndex]?.label || '';
     const updated = { ...capturedPhotos, [cameraSlotIndex]: { file, label } };
@@ -525,7 +513,6 @@ export default function Admin() {
     if (allDone) runFullScan(updated);
   }
 
-  // ─── Full scan ───────────────────────────────────────────────────────────
   async function runFullScan(photosMap) {
     setScanning(true);
     setError('');
@@ -606,7 +593,6 @@ export default function Admin() {
         .then(r => r.json())
         .then(p => {
           setPricing(p);
-          // Read correct field name and set initial display price
           const base = p?.recommended ? String(p.recommended).replace('$', '') : null;
           if (base) {
             const scanCondition = result.condition || 'VG+';
@@ -645,7 +631,6 @@ export default function Admin() {
     }
   }
 
-  // ─── Condition button handler — actually recalculates price ─────────────
   function handleConditionChange(c) {
     setAdjustedCondition(c);
     setForm(f => ({ ...f, condition: c }));
@@ -687,6 +672,19 @@ export default function Admin() {
       setError('Failed to save. Please try again.');
     }
     setSaving(false);
+  }
+
+  async function handlePublishDiscogs() {
+    setDiscogsPublishing(true);
+    setDiscogsResult(null);
+    try {
+      const res = await fetch('/api/publish-discogs', { method: 'POST' });
+      const data = await res.json();
+      setDiscogsResult(data);
+    } catch (err) {
+      setDiscogsResult({ error: err.message });
+    }
+    setDiscogsPublishing(false);
   }
 
   const inp = {
@@ -1117,6 +1115,65 @@ export default function Admin() {
           </button>
           <a href="/inventory" style={{ display: 'block', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic', marginBottom: '8px' }}>📋 View Inventory</a>
           <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── DISCOGS PUBLISH MODE ────────────────────────────────────────────────
+  if (mode === 'discogs') {
+    return (
+      <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
+        <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" />
+              <circle cx="20" cy="20" r="8" fill="#c9a84c" />
+              <circle cx="20" cy="20" r="3" fill="#0a0a0a" />
+            </svg>
+            <div>
+              <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700' }}>4 Ever Memories</div>
+              <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#c9a84c', textTransform: 'uppercase' }}>Publish Discogs</div>
+            </div>
+          </div>
+          <button onClick={reset} style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '28px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </nav>
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+          <h2 style={{ fontSize: '20px', color: '#e8d5b0', marginBottom: '8px' }}>Publish Discogs Inventory</h2>
+          <p style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic', marginBottom: '28px' }}>
+            Publishes all FYT Discogs-imported items to the 4 Ever store with D-SKUs.<br />No photos required — items go live for customers immediately.
+          </p>
+
+          {!discogsResult && (
+            <button
+              onClick={handlePublishDiscogs}
+              disabled={discogsPublishing}
+              style={{ width: '100%', padding: '16px', background: discogsPublishing ? '#1a1a1a' : '#c9a84c', color: discogsPublishing ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: discogsPublishing ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '12px' }}>
+              {discogsPublishing ? 'Publishing...' : '🚀 Publish to Store →'}
+            </button>
+          )}
+
+          {discogsResult && discogsResult.success && (
+            <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>✅</div>
+              <div style={{ fontSize: '18px', color: '#4ade80', fontWeight: '700', marginBottom: '6px' }}>{discogsResult.published} items published to store</div>
+              {discogsResult.skipped > 0 && (
+                <div style={{ fontSize: '12px', color: '#fbbf24', fontStyle: 'italic', marginTop: '8px' }}>{discogsResult.skipped} items skipped — missing artist, title, or price</div>
+              )}
+            </div>
+          )}
+
+          {discogsResult && discogsResult.error && (
+            <div style={{ background: '#2a1a1a', border: '1px solid #7f1d1d', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+              <div style={{ color: '#f87171', fontSize: '14px' }}>❌ {discogsResult.error}</div>
+            </div>
+          )}
+
+          <button onClick={reset}
+            style={{ width: '100%', padding: '12px', background: 'transparent', color: '#c9a84c', border: '1px solid #c9a84c44', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '8px' }}>
+            ← Back to Admin
+          </button>
         </div>
       </div>
     );
