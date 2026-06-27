@@ -88,38 +88,44 @@ function getCropFromGuide(video, guide) {
 }
 
 // ─── GuideControls (inlined from FYT) ─────────────────────────────────────────
+// Real-world dimensions in inches:
+// 12" LP jacket = 12.5" x 12.5" — at 12-14" fills ~82% of phone screen
+// 7" vinyl disc = 7.0" diameter — at 10-12" fills ~82% of phone screen
+// CD jewel case = 5.59" x 4.96" — at 8-10" fills ~62% of phone screen
+// Cassette = 4.25" x 2.75" — at 6-8" fills ~88% of phone screen (landscape rect)
+// 8-Track = 5.25" x 4.0" — at 8-10" fills ~82% of phone screen
 
 const GUIDE_SETTINGS = {
   'square': {
     vw: 82, aspect: 1,
-    instruction: 'Hold item 18–20 inches away and fill the guide completely.',
+    instruction: 'Hold item 12–14 inches away and fill the guide completely.',
   },
   'vinyl-circle': {
     outerVW: 82, innerRatio: 0.363,
-    instruction: 'Hold record 18–20 inches away. Align the label inside the inner circle.',
+    instruction: 'Hold record 12–14 inches away. Align the label inside the inner circle.',
   },
   '7-square': {
     vw: 82, aspect: 1,
-    instruction: 'Hold item 12 inches away and fill the guide completely.',
+    instruction: 'Hold item 10–12 inches away and fill the guide completely.',
   },
   '7-circle': {
     outerVW: 82, innerRatio: 0.58,
-    instruction: 'Hold record 12 inches away. Align the label inside the inner circle.',
+    instruction: 'Hold record 10–12 inches away. Align the label inside the inner circle.',
   },
   'cd-circle': {
-    outerVW: 62,
+    outerVW: 72,
     instruction: 'Hold disc 8–10 inches away and fill the guide completely.',
   },
   'rectangle': {
-    vw: 62, aspect: 4.96 / 5.59,
+    vw: 72, aspect: 4.96 / 5.59,
     instruction: 'Hold case 8–10 inches away and fill the guide completely.',
   },
   'cassette-rect': {
-    vw: 62, aspect: 2.75 / 4.25,
-    instruction: 'Hold cassette 8–10 inches away and fill the guide completely.',
+    vw: 88, aspect: 2.75 / 4.25,
+    instruction: 'Hold cassette 6–8 inches away and fill the guide completely.',
   },
   '8track-rect': {
-    vw: 62, aspect: 4.0 / 5.25,
+    vw: 82, aspect: 4.0 / 5.25,
     instruction: 'Hold 8-track 8–10 inches away and fill the guide completely.',
   },
 };
