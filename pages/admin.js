@@ -135,7 +135,7 @@ function Stage1Camera({ onCapture }) {
       </div>
       <div style={{ background: '#0a0a0a', borderTop: '1px solid #2a2a2a', padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
         <div style={{ width: '100%', maxWidth: '340px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          {[{ num: '1', text: 'Hold the label or cover facing the camera' }, { num: '2', text: 'Fill the frame — get close enough to read the text' }, { num: '3', text: 'Hold still — tap capture when image is sharp' }].map(({ num, text }) => (
+          {[{ num: '1', text: 'Hold the label or cover facing the camera, 8–12 inches away' }, { num: '2', text: 'Fill the frame — get close enough to read the text' }, { num: '3', text: 'Hold still — tap capture when image is sharp' }].map(({ num, text }) => (
             <div key={num} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
               <div style={{ width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#0d0d0d' }}>{num}</div>
               <div style={{ fontSize: '12px', color: '#bbb', lineHeight: 1.45, paddingTop: '2px' }}>{text}</div>
@@ -173,6 +173,9 @@ function ScanningOverlay() {
   );
 }
 
+// ─── FYT_FORMATS ─────────────────────────────────────────────────────────────
+// frame values must match GUIDE_SETTINGS keys in CameraModal:
+//   'square', 'vinyl-circle', 'cd-circle', 'cassette-rect', '8track-rect', 'rectangle'
 const FYT_FORMATS = [
   { label: '7" Vinyl', types: [
     { name: 'Picture Sleeve', photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
@@ -192,8 +195,8 @@ const FYT_FORMATS = [
     { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
   ]},
   { label: 'Cassette', types: [
-    { name: 'Picture Case', photos: [{ label: 'Front Case', frame: 'square' }, { label: 'Back Case', frame: 'square' }] },
-    { name: 'Generic Case', photos: [{ label: 'Tape', frame: 'cassette-rect' }] },
+    { name: 'Picture Case', photos: [{ label: 'Front Case', frame: 'square' }, { label: 'Back Case', frame: 'square' }, { label: 'Tape Label', frame: 'cassette-rect' }] },
+    { name: 'Generic Case', photos: [{ label: 'Tape Label', frame: 'cassette-rect' }] },
     { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
   ]},
   { label: '8-Track', types: [
@@ -204,7 +207,7 @@ const FYT_FORMATS = [
 
 function getSlotsFor(format, type) {
   const fmt = FYT_FORMATS.find(f => f.label === format);
-  if (!fmt) return [{ label: 'Photo' }];
+  if (!fmt) return [{ label: 'Photo', frame: 'square' }];
   const t = fmt.types.find(t => t.name === type) || fmt.types[0];
   return t.photos;
 }
@@ -248,7 +251,7 @@ async function fileToBase64(file) {
 async function compressForScan(file, slotLabel) {
   return new Promise((resolve) => {
     const l = String(slotLabel || '').toLowerCase();
-    const isLabel = l.includes('label') || l.includes('side a') || l.includes('side b') || l.includes('disc');
+    const isLabel = l.includes('label') || l.includes('side a') || l.includes('side b') || l.includes('disc') || l.includes('tape');
     const isCover = l.includes('cover') || l.includes('case') || l.includes('front') || l.includes('back');
     const maxPx = isLabel ? 1800 : isCover ? 1400 : 1600;
     const quality = isLabel ? 0.88 : isCover ? 0.84 : 0.86;
