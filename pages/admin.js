@@ -195,9 +195,9 @@ const FYT_FORMATS = [
     { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
   ]},
   { label: 'Cassette', types: [
-    { name: 'Picture Case', photos: [{ label: 'Front Case', frame: 'square' }, { label: 'Back Case', frame: 'square' }, { label: 'Tape Label', frame: 'cassette-rect' }] },
-    { name: 'Generic Case', photos: [{ label: 'Tape Label', frame: 'cassette-rect' }] },
-    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
+    { name: 'Picture Case', photos: [{ label: 'Front Case', frame: 'cassette-rect' }, { label: 'Tape Label', frame: 'cassette-rect' }, { label: 'J-card Back', frame: 'cassette-rect' }] },
+    { name: 'Generic Case', photos: [{ label: 'Front Case', frame: 'cassette-rect' }, { label: 'Tape Label', frame: 'cassette-rect' }] },
+    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'cassette-rect' }] },
   ]},
   { label: '8-Track', types: [
     { name: '8-Track', photos: [{ label: 'Side 1', frame: '8track-rect' }, { label: 'Side 2', frame: '8track-rect' }] },
@@ -214,7 +214,7 @@ function getSlotsFor(format, type) {
 function slotLabelToKey(label, index) {
   const l = String(label || '').toLowerCase();
   if (l.includes('front cover') || l.includes('front case') || l.includes('front sleeve') || l === 'front') return 'front';
-  if (l.includes('back cover') || l.includes('back case') || l.includes('back sleeve')) return 'back';
+  if (l.includes('back cover') || l.includes('back case') || l.includes('back sleeve') || l.includes('j-card back')) return 'back';
   if (l.includes('a side') || l.includes('side 1') || l.includes('disc front')) return 'a';
   if (l.includes('b side') || l.includes('side 2') || l.includes('disc back')) return 'b';
   if (l.includes('disc') || l.includes('cd')) return 'a';
