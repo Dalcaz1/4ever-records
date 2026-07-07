@@ -34,7 +34,16 @@ export default async function handler(req, res) {
     }
 
     const { id, artist, title, year, label, genre, condition, price, qty, notes, active } = fields;
-    if (!id) return res.status(400).json({ error: 'Missing record id' });
+    // Guard against 'undefined'/'null' as literal strings, not just falsy —
+    // FormData.append('id', undefined) silently stringifies to "undefined",
+    // which passes a plain `!id` check and would otherwise hit Supabase as
+    // a bad .eq('id', 'undefined') query, surfacing a raw Postgres error to
+    // the user (suspected source of the July 7 "inventory number not
+    // available" report — not confirmed, but this closes a real gap either way).
+    if (!id || id === 'undefined' || id === 'null') {
+      console.error('update-record: missing/invalid id in request', { id });
+      return res.status(400).json({ error: 'Could not identify which item to update — please close this and reopen it from Manage Inventory.' });
+    }
 
     const updates = {
       condition,
@@ -64,7 +73,10 @@ export default async function handler(req, res) {
     }
 
     const { error } = await supabase.from('records').update(updates).eq('id', id);
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error('update-record: Supabase update failed', { id, error });
+      return res.status(500).json({ error: error.message });
+    }
     return res.status(200).json({ success: true });
 
   } catch (err) {
