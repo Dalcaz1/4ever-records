@@ -310,16 +310,31 @@ export default function Admin() {
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
     const saved = loadSession();
-    if (saved) {
+    // FIX (Roger Daltrey repeat-result bug): previously this restored
+    // identification/pricing/scanResult/mode unconditionally on every
+    // mount — including straight into 'review' or 'success' with a fully
+    // completed OLD scan. That made a stale, previously-scanned item look
+    // exactly like a fresh result any time the page remounted (tab
+    // reopened, app backgrounded/foregrounded, network hiccup), with no
+    // new photo ever taken. Only resume automatically when the person was
+    // genuinely mid-flow taking photos (mode === 'entry') — that's the
+    // one case worth protecting against a dropped connection. Anything
+    // further along (review/success) or anything else is discarded, so a
+    // remount always starts clean rather than replaying an old result.
+    if (saved && saved.mode === 'entry') {
       if (saved.form) setForm(saved.form);
-      if (saved.mode && saved.mode !== 'home') setMode(saved.mode);
-      if (saved.pricing) setPricing(saved.pricing);
-      if (saved.scanResult) setScanResult(saved.scanResult);
-      if (saved.nextSku) setNextSku(saved.nextSku);
-      if (saved.adjustedCondition) setAdjustedCondition(saved.adjustedCondition);
+      setMode('entry');
       if (saved.identification) setIdentification(saved.identification);
       if (saved.photoSlots) setPhotoSlots(saved.photoSlots);
-      if (saved.displayPrice) setDisplayPrice(saved.displayPrice);
+      // Note: pricing/scanResult/nextSku/adjustedCondition/displayPrice are
+      // deliberately NOT restored here even in 'entry' mode — they only
+      // ever get set once a scan has completed (mode moves to 'review'),
+      // so if mode really is still 'entry', those fields should be empty
+      // anyway. Not restoring them removes any path for old scan results
+      // to leak back in.
+    } else if (saved) {
+      // Stale session from a completed or abandoned flow — discard it.
+      clearSession();
     }
   }, []);
 
@@ -523,7 +538,7 @@ export default function Admin() {
             <div style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic' }}>What would you like to do?</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <button onClick={() => setMode('entry')}
+            <button onClick={() => { reset(); setMode('entry'); }}
               style={{ width: '100%', padding: '22px 20px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '16px' }}>
               <span style={{ fontSize: '28px' }}>➕</span>
               <div>
@@ -888,7 +903,7 @@ export default function Admin() {
               <div style={{ color: '#f87171', fontSize: '14px' }}>❌ {discogsResult.error}</div>
             </div>
           )}
-          <button onClick={() => setMode('home')} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#c9a84c', border: '1px solid #c9a84c44', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginTop: '8px' }}>← Back to Admin</button>
+          <button onClick={() => setMode('home')} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#c9a84c', border: '1px solid #c9a84c44', borderRadius: '10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>← Back to Admin</button>
         </div>
       </div>
     );
