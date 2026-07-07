@@ -87,6 +87,14 @@ function Stage1Camera({ onCapture }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const [camError, setCamError] = useState('');
+  // FIX (Symptom B investigation, July 7 session): capture button was
+  // tappable the instant the camera view opened, before the video stream
+  // had actually produced a frame. If videoWidth/videoHeight were still 0
+  // at that point, capture() fell back to 1280x720 defaults and drew
+  // whatever the (possibly blank/black) canvas held — sending a bad frame
+  // to /api/identify. camReady gates the button until the video is
+  // confirmed actually playing with real dimensions.
+  const [camReady, setCamReady] = useState(false);
   useEffect(() => {
     async function start() {
       try {
@@ -98,10 +106,17 @@ function Stage1Camera({ onCapture }) {
     start();
     return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
   }, []);
+  function handleVideoLoaded() {
+    const video = videoRef.current;
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) setCamReady(true);
+  }
   function capture() {
     const video = videoRef.current; const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    const w = video.videoWidth || 1280; const h = video.videoHeight || 720;
+    // Second line of defense even if camReady state is somehow stale —
+    // never draw a frame with no real dimensions.
+    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return;
+    const w = video.videoWidth; const h = video.videoHeight;
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(video, 0, 0, w, h);
     canvas.toBlob(blob => {
@@ -121,7 +136,7 @@ function Stage1Camera({ onCapture }) {
       </div>
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 0 }}>
         {camError ? <div style={{ color: '#f87171', padding: '40px 20px', textAlign: 'center', fontSize: '15px' }}>{camError}</div>
-          : <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          : <video ref={videoRef} autoPlay muted playsInline onLoadedData={handleVideoLoaded} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           <div style={{ position: 'relative', width: '75vw', height: '75vw', maxWidth: '320px', maxHeight: '320px' }}>
             {[{ top: 0, left: 0, borderTop: '3px solid #c9a84c', borderLeft: '3px solid #c9a84c', borderTopLeftRadius: '6px' },
@@ -142,7 +157,8 @@ function Stage1Camera({ onCapture }) {
             </div>
           ))}
         </div>
-        <button type="button" onClick={capture} style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid #c9a84c', background: '#1a1a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '28px' }}>📷</button>
+        <button type="button" onClick={capture} disabled={!camReady} style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid #c9a84c', background: '#1a1a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: camReady ? 'pointer' : 'not-allowed', fontSize: '28px', opacity: camReady ? 1 : 0.4 }}>📷</button>
+        {!camError && !camReady && <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic' }}>Starting camera…</div>}
       </div>
     </div>
   );
