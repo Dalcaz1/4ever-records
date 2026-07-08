@@ -316,6 +316,7 @@ export default function Admin() {
   const [photoSlots, setPhotoSlots] = useState([]);
   const [capturedPhotos, setCapturedPhotos] = useState({});
   const [identifyError, setIdentifyError] = useState('');
+  const [bSideWarning, setBSideWarning] = useState(false);
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('home');
@@ -372,6 +373,19 @@ export default function Admin() {
       setMode(saved.mode);
       if (saved.identification) setIdentification(saved.identification);
       if (saved.photoSlots) setPhotoSlots(saved.photoSlots);
+      if (saved.mode === 'entry') {
+        // NOTE: capturedPhotos (real File/Blob objects) cannot survive a
+        // genuine tab reload — sessionStorage only holds strings. Restoring
+        // entryStage/photoSlots here still saves the person from redoing
+        // the identify step (which can take 10-15+ seconds), even though
+        // any already-captured photos will need to be retaken.
+        // Guard: never resume directly into 'identifying' — that stage only
+        // makes sense with an actual fetch in flight, which a reload always
+        // interrupts. Land on 'camera1' instead so the person can retake
+        // the Stage 1 photo rather than stare at a permanently stuck spinner.
+        if (saved.entryStage && saved.entryStage !== 'identifying') setEntryStage(saved.entryStage);
+        if (typeof saved.bSideWarning === 'boolean') setBSideWarning(saved.bSideWarning);
+      }
       if (saved.mode === 'review') {
         if (saved.pricing) setPricing(saved.pricing);
         if (saved.scanResult) setScanResult(saved.scanResult);
@@ -388,8 +402,8 @@ export default function Admin() {
 
   useEffect(() => {
     if (!authed) return;
-    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, savedAt: Date.now() });
-  }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice]);
+    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning, savedAt: Date.now() });
+  }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning]);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
@@ -406,6 +420,7 @@ export default function Admin() {
     setPricing(null); setScanResult(null); setNextSku(null); setSavedSku(null);
     setError(''); setShowAllEbay(false); setAdjustedCondition(null); setDisplayPrice(null);
     setDiscogsResult(null); setEditItem(null); setEditForm({}); setEditPhotoFile(null);
+    setBSideWarning(false);
     clearSession();
   }
 
@@ -419,12 +434,57 @@ export default function Admin() {
       setIdentification(data);
       const slots = getSlotsFor(data.format, data.type);
       setPhotoSlots(slots);
-      setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
+      // FIX (July 7 session, ported from FYT): previously the Stage 1 photo
+      // was always pre-filled into slot 0 regardless of which side it
+      // actually was. If the person photographed the B-side label first
+      // (a real, common mistake), it would silently get treated as the
+      // primary/A-side photo — pricing is keyed off the A-side track, so
+      // this could produce a confidently wrong price with no warning.
+      const bSide = data.b_side_scanned === true;
+      setBSideWarning(bSide);
+      if (!bSide) {
+        setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
+      } else {
+        const bSlotIndex = slots.findIndex(s => {
+          const l = String(s?.label || '').toLowerCase();
+          return l.includes('b side') || l.includes('side b');
+        });
+        if (bSlotIndex !== -1) {
+          setCapturedPhotos({ [bSlotIndex]: { file, label: slots[bSlotIndex]?.label || 'B Side Label' } });
+        } else {
+          // Format has no A/B side slots (CD, Cassette, etc.) — shouldn't
+          // normally happen since identify.js only flags b_side_scanned for
+          // vinyl-style items with visible side markings, but fail safe.
+          setCapturedPhotos({});
+        }
+      }
       setEntryStage('slots');
     } catch (err) {
       setIdentifyError(err.message || 'Could not identify item — please try again');
       setEntryStage('camera1');
     }
+  }
+
+  // Ported from FYT: lets the user proceed when they've confirmed both
+  // sides carry the same track (rare, but real — some pressings). Copies
+  // the already-captured B-side photo into the A-side slot so the normal
+  // "all slots filled" check passes and a real photo still gets sent for
+  // both label fields, rather than silently allowing an empty A-side.
+  function handleBothSidesIdentical() {
+    const bSlotIndex = photoSlots.findIndex(s => {
+      const l = String(s?.label || '').toLowerCase();
+      return l.includes('b side') || l.includes('side b');
+    });
+    const aSlotIndex = photoSlots.findIndex(s => {
+      const l = String(s?.label || '').toLowerCase();
+      return l.includes('a side') || l.includes('side a');
+    });
+    setBSideWarning(false);
+    if (bSlotIndex === -1 || aSlotIndex === -1 || !capturedPhotos[bSlotIndex]?.file) return;
+    const updated = { ...capturedPhotos, [aSlotIndex]: { file: capturedPhotos[bSlotIndex].file, label: photoSlots[aSlotIndex]?.label || 'A Side Label' } };
+    setCapturedPhotos(updated);
+    const allDone = photoSlots.every((_, i) => updated[i]?.file != null);
+    if (allDone) runFullScan(updated);
   }
 
   function handleSlotCapture(file) {
@@ -802,6 +862,23 @@ export default function Admin() {
               </div>
             )}
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Photos needed · {Object.keys(capturedPhotos).length} of {photoSlots.length} captured</div>
+            {bSideWarning && (
+              <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '10px', background: 'rgba(251,191,36,0.08)', border: '2px solid rgba(251,191,36,0.5)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '20px', flexShrink: 0 }}>⚠️</div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '900', color: '#fbbf24', marginBottom: '4px' }}>B-Side Scanned — Side A Needed for Accurate Pricing</div>
+                    <div style={{ fontSize: '12px', color: '#fde68a', lineHeight: 1.6 }}>
+                      Your first photo was the B-side label. Continue through the remaining photo slots below — when you reach the A Side Label slot, flip the record and photograph the other side for accurate pricing.
+                    </div>
+                  </div>
+                </div>
+                <button type="button" onClick={handleBothSidesIdentical}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.5)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  Both Sides Are Identical — Price Based on This Label
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               {photoSlots.map((slot, index) => {
                 const isDone = capturedPhotos[index]?.file != null;
