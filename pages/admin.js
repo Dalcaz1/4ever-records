@@ -4,9 +4,19 @@ import { useState, useEffect, useRef } from 'react';
 import CameraModal from '../components/CameraModal';
 
 const SESSION_KEY = '4em_admin_state';
-function saveSession(state) { try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch {} }
-function loadSession() { try { const raw = sessionStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch {} return null; }
-function clearSession() { try { sessionStorage.removeItem(SESSION_KEY); } catch {} }
+// FIX (July 7 session): migrated from sessionStorage to localStorage.
+// Confirmed live, twice in a row: returning from an external eBay listing
+// link (opened via target="_blank" from the review screen) fully cleared
+// sessionStorage — not just this app's scan-progress key, but the
+// admin_auth PIN flag too, forcing a full re-login and rescan. This is a
+// known behavior in some mobile/PWA browsing contexts on cross-origin
+// round-trip navigation. localStorage is materially more resistant to
+// this. The 20-minute recency check (savedAt) already protects against
+// stale data regardless of which storage type is used, so there's no
+// staleness downside to this change.
+function saveSession(state) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch {} }
+function loadSession() { try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch {} return null; }
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
 
 const FYT_BASE = 'https://findyourtunes.vercel.app';
 function fytHeaders() {
@@ -54,7 +64,7 @@ function PinLock({ onUnlock }) {
     try {
       const res = await fetch('/api/verify-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
       const data = await res.json();
-      if (data.success) { sessionStorage.setItem('admin_auth', 'true'); onUnlock(); }
+      if (data.success) { localStorage.setItem('admin_auth', 'true'); onUnlock(); }
       else { setError('Incorrect PIN. Please try again.'); setPin(''); }
     } catch { setError('Something went wrong. Please try again.'); }
     setChecking(false);
@@ -344,7 +354,7 @@ export default function Admin() {
   const editPhotoRef = useRef(null);
 
   useEffect(() => {
-    if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
+    if (localStorage.getItem('admin_auth') === 'true') setAuthed(true);
     const saved = loadSession();
     // REVISED (July 7 session, second pass): the previous version of this
     // fix only ever auto-resumed mode === 'entry', deliberately discarding
