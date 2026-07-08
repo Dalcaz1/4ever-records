@@ -345,37 +345,50 @@ export default function Admin() {
   useEffect(() => {
     if (sessionStorage.getItem('admin_auth') === 'true') setAuthed(true);
     const saved = loadSession();
-    // FIX (Roger Daltrey repeat-result bug): previously this restored
-    // identification/pricing/scanResult/mode unconditionally on every
-    // mount — including straight into 'review' or 'success' with a fully
-    // completed OLD scan. That made a stale, previously-scanned item look
-    // exactly like a fresh result any time the page remounted (tab
-    // reopened, app backgrounded/foregrounded, network hiccup), with no
-    // new photo ever taken. Only resume automatically when the person was
-    // genuinely mid-flow taking photos (mode === 'entry') — that's the
-    // one case worth protecting against a dropped connection. Anything
-    // further along (review/success) or anything else is discarded, so a
-    // remount always starts clean rather than replaying an old result.
-    if (saved && saved.mode === 'entry') {
+    // REVISED (July 7 session, second pass): the previous version of this
+    // fix only ever auto-resumed mode === 'entry', deliberately discarding
+    // 'review' state on every remount to kill the risk of an old completed
+    // scan replaying as if it were fresh (the original Roger Daltrey
+    // investigation, later found to have a different root cause, but the
+    // unconditional-restore bug it surfaced was real regardless).
+    // That was too aggressive: it meant a brief real-world interruption —
+    // answering a phone call, checking another app — while sitting on the
+    // REVIEW screen (price/condition set, about to hit Save) would wipe
+    // that entire in-progress item and dump the user back to Home, forcing
+    // a full re-scan. That's the actual complaint tonight.
+    // Fix: resume BOTH 'entry' and 'review' (with full state, including
+    // pricing/scanResult — that's the whole point of resuming review), but
+    // gate it on recency via `savedAt`. A save from the last 20 minutes is
+    // almost certainly a live in-progress interruption worth resuming; a
+    // save from longer ago is far more likely a stale/abandoned session
+    // that should NOT silently reappear as if it were current. 'success'
+    // (already saved to inventory) is never resumed — that's a terminal
+    // state, nothing left to continue.
+    const RESUME_WINDOW_MS = 20 * 60 * 1000; // 20 minutes
+    const isRecent = saved && typeof saved.savedAt === 'number' && (Date.now() - saved.savedAt) < RESUME_WINDOW_MS;
+
+    if (saved && isRecent && (saved.mode === 'entry' || saved.mode === 'review')) {
       if (saved.form) setForm(saved.form);
-      setMode('entry');
+      setMode(saved.mode);
       if (saved.identification) setIdentification(saved.identification);
       if (saved.photoSlots) setPhotoSlots(saved.photoSlots);
-      // Note: pricing/scanResult/nextSku/adjustedCondition/displayPrice are
-      // deliberately NOT restored here even in 'entry' mode — they only
-      // ever get set once a scan has completed (mode moves to 'review'),
-      // so if mode really is still 'entry', those fields should be empty
-      // anyway. Not restoring them removes any path for old scan results
-      // to leak back in.
+      if (saved.mode === 'review') {
+        if (saved.pricing) setPricing(saved.pricing);
+        if (saved.scanResult) setScanResult(saved.scanResult);
+        if (saved.nextSku) setNextSku(saved.nextSku);
+        if (saved.adjustedCondition) setAdjustedCondition(saved.adjustedCondition);
+        if (saved.displayPrice) setDisplayPrice(saved.displayPrice);
+      }
     } else if (saved) {
-      // Stale session from a completed or abandoned flow — discard it.
+      // Either stale (past the resume window) or a terminal/unresumable
+      // mode ('success', or anything unexpected) — discard it.
       clearSession();
     }
   }, []);
 
   useEffect(() => {
     if (!authed) return;
-    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice });
+    saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, savedAt: Date.now() });
   }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice]);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
