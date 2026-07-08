@@ -17,33 +17,36 @@ export default async function handler(req, res) {
 
   try {
     const { createClient } = await import('@supabase/supabase-js');
+    const { IncomingForm } = await import('formidable');
+    const fs = await import('fs/promises');
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Parse multipart form data
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
-    const boundary = req.headers['content-type'].split('boundary=')[1];
-    const parts = buffer.toString('binary').split(`--${boundary}`);
-    const fields = {};
-    const photoBuffers = {};
+    // Parse multipart form data with formidable — replaces a hand-rolled
+    // parser (buffer.toString('binary') + manual boundary splitting) that
+    // was confirmed (see update-record.js, July 7 session) to corrupt
+    // non-ASCII text fields. That's a direct data-quality risk here
+    // specifically, since artist/title/notes routinely contain Spanish
+    // accents on Latin pressings (see /api/identify.js's explicit "preserve
+    // Spanish accents" instruction) — this parser could have been silently
+    // stripping/mangling exactly that data on save.
+    const form = new IncomingForm({ multiples: false });
+    const [rawFields, rawFiles] = await form.parse(req);
 
-    for (const part of parts) {
-      if (!part.includes('Content-Disposition')) continue;
-      const [headers, ...bodyParts] = part.split('\r\n\r\n');
-      const body = bodyParts.join('\r\n\r\n').replace(/\r\n$/, '');
-      const nameMatch = headers.match(/name="([^"]+)"/);
-      const filenameMatch = headers.match(/filename="([^"]+)"/);
-      if (!nameMatch) continue;
-      const name = nameMatch[1];
-      if (filenameMatch) {
-        photoBuffers[name] = Buffer.from(body, 'binary');
-      } else {
-        fields[name] = body;
-      }
+    const fields = {};
+    for (const key of Object.keys(rawFields)) {
+      fields[key] = Array.isArray(rawFields[key]) ? rawFields[key][0] : rawFields[key];
+    }
+
+    // Normalise files to single File objects per field name (formidable v3
+    // returns arrays even for multiples: false in some field-name edge cases).
+    const photoFiles = {};
+    for (const key of Object.keys(rawFiles)) {
+      const f = rawFiles[key];
+      photoFiles[key] = Array.isArray(f) ? f[0] : f;
     }
 
     const { artist, title, year, label, cat, genre, condition, price, qty, notes, sleeveType } = fields;
@@ -62,15 +65,19 @@ export default async function handler(req, res) {
 
     // Upload all photos
     const photoUrls = {};
-    for (const [key, buf] of Object.entries(photoBuffers)) {
-      if (!buf || buf.length === 0) continue;
+    for (const [key, file] of Object.entries(photoFiles)) {
+      if (!file || !file.size) continue;
+      const buf = await fs.readFile(file.filepath);
       const filename = `${sku}-${key}-${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('record-photos').upload(filename, buf, { contentType: 'image/jpeg' });
       if (!uploadError) {
         const { data: urlData } = supabase.storage.from('record-photos').getPublicUrl(filename);
         photoUrls[key] = urlData.publicUrl;
+      } else {
+        console.error('save-record: photo upload failed', { key, uploadError });
       }
+      await fs.unlink(file.filepath).catch(() => {});
     }
 
     // Map photos to database columns based on format and sleeve type

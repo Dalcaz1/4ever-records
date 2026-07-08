@@ -462,8 +462,29 @@ export default function Admin() {
       Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
       formData.append('discCount', '1');
       formData.append('sleeveType', identification?.type || '');
-      photoSlots.forEach((slot, index) => { const photo = capturedPhotos[index]; if (photo?.file) { const key = slotLabelToKey(slot.label, index); formData.append(key, photo.file); } });
+      // FIX (July 7 session, Issue 3): this previously sent the raw,
+      // uncompressed capture straight from the camera for every photo slot.
+      // An item with several slots (front/back/label A/label B) could bundle
+      // multiple multi-MB photos into one request, well past Vercel's 4.5MB
+      // serverless body limit — plausible root cause of "some items save
+      // photos, others don't" (failure likelihood scales with slot count and
+      // photo resolution, not something obviously visible without this).
+      // Compress each photo the same way the scan step already does.
+      const compressedSlots = await Promise.all(
+        photoSlots.map(async (slot, index) => {
+          const photo = capturedPhotos[index];
+          if (!photo?.file) return null;
+          const compressed = await compressForScan(photo.file, slot.label);
+          return { key: slotLabelToKey(slot.label, index), file: compressed };
+        })
+      );
+      compressedSlots.forEach(entry => { if (entry) formData.append(entry.key, entry.file); });
       const res = await fetch('/api/save-record', { method: 'POST', body: formData });
+      if (res.status === 413) {
+        setError('Photos are too large even after compression — try retaking with fewer or smaller photos.');
+        setSaving(false);
+        return;
+      }
       const data = await res.json();
       if (data.success) { setSavedSku(data.sku || nextSku); setMode('success'); clearSession(); }
       else setError(data.error || 'Failed to save.');
@@ -505,8 +526,22 @@ export default function Admin() {
       formData.append('condition', editForm.condition);
       formData.append('notes', editForm.notes);
       formData.append('active', editForm.active ? 'true' : 'false');
-      if (editPhotoFile) formData.append('photo_cover', editPhotoFile);
+      // FIX (July 7 session): this previously sent the raw, uncompressed
+      // File straight from the camera input — a modern phone photo can
+      // easily be 5-15MB, well past Vercel's 4.5MB serverless request body
+      // limit, causing a 413 with no JSON body. That made res.json() throw,
+      // landing on the generic "Failed to update" catch below with no real
+      // explanation. Compress the same way the main scan flow already does.
+      if (editPhotoFile) {
+        const compressedPhoto = await compressForScan(editPhotoFile, 'cover');
+        formData.append('photo_cover', compressedPhoto);
+      }
       const res = await fetch('/api/update-record', { method: 'POST', body: formData });
+      if (res.status === 413) {
+        setEditError('That photo is too large even after compression — try a different photo or a lower-resolution camera setting.');
+        setEditSaving(false);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setEditItem(null); setEditPhotoFile(null);
