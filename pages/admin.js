@@ -104,7 +104,26 @@ function Stage1Camera({ onCapture }) {
       } catch { setCamError('Camera access denied. Please allow camera permissions and try again.'); }
     }
     start();
-    return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
+
+    // FIX (July 7 session): same backgrounding issue as CameraModal.js —
+    // reacquire the camera if its track was stopped/muted while the tab
+    // was hidden (phone call, app switch, browser check). Reset camReady
+    // so the capture button stays gated until the new stream actually
+    // produces a frame (handleVideoLoaded fires again on the new stream).
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'visible') return;
+      const track = streamRef.current?.getVideoTracks?.()[0];
+      if (!track || track.readyState !== 'live') {
+        setCamReady(false);
+        start();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    };
   }, []);
   function handleVideoLoaded() {
     const video = videoRef.current;

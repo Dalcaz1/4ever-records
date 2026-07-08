@@ -178,7 +178,27 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture 
 
   useEffect(() => {
     startCameraStream(videoRef, streamRef, () => {}, setError);
-    return () => stopCameraStream(streamRef, videoRef);
+
+    // FIX (July 7 session): mobile browsers commonly stop or mute the
+    // camera track when the tab loses visibility (backgrounding to answer
+    // a call, check another app, switch tabs). There was previously no
+    // code path to detect this and reacquire the camera on return — the
+    // user would come back to a frozen/dead video mid photo-entry with no
+    // indication anything was wrong. Listen for the tab becoming visible
+    // again and restart the stream if the current track is no longer live.
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'visible') return;
+      const track = streamRef.current?.getVideoTracks?.()[0];
+      if (!track || track.readyState !== 'live') {
+        startCameraStream(videoRef, streamRef, () => {}, setError);
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopCameraStream(streamRef, videoRef);
+    };
   }, []);
 
   function handleClose() {
