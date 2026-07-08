@@ -4,44 +4,39 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const { createClient } = await import('@supabase/supabase-js');
+    const { IncomingForm } = await import('formidable');
+    const fs = await import('fs/promises');
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Parse multipart form data
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
-    const boundary = req.headers['content-type'].split('boundary=')[1];
-    const parts = buffer.toString('binary').split(`--${boundary}`);
-    const fields = {};
-    let photoBuffer = null;
+    // Parse multipart form data with formidable — replaces a hand-rolled
+    // parser (buffer.toString('binary') + manual boundary splitting) that
+    // was confirmed, via direct reproduction on July 7, to corrupt non-ASCII
+    // text fields (e.g. em dashes / accented characters in notes) and was
+    // suspected as the source of intermittent "Missing record id" errors on
+    // edit. formidable is a maintained library that handles multipart
+    // parsing correctly across browsers/devices, including binary safety
+    // for the photo upload and correct UTF-8 handling for text fields.
+    const form = new IncomingForm({ multiples: false });
+    const [rawFields, rawFiles] = await form.parse(req);
 
-    for (const part of parts) {
-      if (!part.includes('Content-Disposition')) continue;
-      const [headers, ...bodyParts] = part.split('\r\n\r\n');
-      const body = bodyParts.join('\r\n\r\n').replace(/\r\n$/, '');
-      const nameMatch = headers.match(/name="([^"]+)"/);
-      const filenameMatch = headers.match(/filename="([^"]+)"/);
-      if (!nameMatch) continue;
-      const name = nameMatch[1];
-      if (filenameMatch) {
-        if (name === 'photo_cover') photoBuffer = Buffer.from(body, 'binary');
-      } else {
-        fields[name] = body;
-      }
+    // formidable v3 returns every field as an array — normalise to plain values.
+    const fields = {};
+    for (const key of Object.keys(rawFields)) {
+      fields[key] = Array.isArray(rawFields[key]) ? rawFields[key][0] : rawFields[key];
     }
 
+    const photoFile = rawFiles.photo_cover
+      ? (Array.isArray(rawFiles.photo_cover) ? rawFiles.photo_cover[0] : rawFiles.photo_cover)
+      : null;
+
     const { id, artist, title, year, label, genre, condition, price, qty, notes, active } = fields;
-    // Guard against 'undefined'/'null' as literal strings, not just falsy —
-    // FormData.append('id', undefined) silently stringifies to "undefined",
-    // which passes a plain `!id` check and would otherwise hit Supabase as
-    // a bad .eq('id', 'undefined') query, surfacing a raw Postgres error to
-    // the user (suspected source of the July 7 "inventory number not
-    // available" report — not confirmed, but this closes a real gap either way).
+
     if (!id || id === 'undefined' || id === 'null') {
-      console.error('update-record: missing/invalid id in request', { id });
+      console.error('update-record: missing/invalid id in request', { id, fieldKeys: Object.keys(fields) });
       return res.status(400).json({ error: 'Could not identify which item to update — please close this and reopen it from Manage Inventory.' });
     }
 
@@ -61,7 +56,8 @@ export default async function handler(req, res) {
     if (qty) updates.qty = parseInt(qty) || 1;
 
     // Upload photo if provided
-    if (photoBuffer && photoBuffer.length > 0) {
+    if (photoFile && photoFile.size > 0) {
+      const photoBuffer = await fs.readFile(photoFile.filepath);
       const filename = `record-${id}-cover-${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('record-photos')
@@ -69,7 +65,11 @@ export default async function handler(req, res) {
       if (!uploadError) {
         const { data: urlData } = supabase.storage.from('record-photos').getPublicUrl(filename);
         updates.photo_cover = urlData.publicUrl;
+      } else {
+        console.error('update-record: photo upload failed', { id, uploadError });
       }
+      // Clean up formidable's temp file
+      await fs.unlink(photoFile.filepath).catch(() => {});
     }
 
     const { error } = await supabase.from('records').update(updates).eq('id', id);
@@ -80,6 +80,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
 
   } catch (err) {
+    console.error('update-record: unhandled error', err);
     return res.status(500).json({ error: err.message });
   }
 }
