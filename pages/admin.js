@@ -339,6 +339,10 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [showAllEbay, setShowAllEbay] = useState(false);
   const [showRejected, setShowRejected] = useState(false);
+  const [savingAndListing, setSavingAndListing] = useState(false);
+  const [discogsDraftResult, setDiscogsDraftResult] = useState(null);
+  const [showDiscogsPicker, setShowDiscogsPicker] = useState(false);
+  const [discogsCandidates, setDiscogsCandidates] = useState([]);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
   const [displayPrice, setDisplayPrice] = useState(null);
   const [discogsPublishing, setDiscogsPublishing] = useState(false);
@@ -430,6 +434,7 @@ export default function Admin() {
     setForm(EMPTY_FORM); setMode('home');
     setPricing(null); setScanResult(null); setNextSku(null); setSavedSku(null);
     setError(''); setShowAllEbay(false); setShowRejected(false); setAdjustedCondition(null); setDisplayPrice(null);
+    setSavingAndListing(false); setDiscogsDraftResult(null); setShowDiscogsPicker(false); setDiscogsCandidates([]);
     setDiscogsResult(null); setEditItem(null); setEditForm({}); setEditPhotoFile(null);
     setBSideWarning(false);
     clearSession();
@@ -556,43 +561,144 @@ export default function Admin() {
     if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
   }
 
+  const STORE_DISCOGS_EMAIL = '4evermemoriesrs@gmail.com';
+
+  // Extracted from the original handleSave so both the plain "Save" button
+  // and the new combined "Save & List on Discogs" button share one save path
+  // — avoids maintaining two separate copies of the photo-compression/
+  // FormData logic (the exact kind of duplication that's caused real bugs
+  // elsewhere in this codebase).
+  async function saveToStore() {
+    const formData = new FormData();
+    const saveForm = { ...form, condition: activeCondition };
+    if (shownPrice && !form.price) saveForm.price = shownPrice;
+    Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
+    formData.append('discCount', '1');
+    formData.append('sleeveType', identification?.type || '');
+    const compressedSlots = await Promise.all(
+      photoSlots.map(async (slot, index) => {
+        const photo = capturedPhotos[index];
+        if (!photo?.file) return null;
+        const compressed = await compressForScan(photo.file, slot.label);
+        return { key: slotLabelToKey(slot.label, index), file: compressed };
+      })
+    );
+    compressedSlots.forEach(entry => { if (entry) formData.append(entry.key, entry.file); });
+    const res = await fetch('/api/save-record', { method: 'POST', body: formData });
+    if (res.status === 413) {
+      return { success: false, error: 'Photos are too large even after compression — try retaking with fewer or smaller photos.' };
+    }
+    const data = await res.json();
+    if (!data.success) return { success: false, error: data.error || 'Failed to save.' };
+    return { success: true, sku: data.sku || nextSku };
+  }
+
   async function handleSave() {
     setSaving(true); setError('');
     try {
-      const formData = new FormData();
-      const saveForm = { ...form, condition: activeCondition };
-      if (shownPrice && !form.price) saveForm.price = shownPrice;
-      Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
-      formData.append('discCount', '1');
-      formData.append('sleeveType', identification?.type || '');
-      // FIX (July 7 session, Issue 3): this previously sent the raw,
-      // uncompressed capture straight from the camera for every photo slot.
-      // An item with several slots (front/back/label A/label B) could bundle
-      // multiple multi-MB photos into one request, well past Vercel's 4.5MB
-      // serverless body limit — plausible root cause of "some items save
-      // photos, others don't" (failure likelihood scales with slot count and
-      // photo resolution, not something obviously visible without this).
-      // Compress each photo the same way the scan step already does.
-      const compressedSlots = await Promise.all(
-        photoSlots.map(async (slot, index) => {
-          const photo = capturedPhotos[index];
-          if (!photo?.file) return null;
-          const compressed = await compressForScan(photo.file, slot.label);
-          return { key: slotLabelToKey(slot.label, index), file: compressed };
-        })
-      );
-      compressedSlots.forEach(entry => { if (entry) formData.append(entry.key, entry.file); });
-      const res = await fetch('/api/save-record', { method: 'POST', body: formData });
-      if (res.status === 413) {
-        setError('Photos are too large even after compression — try retaking with fewer or smaller photos.');
-        setSaving(false);
-        return;
-      }
-      const data = await res.json();
-      if (data.success) { setSavedSku(data.sku || nextSku); setMode('success'); clearSession(); }
-      else setError(data.error || 'Failed to save.');
+      const result = await saveToStore();
+      if (result.success) { setSavedSku(result.sku); setMode('success'); clearSession(); }
+      else setError(result.error);
     } catch { setError('Failed to save. Please try again.'); }
     setSaving(false);
+  }
+
+  // Searches Discogs for a matching release when the scan didn't already
+  // resolve a bestReleaseId — same endpoint FYT's own DiscogsListingPanel
+  // uses, called here via the trusted-admin header instead of a consumer
+  // login session.
+  async function findDiscogsReleaseId() {
+    const params = new URLSearchParams({
+      artist: form.artist || '', title: form.title || '',
+      catalog_number: form.catalog_number || '', format: identification?.format || '',
+    });
+    try {
+      const res = await fetch(FYT_BASE + '/api/collection/discogs-lookup?' + params.toString(), { headers: fytHeaders() });
+      const data = await res.json();
+      if (!res.ok) return { error: data.error || 'Discogs lookup failed' };
+      return { results: data.results || [] };
+    } catch (err) {
+      return { error: 'Discogs lookup failed: ' + err.message };
+    }
+  }
+
+  // Creates a Draft listing (never auto-published — same rule as the
+  // consumer app) on the store's own already-connected Discogs account.
+  async function createDiscogsDraft(releaseId) {
+    const priceForDraft = form.price || shownPrice;
+    try {
+      const res = await fetch(FYT_BASE + '/api/collection/discogs-list', {
+        method: 'POST',
+        headers: fytHeaders(),
+        body: JSON.stringify({
+          email: STORE_DISCOGS_EMAIL,
+          release_id: releaseId,
+          condition: activeCondition || 'VG+',
+          sleeve_condition: activeCondition || 'VG+',
+          price: priceForDraft,
+          comments: '',
+          allow_offers: false,
+          source: '4ever-admin',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || data.message || 'Failed to create Discogs draft' };
+      return { success: true, listing_url: data.listing_url };
+    } catch (err) {
+      return { success: false, error: 'Failed to create Discogs draft: ' + err.message };
+    }
+  }
+
+  // Single-button combined action: save to the 4 Ever Memories store, then
+  // create a Discogs draft for the same item. If the release ID is
+  // ambiguous (multiple Discogs candidates), the store save still
+  // completes immediately — the Discogs half pauses for a quick pick
+  // rather than blocking or guessing wrong on a public listing.
+  async function handleSaveAndList() {
+    setSavingAndListing(true); setError(''); setDiscogsDraftResult(null);
+    try {
+      const saveResult = await saveToStore();
+      if (!saveResult.success) { setError(saveResult.error); setSavingAndListing(false); return; }
+      setSavedSku(saveResult.sku);
+
+      let releaseId = pricing?.bestReleaseId || null;
+      if (!releaseId) {
+        const lookup = await findDiscogsReleaseId();
+        if (lookup.error) {
+          setDiscogsDraftResult({ success: false, error: lookup.error });
+        } else if (!lookup.results || lookup.results.length === 0) {
+          setDiscogsDraftResult({ success: false, error: 'No matching Discogs release found — add this one manually on Discogs.' });
+        } else if (lookup.results.length === 1) {
+          releaseId = lookup.results[0].release_id;
+        } else {
+          setDiscogsCandidates(lookup.results);
+          setShowDiscogsPicker(true);
+          setSavingAndListing(false);
+          setMode('success'); clearSession();
+          return; // draft is created after the user picks the right pressing
+        }
+      }
+
+      if (releaseId) {
+        const draft = await createDiscogsDraft(releaseId);
+        setDiscogsDraftResult(draft);
+      }
+      setMode('success'); clearSession();
+    } catch (err) {
+      setDiscogsDraftResult({ success: false, error: 'Unexpected error: ' + err.message });
+      setMode('success'); clearSession();
+    }
+    setSavingAndListing(false);
+  }
+
+  // Called after the user resolves an ambiguous Discogs match from the
+  // picker shown on the success screen.
+  async function handlePickDiscogsCandidate(releaseId) {
+    setShowDiscogsPicker(false);
+    setSavingAndListing(true);
+    const draft = await createDiscogsDraft(releaseId);
+    setDiscogsDraftResult(draft);
+    setSavingAndListing(false);
   }
 
   async function handlePublishDiscogs() {
@@ -1043,10 +1149,15 @@ export default function Admin() {
             <div style={{ gridColumn: '1/-1' }}><label style={sectionLabel}>Notes</label><textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="B-side, promo markings, sleeve condition, etc." rows={2} style={{ ...inp, resize: 'none', marginBottom: 0 }} /></div>
           </div>
           {error && <div style={{ color: '#f87171', fontSize: '13px', margin: '12px 0', padding: '10px', background: '#2a1a1a', borderRadius: '8px' }}>{error}</div>}
-          <button onClick={handleSave} disabled={!form.artist || !form.title || !form.price || saving}
+          <button onClick={handleSave} disabled={!form.artist || !form.title || !form.price || saving || savingAndListing}
             style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#c9a84c', color: (!form.artist || !form.title || !form.price) ? '#444' : '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '16px' }}>
             {saving ? 'Saving...' : '💾 Save to Store →'}
           </button>
+          <button onClick={handleSaveAndList} disabled={!form.artist || !form.title || !form.price || saving || savingAndListing}
+            style={{ width: '100%', padding: '16px', background: (!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#1a3a1a', color: (!form.artist || !form.title || !form.price) ? '#444' : '#4ade80', border: '1px solid ' + ((!form.artist || !form.title || !form.price) ? '#1a1a1a' : '#2a4a2a'), borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginTop: '10px' }}>
+            {savingAndListing ? 'Saving & Listing...' : '💾📦 Save to Store + List Draft on Discogs →'}
+          </button>
+          <div style={{ fontSize: '11px', color: '#666', textAlign: 'center', marginTop: '6px', fontStyle: 'italic' }}>Discogs listing is always created as a Draft — never auto-published. Review and publish it yourself on Discogs.</div>
           <button onClick={reset} style={{ width: '100%', padding: '10px', background: 'transparent', color: '#bbb', border: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '6px' }}>Start over</button>
         </div>
       </div>
@@ -1066,6 +1177,37 @@ export default function Admin() {
             <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
             <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
           </div>
+          {discogsDraftResult && (
+            <div style={{ background: discogsDraftResult.success ? '#0a1a0a' : '#2a1a1a', border: '1px solid ' + (discogsDraftResult.success ? '#2a4a2a' : '#4a2a2a'), borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'left' }}>
+              {discogsDraftResult.success ? (
+                <>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#4ade80', marginBottom: '6px' }}>📦 Discogs Draft Created</div>
+                  <a href={discogsDraftResult.listing_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: '#c9a84c' }}>{discogsDraftResult.listing_url} →</a>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#f87171', marginBottom: '4px' }}>📦 Discogs Draft Not Created</div>
+                  <div style={{ fontSize: '12px', color: '#fca5a5' }}>{discogsDraftResult.error}</div>
+                </>
+              )}
+            </div>
+          )}
+          {savingAndListing && (
+            <div style={{ fontSize: '12px', color: '#bbb', fontStyle: 'italic', marginBottom: '20px' }}>Creating Discogs draft…</div>
+          )}
+          {showDiscogsPicker && (
+            <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'left' }}>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#c9a84c', marginBottom: '10px' }}>Multiple Discogs matches found — pick the correct pressing:</div>
+              {discogsCandidates.map((c) => (
+                <button key={c.release_id} onClick={() => handlePickDiscogsCandidate(c.release_id)} disabled={savingAndListing}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', marginBottom: '6px', background: '#111', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#e8d5b0', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  <div style={{ fontWeight: '700' }}>{c.title}</div>
+                  <div style={{ color: '#888', fontSize: '11px', marginTop: '2px' }}>{c.label} · {c.catalog_number} · {c.year || '—'} · {c.country || '—'} · {c.format}</div>
+                </button>
+              ))}
+              <button onClick={() => setShowDiscogsPicker(false)} style={{ width: '100%', padding: '8px', background: 'transparent', color: '#888', border: 'none', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic', marginTop: '4px' }}>Skip — I'll add it on Discogs manually</button>
+            </div>
+          )}
           <button onClick={reset} style={{ width: '100%', padding: '16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: '700', marginBottom: '12px' }}>➕ Add Another Record</button>
           <a href="/inventory" style={{ display: 'block', color: '#c9a84c', fontSize: '13px', textDecoration: 'none', fontStyle: 'italic', marginBottom: '8px' }}>📋 View Inventory</a>
           <a href="/" style={{ display: 'block', color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Back to Store</a>
