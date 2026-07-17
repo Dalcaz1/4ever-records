@@ -642,6 +642,9 @@ export default function Browse() {
           <a href="/install" style={{ color: '#c9a84c', fontSize: '12px', textDecoration: 'none', background: '#1a1a0a', border: '1px solid #c9a84c44', borderRadius: '8px', padding: '7px 12px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
             📲 Get the App
           </a>
+          <a href="/search" style={{ color: '#22d3ee', fontSize: '12px', textDecoration: 'none', background: '#0a1a1a', border: '1px solid #22d3ee44', borderRadius: '8px', padding: '7px 12px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+            🔎 Search Everything
+          </a>
           <a href="/" style={{ color: '#e8d5b0', fontSize: '13px', textDecoration: 'none', background: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '8px 14px', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', gap: '6px' }}>🏠 Home</a>
           <button onClick={() => { setShowCart(true); setCheckoutStep('cart'); }}
             style={{ background: 'transparent', color: '#e8d5b0', border: '1px solid #333', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
