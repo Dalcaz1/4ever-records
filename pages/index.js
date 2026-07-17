@@ -505,7 +505,7 @@ export default function Home() {
           </div>
         </div>
         <div className="nav-desktop" style={{ gap: '12px', alignItems: 'center' }}>
-          <a href="/browse" style={{ color: '#c9a84c', fontSize: '13px', textDecoration: 'none', border: '1px solid #c9a84c', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', letterSpacing: '1px' }}>🎵 Browse All Records</a>
+          <a href="/search" style={{ color: '#22d3ee', fontSize: '13px', textDecoration: 'none', border: '1px solid #22d3ee', borderRadius: '8px', padding: '8px 16px', fontFamily: 'Georgia, serif', letterSpacing: '1px' }}>🔎 Search Everything</a>
           <a href="/contact" className="sell-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0d0d0d', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'Georgia, serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>🎵 Sell Your Records</a>
           <a href="https://www.facebook.com/4evermemoriesHarlingen" target="_blank" rel="noreferrer"
             onClick={e => { e.preventDefault(); window.open('https://www.facebook.com/4evermemoriesHarlingen', 'facebook', 'width=600,height=700,left=200,top=100'); }}
