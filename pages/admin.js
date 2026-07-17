@@ -561,7 +561,7 @@ export default function Admin() {
     if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
   }
 
-  const STORE_DISCOGS_EMAIL = '4evermemoriesrs@gmail.com';
+  const STORE_DISCOGS_EMAIL = 'dalcaz1@yahoo.com';
 
   // Extracted from the original handleSave so both the plain "Save" button
   // and the new combined "Save & List on Discogs" button share one save path
