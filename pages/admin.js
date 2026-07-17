@@ -993,6 +993,12 @@ export default function Admin() {
               {pricing.notes && <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>}
               <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '10px', marginTop: '4px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Transparency — Total Matches: {pricing.matchesUsed || 0}{pricing.onlyEbayActive && <span style={{ color: '#fbbf24', marginLeft: '8px' }}>⚠ eBay Active asking prices only — no confirmed sold data</span>}</div>
+                {pricing.floorApplied && (
+                  <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24', marginBottom: '3px' }}>⚠ Protected Floor Applied</div>
+                    <div style={{ fontSize: '11px', color: '#fde68a', lineHeight: 1.5 }}>Raw market comps came in below ${Number(pricing.protectedFloor).toFixed(2)}, the protected floor for this pressing's category/condition — the floor was used as the suggested price instead of the raw market average. This is a deliberate rule (Spanish/Regional pressings are known to be thin/underpriced on eBay and Discogs), not a calculation error.</div>
+                  </div>
+                )}
                 {(pricing.sourceBreakdown || []).filter(s => s.matchesUsed > 0).length > 0 ? (
                   (pricing.sourceBreakdown || []).map((s, i) => s.matchesUsed > 0 && (
                     <div key={i} style={{ background: '#0a0a0a', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', fontSize: '11px' }}>
