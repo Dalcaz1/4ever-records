@@ -343,6 +343,10 @@ export default function Admin() {
   const [discogsDraftResult, setDiscogsDraftResult] = useState(null);
   const [showDiscogsPicker, setShowDiscogsPicker] = useState(false);
   const [discogsCandidates, setDiscogsCandidates] = useState([]);
+  const [manageDiscogsLoading, setManageDiscogsLoading] = useState(false);
+  const [manageDiscogsResult, setManageDiscogsResult] = useState(null);
+  const [manageDiscogsCandidates, setManageDiscogsCandidates] = useState([]);
+  const [showManageDiscogsPicker, setShowManageDiscogsPicker] = useState(false);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
   const [displayPrice, setDisplayPrice] = useState(null);
   const [discogsPublishing, setDiscogsPublishing] = useState(false);
@@ -607,10 +611,10 @@ export default function Admin() {
   // resolve a bestReleaseId — same endpoint FYT's own DiscogsListingPanel
   // uses, called here via the trusted-admin header instead of a consumer
   // login session.
-  async function findDiscogsReleaseId() {
+  async function findDiscogsReleaseId(artist, title, catalogNumber, format) {
     const params = new URLSearchParams({
-      artist: form.artist || '', title: form.title || '',
-      catalog_number: form.catalog_number || '', format: identification?.format || '',
+      artist: artist || '', title: title || '',
+      catalog_number: catalogNumber || '', format: format || '',
     });
     try {
       const res = await fetch(FYT_BASE + '/api/collection/discogs-lookup?' + params.toString(), { headers: fytHeaders() });
@@ -624,8 +628,7 @@ export default function Admin() {
 
   // Creates a Draft listing (never auto-published — same rule as the
   // consumer app) on the store's own already-connected Discogs account.
-  async function createDiscogsDraft(releaseId) {
-    const priceForDraft = form.price || shownPrice;
+  async function createDiscogsDraft(releaseId, condition, price) {
     try {
       const res = await fetch(FYT_BASE + '/api/collection/discogs-list', {
         method: 'POST',
@@ -633,9 +636,9 @@ export default function Admin() {
         body: JSON.stringify({
           email: STORE_DISCOGS_EMAIL,
           release_id: releaseId,
-          condition: activeCondition || 'VG+',
-          sleeve_condition: activeCondition || 'VG+',
-          price: priceForDraft,
+          condition: condition || 'VG+',
+          sleeve_condition: condition || 'VG+',
+          price: price,
           comments: '',
           allow_offers: false,
           source: '4ever-admin',
@@ -662,8 +665,9 @@ export default function Admin() {
       setSavedSku(saveResult.sku);
 
       let releaseId = pricing?.bestReleaseId || null;
+      const priceForDraft = form.price || shownPrice;
       if (!releaseId) {
-        const lookup = await findDiscogsReleaseId();
+        const lookup = await findDiscogsReleaseId(form.artist, form.title, form.catalog_number, identification?.format);
         if (lookup.error) {
           setDiscogsDraftResult({ success: false, error: lookup.error });
         } else if (!lookup.results || lookup.results.length === 0) {
@@ -680,7 +684,7 @@ export default function Admin() {
       }
 
       if (releaseId) {
-        const draft = await createDiscogsDraft(releaseId);
+        const draft = await createDiscogsDraft(releaseId, activeCondition, priceForDraft);
         setDiscogsDraftResult(draft);
       }
       setMode('success'); clearSession();
@@ -692,13 +696,75 @@ export default function Admin() {
   }
 
   // Called after the user resolves an ambiguous Discogs match from the
-  // picker shown on the success screen.
+  // picker shown on the success screen (new-scan flow).
   async function handlePickDiscogsCandidate(releaseId) {
     setShowDiscogsPicker(false);
     setSavingAndListing(true);
-    const draft = await createDiscogsDraft(releaseId);
+    const draft = await createDiscogsDraft(releaseId, activeCondition, form.price || shownPrice);
     setDiscogsDraftResult(draft);
     setSavingAndListing(false);
+  }
+
+  // ─── MANAGE INVENTORY — Discogs draft for an already-saved item ──────────
+  async function persistDiscogsListing(itemId, listingUrl, releaseId) {
+    try {
+      const res = await fetch('/api/mark-discogs-listed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: itemId, discogs_listing_url: listingUrl, discogs_release_id: releaseId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return false;
+      // Reflect immediately in the open edit modal and the list behind it,
+      // without needing a full reload.
+      setEditItem(prev => (prev && prev.id === itemId) ? { ...prev, discogs_listing_url: listingUrl } : prev);
+      setManageItems(prev => prev.map(it => it.id === itemId ? { ...it, discogs_listing_url: listingUrl } : it));
+      return true;
+    } catch { return false; }
+  }
+
+  async function handleManageDiscogsDraft() {
+    if (!editItem) return;
+    setManageDiscogsLoading(true); setManageDiscogsResult(null);
+    try {
+      let releaseId = editItem.discogs_release_id || null;
+      if (!releaseId) {
+        const lookup = await findDiscogsReleaseId(editItem.artist, editItem.title, editItem.catalog_number, editItem.category);
+        if (lookup.error) {
+          setManageDiscogsResult({ success: false, error: lookup.error });
+          setManageDiscogsLoading(false);
+          return;
+        }
+        if (!lookup.results || lookup.results.length === 0) {
+          setManageDiscogsResult({ success: false, error: 'No matching Discogs release found — add this one manually on Discogs.' });
+          setManageDiscogsLoading(false);
+          return;
+        }
+        if (lookup.results.length > 1) {
+          setManageDiscogsCandidates(lookup.results);
+          setShowManageDiscogsPicker(true);
+          setManageDiscogsLoading(false);
+          return; // draft created after the user picks the right pressing
+        }
+        releaseId = lookup.results[0].release_id;
+      }
+
+      const draft = await createDiscogsDraft(releaseId, editForm.condition, editForm.price);
+      setManageDiscogsResult(draft);
+      if (draft.success) await persistDiscogsListing(editItem.id, draft.listing_url, releaseId);
+    } catch (err) {
+      setManageDiscogsResult({ success: false, error: 'Unexpected error: ' + err.message });
+    }
+    setManageDiscogsLoading(false);
+  }
+
+  async function handlePickManageDiscogsCandidate(releaseId) {
+    setShowManageDiscogsPicker(false);
+    setManageDiscogsLoading(true);
+    const draft = await createDiscogsDraft(releaseId, editForm.condition, editForm.price);
+    setManageDiscogsResult(draft);
+    if (draft.success) await persistDiscogsListing(editItem.id, draft.listing_url, releaseId);
+    setManageDiscogsLoading(false);
   }
 
   async function handlePublishDiscogs() {
@@ -724,6 +790,7 @@ export default function Admin() {
     setEditForm({ price: item.price, condition: item.condition, notes: item.notes || '', active: item.active !== false });
     setEditPhotoFile(null);
     setEditError('');
+    setManageDiscogsResult(null); setManageDiscogsCandidates([]); setShowManageDiscogsPicker(false);
   }
 
   async function handleEditSave() {
@@ -889,6 +956,44 @@ export default function Admin() {
                 </button>
               </div>
 
+              <div style={{ marginBottom: '20px', paddingTop: '16px', borderTop: '1px solid #2a2a2a' }}>
+                <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Discogs</div>
+                {editItem.discogs_listing_url ? (
+                  <>
+                    <div style={{ fontSize: '12px', color: '#4ade80', marginBottom: '6px' }}>📦 Already listed on Discogs</div>
+                    <a href={editItem.discogs_listing_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: '#c9a84c', display: 'block', marginBottom: '8px' }}>{editItem.discogs_listing_url} →</a>
+                    <button onClick={handleManageDiscogsDraft} disabled={manageDiscogsLoading}
+                      style={{ width: '100%', padding: '8px', background: 'transparent', color: '#888', border: '1px solid #2a2a2a', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                      {manageDiscogsLoading ? 'Creating…' : 'Create another draft anyway'}
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={handleManageDiscogsDraft} disabled={manageDiscogsLoading}
+                    style={{ width: '100%', padding: '10px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontWeight: '700' }}>
+                    {manageDiscogsLoading ? 'Creating draft…' : '📦 Send Draft to Discogs'}
+                  </button>
+                )}
+                {manageDiscogsResult && !manageDiscogsResult.success && (
+                  <div style={{ fontSize: '11px', color: '#f87171', marginTop: '6px' }}>{manageDiscogsResult.error}</div>
+                )}
+                {manageDiscogsResult && manageDiscogsResult.success && (
+                  <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px' }}>✓ Draft created — <a href={manageDiscogsResult.listing_url} target="_blank" rel="noopener noreferrer" style={{ color: '#c9a84c' }}>view on Discogs</a></div>
+                )}
+                {showManageDiscogsPicker && (
+                  <div style={{ marginTop: '10px' }}>
+                    <div style={{ fontSize: '11px', color: '#c9a84c', marginBottom: '6px' }}>Multiple matches — pick the correct pressing:</div>
+                    {manageDiscogsCandidates.map((c) => (
+                      <button key={c.release_id} onClick={() => handlePickManageDiscogsCandidate(c.release_id)} disabled={manageDiscogsLoading}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: '5px', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '6px', color: '#e8d5b0', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                        <div style={{ fontWeight: '700' }}>{c.title}</div>
+                        <div style={{ color: '#888', fontSize: '10px', marginTop: '1px' }}>{c.label} · {c.catalog_number} · {c.year || '—'} · {c.country || '—'} · {c.format}</div>
+                      </button>
+                    ))}
+                    <button onClick={() => setShowManageDiscogsPicker(false)} style={{ width: '100%', padding: '6px', background: 'transparent', color: '#888', border: 'none', fontSize: '10px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>Cancel</button>
+                  </div>
+                )}
+              </div>
+
               {editError && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '12px', padding: '8px', background: '#2a1a1a', borderRadius: '6px' }}>{editError}</div>}
 
               <button onClick={handleEditSave} disabled={editSaving}
@@ -925,6 +1030,7 @@ export default function Admin() {
                 <div style={{ fontSize: '13px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</div>
                 <div style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                 <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{item.sku} · {item.condition} · ${item.price}</div>
+                <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Listed on Discogs' : 'Not on Discogs'}</div>
               </div>
               <div style={{ color: '#c9a84c', fontSize: '16px', flexShrink: 0 }}>›</div>
             </button>
