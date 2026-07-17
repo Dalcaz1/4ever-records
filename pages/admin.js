@@ -338,6 +338,7 @@ export default function Admin() {
   const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
   const [showAllEbay, setShowAllEbay] = useState(false);
+  const [showRejected, setShowRejected] = useState(false);
   const [adjustedCondition, setAdjustedCondition] = useState(null);
   const [displayPrice, setDisplayPrice] = useState(null);
   const [discogsPublishing, setDiscogsPublishing] = useState(false);
@@ -428,7 +429,7 @@ export default function Admin() {
     setIdentifyError(''); setCameraSlotIndex(null);
     setForm(EMPTY_FORM); setMode('home');
     setPricing(null); setScanResult(null); setNextSku(null); setSavedSku(null);
-    setError(''); setShowAllEbay(false); setAdjustedCondition(null); setDisplayPrice(null);
+    setError(''); setShowAllEbay(false); setShowRejected(false); setAdjustedCondition(null); setDisplayPrice(null);
     setDiscogsResult(null); setEditItem(null); setEditForm({}); setEditPhotoFile(null);
     setBSideWarning(false);
     clearSession();
@@ -990,6 +991,33 @@ export default function Admin() {
                 </div>
               )}
               {pricing.notes && <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>}
+              <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '10px', marginTop: '4px', marginBottom: '10px' }}>
+                <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Transparency — Total Matches: {pricing.matchesUsed || 0}{pricing.onlyEbayActive && <span style={{ color: '#fbbf24', marginLeft: '8px' }}>⚠ eBay Active asking prices only — no confirmed sold data</span>}</div>
+                {(pricing.sourceBreakdown || []).filter(s => s.matchesUsed > 0).length > 0 ? (
+                  (pricing.sourceBreakdown || []).map((s, i) => s.matchesUsed > 0 && (
+                    <div key={i} style={{ background: '#0a0a0a', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', fontSize: '11px' }}>
+                      <div style={{ color: '#c9a84c', fontWeight: '700', marginBottom: '2px' }}>{s.source} ({s.matchesUsed} matches)</div>
+                      <div style={{ color: '#ddd' }}>Low: ${s.low} · Med: ${s.median} · High: ${s.high} · Avg: ${s.avg}</div>
+                      {s.numForSale != null && <div style={{ color: '#888' }}>For sale: {s.numForSale}</div>}
+                      {s.note && <div style={{ color: '#999', marginTop: '2px', fontStyle: 'italic' }}>{s.note}</div>}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: '11px', color: '#f87171', fontStyle: 'italic' }}>No source contributed a verified match — price shown is a low-confidence fallback, not backed by real comps.</div>
+                )}
+                {(pricing.rejectedResults || []).length > 0 && (
+                  <div style={{ marginTop: '6px' }}>
+                    <button onClick={() => setShowRejected(!showRejected)} style={{ width: '100%', padding: '6px', background: 'transparent', color: '#8a3a3a', border: '1px solid #3a1a1a', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>{showRejected ? '▲ Hide rejected results' : '▼ Show ' + pricing.rejectedResults.length + ' rejected result' + (pricing.rejectedResults.length === 1 ? '' : 's')}</button>
+                    {showRejected && (
+                      <div style={{ marginTop: '6px', maxHeight: '240px', overflowY: 'auto' }}>
+                        {pricing.rejectedResults.map((r, i) => (
+                          <div key={i} style={{ fontSize: '10px', color: '#f87171', padding: '4px 6px', borderBottom: '1px solid #1a0a0a' }}>{r.source}: {r.reason}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               {!shownPrice && <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px', fontStyle: 'italic' }}>⚠️ Could not find pricing — please enter manually</div>}
               {shownPrice && <button onClick={() => setForm(f => ({ ...f, price: shownPrice }))} style={{ width: '100%', padding: '8px', background: '#1a3a1a', color: '#4ade80', border: '1px solid #2a4a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>{'Use $' + shownPrice + ' →'}</button>}
             </div>
