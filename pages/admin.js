@@ -327,6 +327,8 @@ export default function Admin() {
   const [capturedPhotos, setCapturedPhotos] = useState({});
   const [identifyError, setIdentifyError] = useState('');
   const [bSideWarning, setBSideWarning] = useState(false);
+  const [pendingIdentification, setPendingIdentification] = useState(null);
+  const [formatChoices, setFormatChoices] = useState([]);
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('home');
@@ -441,6 +443,7 @@ export default function Admin() {
     setSavingAndListing(false); setDiscogsDraftResult(null); setShowDiscogsPicker(false); setDiscogsCandidates([]);
     setDiscogsResult(null); setEditItem(null); setEditForm({}); setEditPhotoFile(null);
     setBSideWarning(false);
+    setPendingIdentification(null); setFormatChoices([]);
     clearSession();
   }
 
@@ -451,38 +454,65 @@ export default function Admin() {
       const res = await fetch(FYT_BASE + '/api/identify', { method: 'POST', headers: fytHeaders(), body: JSON.stringify({ image: base64 }) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Identification failed');
-      setIdentification(data);
-      const slots = getSlotsFor(data.format, data.type);
-      setPhotoSlots(slots);
-      // FIX (July 7 session, ported from FYT): previously the Stage 1 photo
-      // was always pre-filled into slot 0 regardless of which side it
-      // actually was. If the person photographed the B-side label first
-      // (a real, common mistake), it would silently get treated as the
-      // primary/A-side photo — pricing is keyed off the A-side track, so
-      // this could produce a confidently wrong price with no warning.
-      const bSide = data.b_side_scanned === true;
-      setBSideWarning(bSide);
-      if (!bSide) {
-        setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
-      } else {
-        const bSlotIndex = slots.findIndex(s => {
-          const l = String(s?.label || '').toLowerCase();
-          return l.includes('b side') || l.includes('side b');
-        });
-        if (bSlotIndex !== -1) {
-          setCapturedPhotos({ [bSlotIndex]: { file, label: slots[bSlotIndex]?.label || 'B Side Label' } });
-        } else {
-          // Format has no A/B side slots (CD, Cassette, etc.) — shouldn't
-          // normally happen since identify.js only flags b_side_scanned for
-          // vinyl-style items with visible side markings, but fail safe.
-          setCapturedPhotos({});
-        }
+
+      // FIX (format disambiguation, added after a bare CD was silently
+      // misidentified as a 7" Picture Disc — confirmed real case): when
+      // identify.js is genuinely torn between formats (most commonly CD vs
+      // Picture Disc on a bare disc with no case/sleeve for context), it
+      // reports this via format_alternatives instead of silently guessing.
+      // Ask, don't guess — one tap, only in the rare case this actually
+      // fires, not on every scan.
+      if (Array.isArray(data.format_alternatives) && data.format_alternatives.length > 0) {
+        setPendingIdentification({ data, file });
+        setFormatChoices([data.format, ...data.format_alternatives]);
+        setEntryStage('formatDisambiguation');
+        return;
       }
-      setEntryStage('slots');
+
+      commitIdentification(data, file);
     } catch (err) {
       setIdentifyError(err.message || 'Could not identify item — please try again');
       setEntryStage('camera1');
     }
+  }
+
+  function commitIdentification(data, file) {
+    setIdentification(data);
+    const slots = getSlotsFor(data.format, data.type);
+    setPhotoSlots(slots);
+    // FIX (July 7 session, ported from FYT): previously the Stage 1 photo
+    // was always pre-filled into slot 0 regardless of which side it
+    // actually was. If the person photographed the B-side label first
+    // (a real, common mistake), it would silently get treated as the
+    // primary/A-side photo — pricing is keyed off the A-side track, so
+    // this could produce a confidently wrong price with no warning.
+    const bSide = data.b_side_scanned === true;
+    setBSideWarning(bSide);
+    if (!bSide) {
+      setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
+    } else {
+      const bSlotIndex = slots.findIndex(s => {
+        const l = String(s?.label || '').toLowerCase();
+        return l.includes('b side') || l.includes('side b');
+      });
+      if (bSlotIndex !== -1) {
+        setCapturedPhotos({ [bSlotIndex]: { file, label: slots[bSlotIndex]?.label || 'B Side Label' } });
+      } else {
+        // Format has no A/B side slots (CD, Cassette, etc.) — shouldn't
+        // normally happen since identify.js only flags b_side_scanned for
+        // vinyl-style items with visible side markings, but fail safe.
+        setCapturedPhotos({});
+      }
+    }
+    setEntryStage('slots');
+  }
+
+  function resolveFormatDisambiguation(chosenFormat) {
+    if (!pendingIdentification) return;
+    const { data, file } = pendingIdentification;
+    commitIdentification({ ...data, format: chosenFormat, format_alternatives: [] }, file);
+    setPendingIdentification(null);
+    setFormatChoices([]);
   }
 
   // Ported from FYT: lets the user proceed when they've confirmed both
@@ -1056,6 +1086,25 @@ export default function Admin() {
       );
     }
     if (entryStage === 'identifying') return <IdentifyingOverlay />;
+    if (entryStage === 'formatDisambiguation') {
+      return (
+        <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ fontSize: '40px', marginBottom: '16px' }}>🤔</div>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: '#e8d5b0', marginBottom: '10px', textAlign: 'center', fontFamily: 'Georgia, serif' }}>What kind of item is this?</div>
+          <div style={{ fontSize: '13px', color: '#999', marginBottom: '28px', textAlign: 'center', maxWidth: '320px', fontFamily: 'Georgia, serif' }}>
+            This looks like it could be more than one format — a bare disc with no case can be hard to tell apart. Which one is it?
+          </div>
+          <div style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {formatChoices.map((fmt, i) => (
+              <button key={i} onClick={() => resolveFormatDisambiguation(fmt)}
+                style={{ padding: '16px', background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '10px', color: '#e8d5b0', fontSize: '15px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                {fmt}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
     if (entryStage === 'slots') {
       const nextIndex = photoSlots.findIndex((_, i) => !capturedPhotos[i]?.file);
       return (
