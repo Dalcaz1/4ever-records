@@ -1236,6 +1236,19 @@ export default function Admin() {
                       <div style={{ color: '#ddd' }}>Low: ${s.low} · Med: ${s.median} · High: ${s.high} · Avg: ${s.avg}</div>
                       {s.numForSale != null && <div style={{ color: '#888' }}>For sale: {s.numForSale}</div>}
                       {s.note && <div style={{ color: '#999', marginTop: '2px', fontStyle: 'italic' }}>{s.note}</div>}
+                      {(s.listings || []).length > 0 && (
+                        <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #1a1a1a' }}>
+                          {s.listings.map((l, li) => l.url ? (
+                            <a key={li} href={l.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: '#67e8f9', fontSize: '10.5px', padding: '3px 0', textDecoration: 'none' }}>
+                              {l.title || 'Untitled'} {l.price ? '· $' + l.price : ''} →
+                            </a>
+                          ) : (
+                            <div key={li} style={{ color: '#888', fontSize: '10.5px', padding: '3px 0' }}>
+                              {l.title || 'Untitled'} {l.price ? '· $' + l.price : ''} <span style={{ fontStyle: 'italic' }}>(no link available)</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
