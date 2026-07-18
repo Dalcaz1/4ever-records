@@ -1205,6 +1205,24 @@ export default function Admin() {
               {pricing.notes && <div style={{ fontSize: '11px', color: '#bbb', fontStyle: 'italic', marginBottom: '8px' }}>{pricing.notes}</div>}
               <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '10px', marginTop: '4px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Transparency — Total Matches: {pricing.matchesUsed || 0}{pricing.onlyEbayActive && <span style={{ color: '#fbbf24', marginLeft: '8px' }}>⚠ eBay Active asking prices only — no confirmed sold data</span>}</div>
+                {pricing.webSearchIdentification && (
+                  <div style={{ background: 'rgba(34,211,238,0.06)', border: '1px solid rgba(34,211,238,0.3)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#22d3ee', marginBottom: '3px' }}>🔎 Web Search Corroboration</div>
+                    <div style={{ fontSize: '11px', color: '#a5e8f5', marginBottom: pricing.webSearchIdentification.found ? '6px' : '0' }}>
+                      {pricing.webSearchIdentification.status}
+                      {pricing.webSearchIdentification.searchUrl && (
+                        <> — <a href={pricing.webSearchIdentification.searchUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#67e8f9' }}>view search →</a></>
+                      )}
+                    </div>
+                    {(pricing.webSearchIdentification.matchedResults || []).map((r, i) => (
+                      <div key={i} style={{ fontSize: '10.5px', marginTop: '4px', paddingTop: '4px', borderTop: i > 0 ? '1px solid rgba(34,211,238,0.15)' : 'none' }}>
+                        <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: '#67e8f9', fontWeight: '700' }}>{r.title}</a>
+                        <div style={{ color: '#8ab8c2' }}>{r.snippet}</div>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: '9.5px', color: '#6a9aa3', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
+                  </div>
+                )}
                 {pricing.floorApplied && (
                   <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24', marginBottom: '3px' }}>⚠ Protected Floor Applied</div>
