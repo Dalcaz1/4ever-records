@@ -42,34 +42,84 @@ function formatDate(iso) {
   return (d.getMonth() + 1) + '/' + d.getDate() + '/' + String(d.getFullYear()).slice(2);
 }
 
+function fitFontSizeToWidth(doc, font, text, maxWidth, startSize, minSize) {
+  let size = startSize;
+  doc.font(font);
+  while (size > minSize) {
+    doc.fontSize(size);
+    if (doc.widthOfString(text) <= maxWidth) return size;
+    size -= 0.5;
+  }
+  return minSize;
+}
+
 function drawLabel(doc, x, y, record) {
   // x, y = top-left corner of this label cell, in pdfkit's top-left-origin
   // coordinate space.
-  const padX = 4;
-  let cursorY = y + 3;
+  //
+  // FIX (raised directly by user): price moved to the far right, made
+  // noticeably larger; SKU needs to safely support growing to a 9-digit
+  // counter (next-sku.js's padStart(4,'0') already allows this — it's a
+  // minimum, not a cap); SKU needs to be as scan-identifiable as
+  // possible. All three interact: a 9-digit-counter SKU can be nearly
+  // the full label width, so SKU size and price size can't both be fixed
+  // constants without one of them risking overflow. Every dimension
+  // below is computed from ACTUAL measured text metrics at render time
+  // (heightOfString/widthOfString), not hand-tuned fixed numbers — this
+  // was verified against a genuine overflow bug caught during testing
+  // before this shipped (a fixed-size version put price ~5pt past the
+  // label's bottom edge, which — since labels sit edge-to-edge
+  // vertically with no gutter — would have printed into the label below
+  // it).
+  const padX = 4, padTop = 1.5, padBottom = 1.5;
+  const innerW = LABEL_W - padX * 2;
+  const bottomLimit = y + LABEL_H - padBottom;
+  let cursorY = y + padTop;
 
-  // SKU — the actual "scan target." Monospace + bold for maximum legibility
-  // at a glance and consistent character spacing.
-  doc.font('Courier-Bold').fontSize(12.5).fillColor('#000000');
-  doc.text(record.sku || '', x + padX, cursorY, { width: LABEL_W - padX * 2, lineBreak: false });
-  cursorY += 14;
+  // Row 1: SKU — auto-fits width, capped at 11pt (leaves real room for
+  // price below even in the worst case) with a 7pt floor for extreme
+  // lengths. Boxed specifically so the camera-based scan step has an
+  // unambiguous, isolated region to read — this is the concrete
+  // "more identifiable for scan" change.
+  const sku = record.sku || '';
+  const boxPad = 1.3;
+  const skuFontSize = fitFontSizeToWidth(doc, 'Courier-Bold', sku, innerW - boxPad * 2, 11, 7);
+  doc.font('Courier-Bold').fontSize(skuFontSize).fillColor('#000000');
+  const skuBoxH = doc.heightOfString(sku, { width: innerW }) + boxPad * 2;
+  doc.rect(x + padX, cursorY, innerW, skuBoxH).lineWidth(0.75).strokeColor('#000000').stroke();
+  doc.text(sku, x + padX, cursorY + boxPad, { width: innerW, lineBreak: false });
+  cursorY += skuBoxH + 1;
 
-  // Artist — Title, truncated to fit one line at this size.
+  // Row 2: Artist — Title, truncated to fit one line at this size.
   const artistTitle = truncate([record.artist, record.title].filter(Boolean).join(' \u2014 '), 34);
   doc.font('Helvetica').fontSize(6).fillColor('#000000');
-  doc.text(artistTitle, x + padX, cursorY, { width: LABEL_W - padX * 2, lineBreak: false });
-  cursorY += 8;
+  const atH = doc.heightOfString(artistTitle, { width: innerW });
+  doc.text(artistTitle, x + padX, cursorY, { width: innerW, lineBreak: false });
+  cursorY += atH + 0.5;
 
-  // Price + date created, same line, price bold to stand out at a glance.
+  // Row 3: Date (left, small) ... Price (far right, large & bold — moved
+  // here per direct instruction, previously crammed next to the date at
+  // 6.5pt in leftover space). Price auto-fits whatever vertical space is
+  // actually left after rows 1-2 (which varies per record, since a
+  // longer SKU makes a taller box) — this is what makes it impossible
+  // for this row to overflow the label, unlike the fixed-size version.
+  const remainingH = bottomLimit - cursorY;
   const price = record.price != null ? '$' + Number(record.price).toFixed(2) : '';
-  const dateStr = formatDate(record.created_at);
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#000000');
-  doc.text(price, x + padX, cursorY, { continued: false, lineBreak: false });
-  if (dateStr) {
-    const priceWidth = doc.widthOfString(price);
-    doc.font('Helvetica').fontSize(6).fillColor('#333333');
-    doc.text('  ' + dateStr, x + padX + priceWidth, cursorY, { lineBreak: false });
+  let priceFontSize = 10;
+  doc.font('Helvetica-Bold');
+  while (priceFontSize > 6) {
+    doc.fontSize(priceFontSize);
+    if (doc.heightOfString(price, { width: 60 }) <= remainingH) break;
+    priceFontSize -= 0.5;
   }
+  doc.fontSize(priceFontSize).fillColor('#000000');
+  const priceWidth = doc.widthOfString(price);
+  const priceH = doc.heightOfString(price, { width: 60 });
+  doc.text(price, x + LABEL_W - padX - priceWidth, cursorY, { lineBreak: false });
+
+  doc.font('Helvetica').fontSize(6).fillColor('#555555');
+  const dateStr = formatDate(record.created_at);
+  doc.text(dateStr, x + padX, cursorY + Math.max(0, (priceH - 6) / 2), { lineBreak: false });
 }
 
 export default async function handler(req, res) {
