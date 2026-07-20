@@ -138,7 +138,7 @@ export default async function handler(req, res) {
     }
 
     // Save to database
-    const { error: insertError } = await supabase.from('records').insert({
+    const { data: inserted, error: insertError } = await supabase.from('records').insert({
       sku, artist, title,
       year: parseInt(year) || null,
       label: label || null,
@@ -151,14 +151,14 @@ export default async function handler(req, res) {
       photo_cover, photo_a, photo_b, photo_c,
       active: true,
       created_at: new Date().toISOString(),
-    });
+    }).select('id').single();
 
     if (insertError) {
       console.error('Insert error:', insertError);
       return res.status(500).json({ error: 'Failed to save record', details: insertError.message });
     }
 
-    return res.status(200).json({ success: true, sku });
+    return res.status(200).json({ success: true, sku, id: inserted?.id || null });
 
   } catch (err) {
     console.error('Save record error:', err);

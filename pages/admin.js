@@ -368,6 +368,7 @@ export default function Admin() {
   const [scanResult, setScanResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedSku, setSavedSku] = useState(null);
+  const [savedRecordId, setSavedRecordId] = useState(null);
   const [nextSku, setNextSku] = useState(null);
   const [error, setError] = useState('');
   const [showAllEbay, setShowAllEbay] = useState(false);
@@ -550,7 +551,7 @@ export default function Admin() {
     setIdentification(null); setPhotoSlots([]); setCapturedPhotos({});
     setIdentifyError(''); setCameraSlotIndex(null);
     setForm(EMPTY_FORM); setMode('home');
-    setPricing(null); setScanResult(null); setNextSku(null); setSavedSku(null);
+    setPricing(null); setScanResult(null); setNextSku(null); setSavedSku(null); setSavedRecordId(null);
     setError(''); setShowAllEbay(false); setShowRejected(false); setAdjustedCondition(null); setDisplayPrice(null);
     setSavingAndListing(false); setDiscogsDraftResult(null); setShowDiscogsPicker(false); setDiscogsCandidates([]);
     setDiscogsResult(null); setEditItem(null); setEditForm({}); setEditPhotoFile(null);
@@ -761,6 +762,44 @@ export default function Admin() {
     if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
   }
 
+  const [printingLabels, setPrintingLabels] = useState(false);
+  const [printLabelsError, setPrintLabelsError] = useState('');
+  const [selectedForLabels, setSelectedForLabels] = useState(new Set());
+  const [labelStartPos, setLabelStartPos] = useState(1);
+  function toggleLabelSelect(id) {
+    setSelectedForLabels(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  async function printLabels(ids, startPosition) {
+    setPrintingLabels(true); setPrintLabelsError('');
+    try {
+      const res = await fetch('/api/generate-labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, startPosition: startPosition || 1 }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPrintLabelsError(data.error || 'Failed to generate labels');
+        setPrintingLabels(false);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      // Open in a new tab rather than forcing a download — lets the
+      // browser/OS's own print/share sheet handle it, which works more
+      // reliably across mobile browsers and the installed PWA than the
+      // download attribute does.
+      window.open(url, '_blank');
+    } catch (err) {
+      setPrintLabelsError('Failed to generate labels: ' + err.message);
+    }
+    setPrintingLabels(false);
+  }
+
   // Extracted from the original handleSave so both the plain "Save" button
   // and the new combined "Save & List on Discogs" button share one save path
   // — avoids maintaining two separate copies of the photo-compression/
@@ -797,7 +836,7 @@ export default function Admin() {
     setSaving(true); setError('');
     try {
       const result = await saveToStore();
-      if (result.success) { setSavedSku(result.sku); setMode('success'); clearSession(); }
+      if (result.success) { setSavedSku(result.sku); setSavedRecordId(result.id || null); setMode('success'); clearSession(); }
       else setError(result.error);
     } catch { setError('Failed to save. Please try again.'); }
     setSaving(false);
@@ -884,6 +923,7 @@ export default function Admin() {
       const saveResult = await saveToStore();
       if (!saveResult.success) { setError(saveResult.error); setSavingAndListing(false); return; }
       setSavedSku(saveResult.sku);
+      setSavedRecordId(saveResult.id || null);
 
       let releaseId = pricing?.bestReleaseId || null;
       const priceForDraft = form.price || shownPrice;
@@ -1335,21 +1375,48 @@ export default function Admin() {
             <div style={{ textAlign: 'center', color: '#555', padding: '40px', fontStyle: 'italic' }}>No items found</div>
           )}
 
-          {!manageLoading && manageItems.map(item => (
-            <button key={item.id} onClick={() => openEditItem(item)}
-              style={{ width: '100%', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-              {item.photo_cover
-                ? <img src={item.photo_cover} alt="" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, border: '1px solid #2a2a2a' }} />
-                : <div style={{ width: '48px', height: '48px', borderRadius: '6px', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>💿</div>
-              }
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</div>
-                <div style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{item.sku} · {item.condition} · ${item.price}</div>
-                <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Draft on Discogs' : 'Not on Discogs'}</div>
+          {selectedForLabels.size > 0 && (
+            <div style={{ position: 'sticky', top: '0', zIndex: 10, background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', color: '#e8d5b0', fontWeight: '700' }}>{selectedForLabels.size} selected</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#bbb' }}>
+                Start at slot
+                <input type="number" min="1" max="80" value={labelStartPos}
+                  onChange={e => setLabelStartPos(Math.max(1, Math.min(80, parseInt(e.target.value, 10) || 1)))}
+                  style={{ width: '48px', padding: '4px 6px', background: '#0a0a0a', border: '1px solid #333', borderRadius: '6px', color: '#e8d5b0', fontSize: '11px' }} />
+                <span style={{ fontStyle: 'italic' }}>(1\u201380, for reusing a partial sheet)</span>
               </div>
-              <div style={{ color: '#c9a84c', fontSize: '16px', flexShrink: 0 }}>›</div>
-            </button>
+              <button onClick={() => printLabels([...selectedForLabels], labelStartPos)} disabled={printingLabels}
+                style={{ padding: '8px 14px', background: '#c9a84c', border: 'none', borderRadius: '8px', color: '#0d0d0d', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                {printingLabels ? 'Generating…' : '🏷️ Print Labels'}
+              </button>
+              <button onClick={() => setSelectedForLabels(new Set())}
+                style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #444', borderRadius: '8px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                Clear
+              </button>
+              {printLabelsError && <div style={{ width: '100%', fontSize: '11px', color: '#f87171' }}>{printLabelsError}</div>}
+            </div>
+          )}
+
+          {!manageLoading && manageItems.map(item => (
+            <div key={item.id}
+              style={{ width: '100%', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'Georgia, serif' }}>
+              <input type="checkbox" checked={selectedForLabels.has(item.id)} onChange={() => toggleLabelSelect(item.id)}
+                style={{ width: '18px', height: '18px', flexShrink: 0, cursor: 'pointer' }} />
+              <button onClick={() => openEditItem(item)}
+                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                {item.photo_cover
+                  ? <img src={item.photo_cover} alt="" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, border: '1px solid #2a2a2a' }} />
+                  : <div style={{ width: '48px', height: '48px', borderRadius: '6px', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>💿</div>
+                }
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</div>
+                  <div style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                  <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{item.sku} · {item.condition} · ${item.price}</div>
+                  <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Draft on Discogs' : 'Not on Discogs'}</div>
+                </div>
+                <div style={{ color: '#c9a84c', fontSize: '16px', flexShrink: 0 }}>›</div>
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -1691,7 +1758,14 @@ export default function Admin() {
           <div style={{ background: '#1a1a0a', border: '3px solid #c9a84c', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
             <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📋 Label this record with</div>
             <div style={{ fontSize: '44px', fontWeight: '700', color: '#c9a84c', letterSpacing: '4px', fontFamily: 'monospace' }}>{savedSku}</div>
-            <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>Write this on a label and attach it to the physical record</div>
+            <div style={{ fontSize: '12px', color: '#555', marginTop: '12px', fontStyle: 'italic' }}>Print a label (Avery 8167) and attach it to the physical record</div>
+            {savedRecordId && (
+              <button onClick={() => printLabels([savedRecordId], 1)} disabled={printingLabels}
+                style={{ marginTop: '14px', padding: '12px 20px', background: '#c9a84c', border: 'none', borderRadius: '8px', color: '#0d0d0d', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                {printingLabels ? 'Generating…' : '🏷️ Print Label'}
+              </button>
+            )}
+            {printLabelsError && <div style={{ fontSize: '11px', color: '#f87171', marginTop: '8px' }}>{printLabelsError}</div>}
           </div>
           {discogsDraftResult && (
             <div style={{ background: discogsDraftResult.success ? '#0a1a0a' : '#2a1a1a', border: '1px solid ' + (discogsDraftResult.success ? '#2a4a2a' : '#4a2a2a'), borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'left' }}>
