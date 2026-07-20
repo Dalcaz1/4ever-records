@@ -18,7 +18,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com') + '&_t=' + Date.now(),
+      FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('joebowling63@gmail.com') + '&_t=' + Date.now(),
       { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' }, cache: 'no-store' }
     );
     const rawText = await response.text();

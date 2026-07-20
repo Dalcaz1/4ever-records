@@ -679,7 +679,7 @@ export default function Admin() {
     if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
   }
 
-  const STORE_DISCOGS_EMAIL = 'dalcaz1@yahoo.com';
+  const STORE_DISCOGS_EMAIL = 'joebowling63@gmail.com';
 
   // Extracted from the original handleSave so both the plain "Save" button
   // and the new combined "Save & List on Discogs" button share one save path
@@ -983,17 +983,15 @@ export default function Admin() {
           <div style={{ background: discogsStatus.checked && discogsStatus.connected ? '#0a1a0a' : '#1a1408', border: '1px solid ' + (discogsStatus.checked && discogsStatus.connected ? '#1a3a1a' : '#3a2f14'), borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', fontSize: '12px' }}>
             {!discogsStatus.checked && <span style={{ color: '#999' }}>Checking Discogs connection…</span>}
             {discogsStatus.checked && discogsStatus.connected && (
-              <span style={{ color: '#4ade80' }}>✅ Discogs connected as {discogsStatus.username || 'dalcaz1@yahoo.com'}</span>
+              <span style={{ color: '#4ade80' }}>✅ Discogs connected as {discogsStatus.username || 'joebowling63@gmail.com'}</span>
             )}
             {discogsStatus.checked && !discogsStatus.connected && (
               <div>
                 <div style={{ color: '#fbbf24' }}>⚠️ Discogs not connected — drafts will fail to save.</div>
                 {discogsStatus.error && <div style={{ color: '#f87171', fontSize: '11px', marginTop: '4px' }}>{discogsStatus.error}</div>}
-                {discogsStatus.debug && (
-                  <div style={{ color: '#67e8f9', fontSize: '10px', marginTop: '6px', fontFamily: 'monospace' }}>
-                    header received: {String(discogsStatus.debug.headerReceived)} (len {discogsStatus.debug.headerLength}) · secret configured: {String(discogsStatus.debug.envVarSet)} (len {discogsStatus.debug.envVarLength})
-                  </div>
-                )}
+                <div style={{ color: '#999', fontSize: '11px', marginTop: '4px', lineHeight: 1.5 }}>
+                  To fix: log into <strong>{STORE_DISCOGS_EMAIL}</strong> at findyourtunes.com, go to My Collection, and tap "Connect My Discogs Account."
+                </div>
               </div>
             )}
           </div>
