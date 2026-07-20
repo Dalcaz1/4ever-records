@@ -457,21 +457,6 @@ export default function Admin() {
     saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning, savedAt: Date.now() });
   }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning]);
 
-  // FIX (July 19 session — real bug: these hooks were originally placed
-  // AFTER the "if (!authed) return <PinLock/>" early return below, which
-  // is a genuine React rules-of-hooks violation — the component called a
-  // different number of hooks depending on auth state, which crashes
-  // with exactly the "Application error: a client side exception" white
-  // screen the moment PIN entry flips `authed` to true and the component
-  // re-renders further than before. All hook calls must happen
-  // unconditionally, before any early return. Moved here; the plain
-  // (non-hook) fetchDiscogsStatus/handleDiscogsDisconnect functions used
-  // below are function declarations, safely hoisted regardless of where
-  // they're textually defined in the file.
-  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null });
-  const [discogsDisconnecting, setDiscogsDisconnecting] = useState(false);
-  useEffect(() => { fetchDiscogsStatus(); }, []);
-
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
@@ -681,27 +666,6 @@ export default function Admin() {
   }
 
   const STORE_DISCOGS_EMAIL = 'dalcaz1@yahoo.com';
-
-  // Plain (non-hook) functions — safe to define here since function
-  // declarations are hoisted within this component's scope, unlike the
-  // useState/useEffect hooks above which had to move before the auth
-  // early return.
-  function fetchDiscogsStatus() {
-    fetch(FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent(STORE_DISCOGS_EMAIL), { headers: fytHeaders() })
-      .then(r => r.json())
-      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null }))
-      .catch(() => setDiscogsStatus({ checked: true, connected: false, username: null }));
-  }
-
-  function handleDiscogsDisconnect() {
-    setDiscogsDisconnecting(true);
-    fetch(FYT_BASE + '/api/collection/discogs-disconnect', {
-      method: 'POST', headers: fytHeaders(), body: JSON.stringify({ email: STORE_DISCOGS_EMAIL }),
-    })
-      .then(r => r.json())
-      .then(() => { fetchDiscogsStatus(); setDiscogsDisconnecting(false); })
-      .catch(() => setDiscogsDisconnecting(false));
-  }
 
   // Extracted from the original handleSave so both the plain "Save" button
   // and the new combined "Save & List on Discogs" button share one save path
@@ -997,28 +961,8 @@ export default function Admin() {
           <a href="/" style={{ color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Store</a>
         </nav>
         <div style={{ maxWidth: '480px', margin: '0 auto', padding: '40px 20px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
             <div style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic' }}>What would you like to do?</div>
-          </div>
-          <div style={{ background: discogsStatus.checked && discogsStatus.connected ? '#0a1a0a' : '#1a1408', border: '1px solid ' + (discogsStatus.checked && discogsStatus.connected ? '#1a3a1a' : '#3a2f14'), borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', fontSize: '12px' }}>
-            {!discogsStatus.checked && <span style={{ color: '#999' }}>Checking Discogs connection…</span>}
-            {discogsStatus.checked && discogsStatus.connected && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#4ade80' }}>✅ Discogs connected as <strong>{discogsStatus.username || STORE_DISCOGS_EMAIL}</strong></span>
-                <button onClick={handleDiscogsDisconnect} disabled={discogsDisconnecting}
-                  style={{ background: 'transparent', border: 'none', color: '#999', textDecoration: 'underline', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                  {discogsDisconnecting ? 'Disconnecting…' : 'Disconnect'}
-                </button>
-              </div>
-            )}
-            {discogsStatus.checked && !discogsStatus.connected && (
-              <div>
-                <div style={{ color: '#fbbf24', marginBottom: '4px' }}>⚠️ Discogs not connected — drafts will fail to save.</div>
-                <div style={{ color: '#999', fontSize: '11px', lineHeight: 1.5 }}>
-                  To fix: log into <strong>{STORE_DISCOGS_EMAIL}</strong> at findyourtunes.com, go to My Collection, and tap "Connect My Discogs Account."
-                </div>
-              </div>
-            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <button onClick={() => { reset(); setMode('entry'); }}
@@ -1532,11 +1476,6 @@ export default function Admin() {
                 <>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#f87171', marginBottom: '4px' }}>📦 Discogs Draft Not Created</div>
                   <div style={{ fontSize: '12px', color: '#fca5a5' }}>{discogsDraftResult.error}</div>
-                  {/\bconnect|expired|not connected|invalid/i.test(discogsDraftResult.error || '') && (
-                    <div style={{ fontSize: '11px', color: '#999', marginTop: '8px', lineHeight: 1.5 }}>
-                      This looks like a connection problem. Check the Discogs status on the Home screen — if it shows disconnected, log into <strong>{STORE_DISCOGS_EMAIL}</strong> at findyourtunes.com → My Collection → "Connect My Discogs Account" to fix it.
-                    </div>
-                  )}
                 </>
               )}
             </div>
