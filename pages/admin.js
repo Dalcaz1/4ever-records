@@ -905,9 +905,13 @@ export default function Admin() {
     if (!editItem) return;
     setManageDiscogsLoading(true); setManageDiscogsResult(null);
     try {
-      let releaseId = editItem.discogs_release_id || null;
+      // If artist/title were corrected in this modal, a previously-cached
+      // release_id (from an earlier, wrong-identity search) is no longer
+      // trustworthy — always re-search when the identity was hand-edited.
+      const identityEdited = editForm.artist !== editItem.artist || editForm.title !== editItem.title;
+      let releaseId = (!identityEdited && editItem.discogs_release_id) || null;
       if (!releaseId) {
-        const lookup = await findDiscogsReleaseId(editItem.artist, editItem.title, editItem.catalog_number, editItem.category);
+        const lookup = await findDiscogsReleaseId(editForm.artist, editForm.title, editForm.catalog_number, editItem.category);
         if (lookup.error) {
           setManageDiscogsResult({ success: false, error: lookup.error });
           setManageDiscogsLoading(false);
@@ -965,7 +969,10 @@ export default function Admin() {
 
   function openEditItem(item) {
     setEditItem(item);
-    setEditForm({ price: item.price, condition: item.condition, notes: item.notes || '', active: item.active !== false });
+    setEditForm({
+      price: item.price, condition: item.condition, notes: item.notes || '', active: item.active !== false,
+      artist: item.artist || '', title: item.title || '', year: item.year || '', label: item.label || '', catalog_number: item.catalog_number || '',
+    });
     setEditPhotoFile(null);
     setEditError('');
     setManageDiscogsResult(null); setManageDiscogsCandidates([]); setShowManageDiscogsPicker(false);
@@ -980,6 +987,11 @@ export default function Admin() {
       formData.append('condition', editForm.condition);
       formData.append('notes', editForm.notes);
       formData.append('active', editForm.active ? 'true' : 'false');
+      formData.append('artist', editForm.artist || '');
+      formData.append('title', editForm.title || '');
+      formData.append('year', editForm.year || '');
+      formData.append('label', editForm.label || '');
+      formData.append('catalog_number', editForm.catalog_number || '');
       // FIX (July 7 session): this previously sent the raw, uncompressed
       // File straight from the camera input — a modern phone photo can
       // easily be 5-15MB, well past Vercel's 4.5MB serverless request body
@@ -1139,10 +1151,18 @@ export default function Admin() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '20px 16px' }}>
             <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px', marginTop: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#e8d5b0' }}>{editItem.artist}</div>
-                  <div style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic' }}>{editItem.title}</div>
-                  <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{editItem.sku}</div>
+                <div style={{ flex: 1 }}>
+                  <input value={editForm.artist || ''} onChange={e => setEditForm(f => ({ ...f, artist: e.target.value }))}
+                    placeholder="Artist" style={{ ...inp, marginBottom: '6px', fontSize: '15px', fontWeight: '700', padding: '6px 8px' }} />
+                  <input value={editForm.title || ''} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Title" style={{ ...inp, marginBottom: '6px', fontSize: '13px', fontStyle: 'italic', padding: '6px 8px' }} />
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input value={editForm.label || ''} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                      placeholder="Label" style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', flex: 1 }} />
+                    <input value={editForm.catalog_number || ''} onChange={e => setEditForm(f => ({ ...f, catalog_number: e.target.value }))}
+                      placeholder="Catalog #" style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', flex: 1 }} />
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>{editItem.sku}</div>
                 </div>
                 <button onClick={() => setEditItem(null)} style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '24px', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}>×</button>
               </div>
