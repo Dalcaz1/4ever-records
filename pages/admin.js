@@ -465,7 +465,7 @@ export default function Admin() {
   // logic itself or from the JSX that displayed it.
   const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null, error: null });
   useEffect(() => {
-    fetch(FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com'), { headers: fytHeaders() })
+    fetch('/api/discogs-status')
       .then(r => r.json())
       .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null, error: data.error || null }))
       .catch(err => setDiscogsStatus({ checked: true, connected: false, username: null, error: 'Network error: ' + err.message }));
