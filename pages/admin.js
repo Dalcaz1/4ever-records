@@ -463,12 +463,12 @@ export default function Admin() {
   // This step adds ONLY the state + background check, no UI display at
   // all yet, to isolate whether the crash came from the hooks/fetch
   // logic itself or from the JSX that displayed it.
-  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null });
+  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null, error: null });
   useEffect(() => {
     fetch(FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com'), { headers: fytHeaders() })
       .then(r => r.json())
-      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null }))
-      .catch(() => setDiscogsStatus({ checked: true, connected: false, username: null }));
+      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null, error: data.error || null }))
+      .catch(err => setDiscogsStatus({ checked: true, connected: false, username: null, error: 'Network error: ' + err.message }));
   }, []);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
@@ -986,7 +986,10 @@ export default function Admin() {
               <span style={{ color: '#4ade80' }}>✅ Discogs connected as {discogsStatus.username || 'dalcaz1@yahoo.com'}</span>
             )}
             {discogsStatus.checked && !discogsStatus.connected && (
-              <span style={{ color: '#fbbf24' }}>⚠️ Discogs not connected — drafts will fail to save.</span>
+              <div>
+                <div style={{ color: '#fbbf24' }}>⚠️ Discogs not connected — drafts will fail to save.</div>
+                {discogsStatus.error && <div style={{ color: '#f87171', fontSize: '11px', marginTop: '4px' }}>{discogsStatus.error}</div>}
+              </div>
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
