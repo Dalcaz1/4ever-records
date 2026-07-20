@@ -476,6 +476,22 @@ export default function Admin() {
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Identification failed');
 
+      // FIX (NO GUESSING requirement, flagged critical July 7, built July
+      // 19): previously a low-confidence guess — e.g. a Sun label scan
+      // pattern-matching toward Jerry Lee Lewis instead of correctly
+      // reading Johnny Cash off a blurry/distant photo — was shown to the
+      // user identically to a high-confidence correct read, with no way
+      // to tell them apart. Now interrupts BEFORE the photo-slot flow
+      // when identify.js flags genuinely low confidence, showing its own
+      // best guess plus its stated reason. Only gates on 'low', not
+      // 'medium' — an interrupt that fires too often trains users to
+      // ignore it (same lesson as the July 8 identity_match banner).
+      if (data.needsRetakeConfirmation) {
+        setPendingIdentification({ data, file });
+        setEntryStage('lowConfidenceRetake');
+        return;
+      }
+
       // FIX (format disambiguation, added after a bare CD was silently
       // misidentified as a 7" Picture Disc — confirmed real case): when
       // identify.js is genuinely torn between formats (most commonly CD vs
@@ -495,6 +511,28 @@ export default function Admin() {
       setIdentifyError(err.message || 'Could not identify item — please try again');
       setEntryStage('camera1');
     }
+  }
+
+  // User chose "Use Anyway" on the low-confidence retake screen — proceed
+  // as normal, still checking format disambiguation afterward in case
+  // both conditions happened to fire on the same photo.
+  function proceedWithLowConfidence() {
+    if (!pendingIdentification) return;
+    const { data, file } = pendingIdentification;
+    setPendingIdentification(null);
+    if (Array.isArray(data.format_alternatives) && data.format_alternatives.length > 0) {
+      setFormatChoices([data.format, ...data.format_alternatives]);
+      setEntryStage('formatDisambiguation');
+      setPendingIdentification({ data, file });
+      return;
+    }
+    commitIdentification(data, file);
+  }
+
+  function retakeFromLowConfidence() {
+    setPendingIdentification(null);
+    setIdentifyError('');
+    setEntryStage('camera1');
   }
 
   function commitIdentification(data, file) {
@@ -1108,6 +1146,35 @@ export default function Admin() {
       );
     }
     if (entryStage === 'identifying') return <IdentifyingOverlay />;
+    if (entryStage === 'lowConfidenceRetake') {
+      const guess = pendingIdentification?.data || {};
+      return (
+        <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ fontSize: '40px', marginBottom: '16px' }}>🔍</div>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: '#e8d5b0', marginBottom: '10px', textAlign: 'center', fontFamily: 'Georgia, serif' }}>Photo isn't fully clear</div>
+          <div style={{ fontSize: '13px', color: '#999', marginBottom: '14px', textAlign: 'center', maxWidth: '320px', fontFamily: 'Georgia, serif' }}>
+            {guess.unclear_reason || "This photo wasn't clear enough to identify with confidence."}
+          </div>
+          {(guess.artist || guess.title) && (
+            <div style={{ background: '#1a1408', border: '1px solid #3a2f14', borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', maxWidth: '320px', width: '100%' }}>
+              <div style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px', fontFamily: 'Georgia, serif' }}>Best guess so far</div>
+              <div style={{ fontSize: '14px', color: '#e8d5b0', fontWeight: '700', fontFamily: 'Georgia, serif' }}>{guess.artist || '—'}</div>
+              <div style={{ fontSize: '13px', color: '#c9a84c', fontFamily: 'Georgia, serif' }}>{guess.title || '—'}</div>
+            </div>
+          )}
+          <div style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button onClick={retakeFromLowConfidence}
+              style={{ padding: '16px', background: '#c9a84c', border: 'none', borderRadius: '10px', color: '#0d0d0d', fontSize: '15px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              📷 Retake Photo
+            </button>
+            <button onClick={proceedWithLowConfidence}
+              style={{ padding: '14px', background: 'transparent', border: '1px solid #444', borderRadius: '10px', color: '#999', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              Use This Anyway →
+            </button>
+          </div>
+        </div>
+      );
+    }
     if (entryStage === 'formatDisambiguation') {
       return (
         <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
