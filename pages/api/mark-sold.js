@@ -42,10 +42,17 @@ export default async function handler(req, res) {
     // (from the cart, not the current listed price, in case it ever
     // differs) and a shared sold timestamp for this order.
     const soldAt = new Date().toISOString();
+    const isInStore = !!form?.inStore;
+    const orderTaxAmount = parseFloat(form?.taxAmount) || 0;
+    const perItemTax = cart.length ? Math.round((orderTaxAmount / cart.length) * 100) / 100 : 0;
     const updateResults = await Promise.all(cart.map(function(item) {
       const itemPrice = parseFloat(item.price || item.p) || null;
       return supabase.from('records')
-        .update({ active: false, qty: 0, sold_price: itemPrice, sold_at: soldAt })
+        .update({
+          active: false, qty: 0, sold_price: itemPrice, sold_at: soldAt,
+          sold_payment_method: 'card',
+          sold_tax_amount: isInStore ? perItemTax : null,
+        })
         .eq('id', item.id);
     }));
     const updateError = updateResults.find(function(r) { return r.error; })?.error;
