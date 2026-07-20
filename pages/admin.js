@@ -713,6 +713,7 @@ export default function Admin() {
       const updatedForm = { ...form, artist: result.artist || form.artist, title: result.title || form.title, year: result.year || form.year, label: result.label || form.label, catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number, country: result.country || form.country, pressing: result.pressing || result.format_details || form.pressing, genre: result.genre || form.genre, condition: result.condition || form.condition, notes: enrichedNotes || form.notes, cat: correctedCat };
       setForm(updatedForm);
       await fetchNextSku(correctedCat);
+      if (!updatedForm.year && updatedForm.catalog_number) backfillYearFromDiscogs(updatedForm);
       const pricingParams = new URLSearchParams({ artist: result.artist || '', title: result.title || '', year: result.year || '', country: result.country || '', catalog_number: result.catalog_number || result.catalogNumber || '', pressing: result.pressing || result.format_details || identification?.type || '', format: identification?.format || '', release_type: result.release_type || '', genre: result.genre || '', label: result.label || '', condition: result.condition || '', sealed: isSealed ? 'true' : 'false', vinyl_color: result.vinyl_color || '', matrix_runout: result.matrix_runout || '', variant: result.variant || '', label_details: result.label_details || '', pressing_evidence: result.pressing_evidence || '', cover_details: result.cover_details || '', identity_match: result.identity_match === false ? 'false' : 'true', identity_conflict_note: result.identity_conflict_note || '', promo_evidence_citation: result.promo_evidence_citation || '', deep: 'true' });
       fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: fytHeaders() }).then(r => r.json()).then(p => {
         setPricing(p);
@@ -807,8 +808,34 @@ export default function Admin() {
     }
   }
 
-  // Creates a Draft listing (never auto-published — same rule as the
-  // consumer app) on the store's own already-connected Discogs account.
+  // FIX (raised directly by user — "Discogs alone can retrieve thousands of
+  // this exact item, more than enough data to provide the date rather than
+  // leave it blank"): a catalog number is a strong, specific identifier —
+  // when the scan itself found no printed date but DID read a catalog
+  // number, check what Discogs' own documented pressing data says before
+  // giving up. Only auto-fills when candidates agree on a single year
+  // (still refusing to guess when the catalog number maps to genuinely
+  // different pressing years across matches) — same "don't fabricate a
+  // specific wrong year" discipline as the rest of this pipeline, just
+  // backed by real external data instead of only the physical photos.
+  async function backfillYearFromDiscogs(updatedForm) {
+    const lookup = await findDiscogsReleaseId(updatedForm.artist, updatedForm.title, updatedForm.catalog_number, identification?.format);
+    if (lookup.error || !lookup.results || lookup.results.length === 0) return;
+    const years = [...new Set(lookup.results.map(r => r.year).filter(Boolean))];
+    if (years.length === 1) {
+      setForm(f => (f.year ? f : {
+        ...f, year: String(years[0]),
+        notes: (f.notes ? f.notes + '\n\n' : '') + 'Year sourced from Discogs catalog-number match (' + updatedForm.catalog_number + ') — no date was directly printed on this copy.',
+      }));
+    } else if (years.length > 1) {
+      setForm(f => ({
+        ...f,
+        notes: (f.notes ? f.notes + '\n\n' : '') + 'No date printed on this copy. Discogs shows ' + lookup.results.length + ' candidate pressing(s) under catalog ' + updatedForm.catalog_number + ' spanning years ' + years.sort().join(', ') + ' — could not auto-determine which one this specific copy is.',
+      }));
+    }
+  }
+
+
   async function createDiscogsDraft(releaseId, condition, price) {
     try {
       const res = await fetch(FYT_BASE + '/api/collection/discogs-list', {
