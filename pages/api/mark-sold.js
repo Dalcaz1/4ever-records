@@ -112,6 +112,16 @@ export default async function handler(req, res) {
     const total = subtotal + shipping;
 
     // SEND CUSTOMER CONFIRMATION EMAIL
+    // FIX (raised directly by user — physical sales need shipping fully
+    // eliminated, not just zeroed out): in-store orders never collect a
+    // customer email at all (form only ever contains {inStore, paymentMethod}
+    // from checkout-instore.js), so this was sending to `to: undefined` and
+    // printing "undefined" for name/address/city/state/zip in a "Your
+    // records are on their way" / "Shipping To" email that makes no sense
+    // for someone who already has the physical item in hand. Skipped
+    // entirely for in-store sales — there's no one to send it to and
+    // nothing shipping-related to confirm.
+    if (!isInStore) {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -157,8 +167,22 @@ export default async function handler(req, res) {
           '</div></div></body></html>',
       }),
     });
+    }
 
     // SEND STORE OWNER NOTIFICATION EMAIL (with SKU)
+    const customerBlockHtml = isInStore
+      ? '<div style="background: #0a1a0a; border: 1px solid #1a3a1a; border-radius: 8px; padding: 16px; margin-bottom: 20px; text-align: center;">' +
+        '<div style="font-size: 13px; color: #4ade80; font-weight: 700;">🏪 In-Store Sale — Card</div>' +
+        '<div style="font-size: 11px; color: #666; margin-top: 4px;">Square Order ID: ' + orderId + '</div>' +
+        '</div>'
+      : '<div style="background: #0a0a0a; border-radius: 8px; padding: 16px; margin-bottom: 20px;">' +
+        '<div style="font-size: 11px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Customer</div>' +
+        '<div style="color: #e8d5b0; font-weight: 700;">' + form.name + '</div>' +
+        '<div style="color: #888;">' + form.email + '</div>' +
+        '<div style="color: #888; margin-top: 8px;">' + form.address + '</div>' +
+        '<div style="color: #888;">' + form.city + ', ' + form.state + ' ' + form.zip + '</div>' +
+        '</div>';
+    const itemsHeaderHtml = isInStore ? '✅ Items Sold' : '📦 Pull These Records';
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -168,22 +192,16 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: 'orders@4evermemoriesrecordstore.com',
         to: '4evermemoriesrecordstore@gmail.com',
-        subject: '🛒 New Order — $' + total.toFixed(2) + ' from ' + form.name,
+        subject: isInStore ? '🏪 In-Store Sale — $' + total.toFixed(2) : '🛒 New Order — $' + total.toFixed(2) + ' from ' + form.name,
         html: '<!DOCTYPE html><html><body style="background:#0d0d0d; font-family: Georgia, serif; padding: 40px 20px;">' +
           '<div style="max-width: 600px; margin: 0 auto; background: #111; border: 1px solid #2a2a2a; border-radius: 16px; overflow: hidden;">' +
           '<div style="background: #0a0a0a; padding: 24px; border-bottom: 1px solid #2a2a2a;">' +
-          '<div style="font-size: 20px; color: #c9a84c; font-weight: 700;">🛒 New Order Received!</div>' +
+          '<div style="font-size: 20px; color: #c9a84c; font-weight: 700;">' + (isInStore ? '🏪 In-Store Sale Completed' : '🛒 New Order Received!') + '</div>' +
           '<div style="font-size: 13px; color: #555; margin-top: 4px;">Square Order ID: ' + orderId + '</div>' +
           '</div>' +
           '<div style="padding: 32px;">' +
-          '<div style="background: #0a0a0a; border-radius: 8px; padding: 16px; margin-bottom: 20px;">' +
-          '<div style="font-size: 11px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Customer</div>' +
-          '<div style="color: #e8d5b0; font-weight: 700;">' + form.name + '</div>' +
-          '<div style="color: #888;">' + form.email + '</div>' +
-          '<div style="color: #888; margin-top: 8px;">' + form.address + '</div>' +
-          '<div style="color: #888;">' + form.city + ', ' + form.state + ' ' + form.zip + '</div>' +
-          '</div>' +
-          '<div style="font-size: 11px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">📦 Pull These Records</div>' +
+          customerBlockHtml +
+          '<div style="font-size: 11px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">' + itemsHeaderHtml + '</div>' +
           '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">' +
           '<thead><tr style="background: #0a0a0a;">' +
           '<th style="padding: 10px; text-align: left; color: #c9a84c; font-size: 11px; text-transform: uppercase;">SKU</th>' +
