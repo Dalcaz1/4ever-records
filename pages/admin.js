@@ -762,50 +762,42 @@ export default function Admin() {
     if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
   }
 
-  // ─── Tax settings (used by both Settings screen and Checkout Mode) ───────
-  const [taxSettings, setTaxSettings] = useState(null); // { id, zip_code, tax_rate }
-  const [taxSettingsLoading, setTaxSettingsLoading] = useState(false);
-  const [taxZipInput, setTaxZipInput] = useState('');
-  const [taxRateInput, setTaxRateInput] = useState('');
-  const [taxSaveError, setTaxSaveError] = useState('');
-  const [taxSaving, setTaxSaving] = useState(false);
-
-  function loadTaxSettings() {
-    setTaxSettingsLoading(true);
-    fetch('/api/store-settings')
-      .then(r => r.json())
-      .then(data => {
-        setTaxSettings(data.settings || null);
-        setTaxZipInput(data.settings?.zip_code || '');
-        setTaxRateInput(data.settings?.tax_rate != null ? String(data.settings.tax_rate) : '');
-      })
-      .catch(() => {})
-      .finally(() => setTaxSettingsLoading(false));
-  }
-
-  async function saveTaxSettings() {
-    setTaxSaving(true); setTaxSaveError('');
-    try {
-      const res = await fetch('/api/store-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: taxSettings?.id, zip_code: taxZipInput, tax_rate: taxRateInput }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setTaxSaveError(data.error || 'Failed to save'); setTaxSaving(false); return; }
-      setTaxSettings(data.settings);
-    } catch (err) {
-      setTaxSaveError('Failed to save: ' + err.message);
-    }
-    setTaxSaving(false);
-  }
-
   // ─── Checkout Mode ────────────────────────────────────────────────────────
+  // FIX (direct instruction): no manual tax rate anywhere in this app —
+  // Square already requires sellers to configure sales tax during account
+  // setup, so this app has no business duplicating that decision. Every
+  // total shown here comes from a live call to Square's own Calculate
+  // Order endpoint (mode: 'preview' on checkout-instore.js), which applies
+  // whatever tax rule the seller configured in their own Square Dashboard.
   const [checkoutCart, setCheckoutCart] = useState([]); // [{id, sku, artist, title, price, condition}]
   const [checkoutScanning, setCheckoutScanning] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutResult, setCheckoutResult] = useState(null); // { paymentMethod, total, ... } after a completed sale
+  const [checkoutPreview, setCheckoutPreview] = useState(null); // { subtotal, taxAmount, total } from Square
+  const [checkoutPreviewLoading, setCheckoutPreviewLoading] = useState(false);
+  const [checkoutPreviewError, setCheckoutPreviewError] = useState('');
+
+  useEffect(() => {
+    if (mode !== 'checkout' || checkoutCart.length === 0) { setCheckoutPreview(null); return; }
+    let cancelled = false;
+    setCheckoutPreviewLoading(true); setCheckoutPreviewError('');
+    fetch('/api/checkout-instore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cart: checkoutCart, mode: 'preview' }),
+    })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (!ok) { setCheckoutPreviewError(data.error || 'Could not calculate total from Square'); setCheckoutPreview(null); return; }
+        setCheckoutPreview(data);
+      })
+      .catch(err => { if (!cancelled) setCheckoutPreviewError('Could not reach Square: ' + err.message); })
+      .finally(() => { if (!cancelled) setCheckoutPreviewLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutCart, mode]);
 
   async function handleCheckoutScanCapture(file) {
     setCheckoutScanning(false);
@@ -844,10 +836,9 @@ export default function Admin() {
     setCheckoutCart(prev => prev.filter(i => i.id !== id));
   }
 
-  const checkoutSubtotal = checkoutCart.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
-  const checkoutTaxRate = taxSettings?.tax_rate ? parseFloat(taxSettings.tax_rate) : 0;
-  const checkoutTax = Math.round(checkoutSubtotal * (checkoutTaxRate / 100) * 100) / 100;
-  const checkoutTotal = checkoutSubtotal + checkoutTax;
+  const checkoutSubtotal = checkoutPreview?.subtotal ?? checkoutCart.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
+  const checkoutTax = checkoutPreview?.taxAmount ?? 0;
+  const checkoutTotal = checkoutPreview?.total ?? checkoutSubtotal;
 
   async function runCheckout(paymentMethod) {
     if (checkoutCart.length === 0) return;
@@ -1334,7 +1325,7 @@ export default function Admin() {
                 <div style={{ fontSize: '11px', fontWeight: '400', marginTop: '3px', color: '#bbb' }}>Push FYT Discogs items to store</div>
               </div>
             </button>
-            <button onClick={() => { setMode('checkout'); loadTaxSettings(); }}
+            <button onClick={() => setMode('checkout')}
               style={{ width: '100%', padding: '22px 20px', background: '#0a1a0a', color: '#e8d5b0', border: '1px solid #1a3a1a', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '16px' }}>
               <span style={{ fontSize: '28px' }}>🛒</span>
               <div>
@@ -1342,55 +1333,7 @@ export default function Admin() {
                 <div style={{ fontSize: '11px', fontWeight: '400', marginTop: '3px', color: '#7fbf7f' }}>Scan items, ring up an in-person sale</div>
               </div>
             </button>
-            <button onClick={() => { setMode('settings'); loadTaxSettings(); }}
-              style={{ width: '100%', padding: '14px 20px', background: 'transparent', color: '#999', border: '1px solid #2a2a2a', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '18px' }}>⚙️</span>
-              <div>Settings — Sales Tax</div>
-            </button>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── SETTINGS MODE ────────────────────────────────────────────────────────
-  if (mode === 'settings') {
-    return (
-      <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
-        <style>{`* { box-sizing: border-box; } input:focus { outline: none; border-color: #c9a84c !important; }`}</style>
-        <AdminNav subtitle="Settings" />
-        <div style={{ maxWidth: '480px', margin: '0 auto', padding: '20px 16px 40px' }}>
-          <button style={backBtn} onClick={() => setMode('home')}>← Back</button>
-          <h2 style={{ fontSize: '18px', color: '#e8d5b0', marginBottom: '6px' }}>Sales Tax</h2>
-          <p style={{ fontSize: '12px', color: '#999', lineHeight: 1.6, marginBottom: '20px' }}>
-            Enter your store's zip code and your own confirmed combined sales tax rate
-            (state + county + city, whatever applies to your location — check your state's
-            Department of Revenue if unsure). This rate is applied to every in-person
-            Checkout Mode sale, both Card and Cash.
-          </p>
-          {taxSettingsLoading && <div style={{ color: '#999', fontSize: '13px', fontStyle: 'italic' }}>Loading…</div>}
-          {!taxSettingsLoading && (
-            <>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={sectionLabel}>Zip Code</label>
-                <input value={taxZipInput} onChange={e => setTaxZipInput(e.target.value)} placeholder="e.g. 78501" style={inp} />
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={sectionLabel}>Combined Tax Rate (%)</label>
-                <input value={taxRateInput} onChange={e => setTaxRateInput(e.target.value)} placeholder="e.g. 8.25" type="number" step="0.001" style={inp} />
-              </div>
-              {taxSaveError && <div style={{ color: '#f87171', fontSize: '13px', marginBottom: '12px' }}>{taxSaveError}</div>}
-              <button onClick={saveTaxSettings} disabled={taxSaving}
-                style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontWeight: '700' }}>
-                {taxSaving ? 'Saving…' : '💾 Save Tax Settings'}
-              </button>
-              {taxSettings?.updated_at && (
-                <div style={{ fontSize: '11px', color: '#555', marginTop: '10px', textAlign: 'center', fontStyle: 'italic' }}>
-                  Last updated {new Date(taxSettings.updated_at).toLocaleString()}
-                </div>
-              )}
-            </>
-          )}
         </div>
       </div>
     );
@@ -1427,18 +1370,13 @@ export default function Admin() {
             </div>
           ) : (
             <>
-              {!taxSettings && !taxSettingsLoading && (
-                <div style={{ background: '#2a1408', border: '1px solid #7a5a1a', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', fontSize: '12px', color: '#fbbf24' }}>
-                  No tax settings configured yet — sales will ring up with $0 tax. <a onClick={() => setMode('settings')} style={{ color: '#fde68a', textDecoration: 'underline', cursor: 'pointer' }}>Set up now →</a>
-                </div>
-              )}
-
               <button onClick={() => setCheckoutScanning(true)} disabled={checkoutBusy}
                 style={{ width: '100%', padding: '18px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', marginBottom: '16px' }}>
                 📷 {checkoutBusy ? 'Reading…' : 'Scan Item Label'}
               </button>
 
               {checkoutError && <div style={{ background: '#2a1a1a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', fontSize: '12px', color: '#f87171' }}>{checkoutError}</div>}
+              {checkoutPreviewError && <div style={{ background: '#2a1a1a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', fontSize: '12px', color: '#f87171' }}>{checkoutPreviewError}</div>}
 
               {checkoutCart.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#555', padding: '30px', fontStyle: 'italic', fontSize: '13px' }}>Cart is empty — scan an item to begin.</div>
@@ -1463,7 +1401,7 @@ export default function Admin() {
                 <>
                   <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px', marginBottom: '18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '6px' }}><span>Subtotal</span><span>${checkoutSubtotal.toFixed(2)}</span></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '6px' }}><span>Tax {checkoutTaxRate ? '(' + checkoutTaxRate + '%)' : ''}</span><span>${checkoutTax.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '6px' }}><span>Tax {checkoutPreviewLoading ? '(calculating…)' : '(from Square)'}</span><span>${checkoutTax.toFixed(2)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px', color: '#c9a84c', fontWeight: '700', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #2a2a2a' }}><span>Total</span><span>${checkoutTotal.toFixed(2)}</span></div>
                   </div>
 

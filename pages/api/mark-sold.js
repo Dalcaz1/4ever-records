@@ -100,7 +100,14 @@ export default async function handler(req, res) {
     }).join('');
 
     const totalQty = cart.reduce((s, i) => s + i.qty, 0);
-    const shipping = 5 + (totalQty - 1);
+    // FIX: in-store sales (form.inStore, set by checkout-instore.js) have
+    // no shipping at all — this was unconditionally fabricating a
+    // shipping charge into the owner-notification email's displayed
+    // total for every in-store sale, misstating it. Square itself already
+    // computed and charged the correct real total (with auto-applied
+    // tax) — this shipping/total math is only for this internal email's
+    // display, never for what was actually charged.
+    const shipping = form?.inStore ? 0 : (5 + (totalQty - 1));
     const subtotal = cart.reduce((s, i) => s + parseFloat(i.price || i.p) * i.qty, 0);
     const total = subtotal + shipping;
 
