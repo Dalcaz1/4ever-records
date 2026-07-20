@@ -719,6 +719,20 @@ export default function Admin() {
         setPricing(p);
         const base = p?.recommended ? String(p.recommended).replace('$', '') : null;
         if (base) { const recalced = recalcPriceForCondition(base, result.condition || 'VG+', identification, updatedForm); setDisplayPrice(recalced || base); }
+        // FIX (raised directly by user — MusicBrainz's "confirmed" fields
+        // were display-only, never actually used): if Year is still empty
+        // at this point (no printed date, no Discogs catalog match found
+        // one either) and MusicBrainz found a single confirmed release with
+        // a 4-digit date, use it — same "only take it when unambiguous"
+        // discipline as the Discogs backfill.
+        const mbDate = p?.musicBrainzIdentification?.bestMatch?.date;
+        const mbYear = mbDate ? String(mbDate).match(/^(\d{4})/)?.[1] : null;
+        if (mbYear) {
+          setForm(f => (f.year ? f : {
+            ...f, year: mbYear,
+            notes: (f.notes ? f.notes + '\n\n' : '') + 'Year sourced from MusicBrainz confirmed release date — no date was directly printed on this copy.',
+          }));
+        }
       }).catch(() => {});
       setMode('review');
     } catch (err) {
