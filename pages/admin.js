@@ -463,13 +463,80 @@ export default function Admin() {
   // This step adds ONLY the state + background check, no UI display at
   // all yet, to isolate whether the crash came from the hooks/fetch
   // logic itself or from the JSX that displayed it.
-  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null, error: null });
-  useEffect(() => {
+  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null, label: null, error: null });
+  function refreshDiscogsStatus() {
     fetch('/api/discogs-status')
       .then(r => r.json())
-      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null, error: data.error || null, debug: data.debug || null }))
-      .catch(err => setDiscogsStatus({ checked: true, connected: false, username: null, error: 'Network error: ' + err.message }));
+      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null, label: data.label || null, error: data.error || null, debug: data.debug || null }))
+      .catch(err => setDiscogsStatus({ checked: true, connected: false, username: null, label: null, error: 'Network error: ' + err.message }));
+  }
+  useEffect(() => {
+    refreshDiscogsStatus();
+    // If we just landed back here from completing a new Discogs
+    // connection's OAuth flow, open the manager so the new entry (and its
+    // Set Active button, if it's not the first-ever connection) is
+    // immediately visible instead of hidden behind an extra tap.
+    if (typeof window !== 'undefined' && window.location.search.includes('discogs_connected=1')) {
+      setShowConnectionsManager(true);
+      loadDiscogsConnections();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
+
+  // Discogs connections manager — multi-account switching. Independent of
+  // any FYT consumer profile; these belong to the store itself.
+  const [discogsConnections, setDiscogsConnections] = useState([]);
+  const [showConnectionsManager, setShowConnectionsManager] = useState(false);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
+  const [connectionsActionError, setConnectionsActionError] = useState('');
+
+  function loadDiscogsConnections() {
+    setConnectionsLoading(true);
+    fetch('/api/discogs-connections')
+      .then(r => r.json())
+      .then(data => setDiscogsConnections(data.connections || []))
+      .catch(() => setDiscogsConnections([]))
+      .finally(() => setConnectionsLoading(false));
+  }
+
+  async function handleSetActiveConnection(id) {
+    setConnectionsActionError('');
+    try {
+      const res = await fetch('/api/discogs-connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_active', id }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setConnectionsActionError(data.error || 'Failed to switch connection'); return; }
+      loadDiscogsConnections();
+      refreshDiscogsStatus();
+    } catch (err) { setConnectionsActionError('Failed to switch connection: ' + err.message); }
+  }
+
+  async function handleRemoveConnection(id, label) {
+    if (!confirm('Remove the Discogs connection "' + label + '"? This cannot be undone — you\'ll need to reconnect it from scratch if you want it back.')) return;
+    setConnectionsActionError('');
+    try {
+      const res = await fetch('/api/discogs-connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove', id }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setConnectionsActionError(data.error || 'Failed to remove connection'); return; }
+      loadDiscogsConnections();
+      refreshDiscogsStatus();
+    } catch (err) { setConnectionsActionError('Failed to remove connection: ' + err.message); }
+  }
+
+  function handleAddConnection() {
+    const label = prompt('Name this Discogs connection (e.g. "Joe Personal", "Store Backup"):');
+    if (!label || !label.trim()) return;
+    const secret = process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '';
+    const url = FYT_BASE + '/api/collection/discogs-auth?admin_connect=1&admin_secret=' + encodeURIComponent(secret) + '&label=' + encodeURIComponent(label.trim());
+    window.location.href = url;
+  }
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
@@ -679,8 +746,6 @@ export default function Admin() {
     if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
   }
 
-  const STORE_DISCOGS_EMAIL = 'joebowling63@gmail.com';
-
   // Extracted from the original handleSave so both the plain "Save" button
   // and the new combined "Save & List on Discogs" button share one save path
   // — avoids maintaining two separate copies of the photo-compression/
@@ -748,7 +813,6 @@ export default function Admin() {
         method: 'POST',
         headers: fytHeaders(),
         body: JSON.stringify({
-          email: STORE_DISCOGS_EMAIL,
           release_id: releaseId,
           condition: condition || 'VG+',
           sleeve_condition: condition || 'VG+',
@@ -978,23 +1042,60 @@ export default function Admin() {
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <div style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic' }}>What would you like to do?</div>
           </div>
-          {/* Discogs status rebuild — step 2: read-only display only,
-              deliberately no button/handler yet, to isolate further. */}
-          <div style={{ background: discogsStatus.checked && discogsStatus.connected ? '#0a1a0a' : '#1a1408', border: '1px solid ' + (discogsStatus.checked && discogsStatus.connected ? '#1a3a1a' : '#3a2f14'), borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', fontSize: '12px' }}>
+          <div style={{ background: discogsStatus.checked && discogsStatus.connected ? '#0a1a0a' : '#1a1408', border: '1px solid ' + (discogsStatus.checked && discogsStatus.connected ? '#1a3a1a' : '#3a2f14'), borderRadius: '10px', padding: '12px 14px', marginBottom: '10px', fontSize: '12px' }}>
             {!discogsStatus.checked && <span style={{ color: '#999' }}>Checking Discogs connection…</span>}
             {discogsStatus.checked && discogsStatus.connected && (
-              <span style={{ color: '#4ade80' }}>✅ Discogs connected as {discogsStatus.username || 'joebowling63@gmail.com'}</span>
+              <span style={{ color: '#4ade80' }}>
+                ✅ Discogs connected{discogsStatus.label ? ' — ' + discogsStatus.label : ''} ({discogsStatus.username || 'unknown'})
+              </span>
             )}
             {discogsStatus.checked && !discogsStatus.connected && (
               <div>
-                <div style={{ color: '#fbbf24' }}>⚠️ Discogs not connected — drafts will fail to save.</div>
+                <div style={{ color: '#fbbf24' }}>⚠️ No active Discogs connection — drafts will fail to save.</div>
                 {discogsStatus.error && <div style={{ color: '#f87171', fontSize: '11px', marginTop: '4px' }}>{discogsStatus.error}</div>}
-                <div style={{ color: '#999', fontSize: '11px', marginTop: '4px', lineHeight: 1.5 }}>
-                  To fix: log into <strong>{STORE_DISCOGS_EMAIL}</strong> at findyourtunes.com, go to My Collection, and tap "Connect My Discogs Account."
-                </div>
               </div>
             )}
           </div>
+          <button
+            onClick={() => { const next = !showConnectionsManager; setShowConnectionsManager(next); if (next) loadDiscogsConnections(); }}
+            style={{ width: '100%', background: 'transparent', border: '1px solid #333', color: '#c9a84c', borderRadius: '8px', padding: '8px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif', marginBottom: '20px' }}>
+            {showConnectionsManager ? '▲ Hide Discogs Connections' : '▼ Manage Discogs Connections'}
+          </button>
+          {showConnectionsManager && (
+            <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px', marginBottom: '20px', fontSize: '12px' }}>
+              {connectionsLoading && <div style={{ color: '#999' }}>Loading connections…</div>}
+              {!connectionsLoading && discogsConnections.length === 0 && (
+                <div style={{ color: '#999', marginBottom: '10px' }}>No Discogs connections yet.</div>
+              )}
+              {!connectionsLoading && discogsConnections.map(conn => (
+                <div key={conn.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #1a1a1a', gap: '8px' }}>
+                  <div>
+                    <div style={{ color: '#e8d5b0', fontWeight: conn.is_active ? '700' : '400' }}>
+                      {conn.is_active ? '✅ ' : ''}{conn.label}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '10px' }}>{conn.discogs_username || 'unknown username'}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    {!conn.is_active && (
+                      <button onClick={() => handleSetActiveConnection(conn.id)}
+                        style={{ background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '6px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                        Use This
+                      </button>
+                    )}
+                    <button onClick={() => handleRemoveConnection(conn.id, conn.label)}
+                      style={{ background: 'transparent', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {connectionsActionError && <div style={{ color: '#f87171', fontSize: '11px', marginTop: '8px' }}>{connectionsActionError}</div>}
+              <button onClick={handleAddConnection}
+                style={{ width: '100%', marginTop: '12px', background: 'transparent', border: '1px dashed #c9a84c', color: '#c9a84c', borderRadius: '8px', padding: '10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                + Connect a New Discogs Account
+              </button>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <button onClick={() => { reset(); setMode('entry'); }}
               style={{ width: '100%', padding: '22px 20px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '16px' }}>

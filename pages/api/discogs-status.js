@@ -17,8 +17,11 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    // FIX (multi-account Discogs switching): no more hardcoded email —
+    // the backend now reports whichever store_discogs_connections row is
+    // currently active, so this just asks "what's active right now."
     const response = await fetch(
-      FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('joebowling63@gmail.com') + '&_t=' + Date.now(),
+      FYT_BASE + '/api/collection/discogs-auth?check=1&_t=' + Date.now(),
       { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' }, cache: 'no-store' }
     );
     const rawText = await response.text();
