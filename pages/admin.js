@@ -457,6 +457,21 @@ export default function Admin() {
     saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning, savedAt: Date.now() });
   }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning]);
 
+  // FIX (July 19 session — real bug: these hooks were originally placed
+  // AFTER the "if (!authed) return <PinLock/>" early return below, which
+  // is a genuine React rules-of-hooks violation — the component called a
+  // different number of hooks depending on auth state, which crashes
+  // with exactly the "Application error: a client side exception" white
+  // screen the moment PIN entry flips `authed` to true and the component
+  // re-renders further than before. All hook calls must happen
+  // unconditionally, before any early return. Moved here; the plain
+  // (non-hook) fetchDiscogsStatus/handleDiscogsDisconnect functions used
+  // below are function declarations, safely hoisted regardless of where
+  // they're textually defined in the file.
+  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null });
+  const [discogsDisconnecting, setDiscogsDisconnecting] = useState(false);
+  useEffect(() => { fetchDiscogsStatus(); }, []);
+
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
@@ -667,24 +682,16 @@ export default function Admin() {
 
   const STORE_DISCOGS_EMAIL = 'dalcaz1@yahoo.com';
 
-  // FIX (July 19 session — "simply being told it does not work is not
-  // acceptable"): previously there was zero visibility, anywhere in
-  // admin.js, into which Discogs account drafts were being sent to, or
-  // whether that connection was even still valid — a failed save just
-  // said "unable to save" with no way to check or fix it. Fetches real
-  // status (connected? which username?) on mount via the trusted-admin
-  // + email path built for this in discogs-auth.js.
-  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null });
-  const [discogsDisconnecting, setDiscogsDisconnecting] = useState(false);
-
+  // Plain (non-hook) functions — safe to define here since function
+  // declarations are hoisted within this component's scope, unlike the
+  // useState/useEffect hooks above which had to move before the auth
+  // early return.
   function fetchDiscogsStatus() {
     fetch(FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent(STORE_DISCOGS_EMAIL), { headers: fytHeaders() })
       .then(r => r.json())
       .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null }))
       .catch(() => setDiscogsStatus({ checked: true, connected: false, username: null }));
   }
-
-  useEffect(() => { fetchDiscogsStatus(); }, []);
 
   function handleDiscogsDisconnect() {
     setDiscogsDisconnecting(true);
