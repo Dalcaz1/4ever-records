@@ -30,3 +30,4 @@ export default async function handler(req, res) {
     return res.status(200).json({ connected: false, username: null, error: 'Could not reach status check: ' + err.message });
   }
 }
+// redeploy trigger: env var update (2026-07-20T04:12:00Z)
