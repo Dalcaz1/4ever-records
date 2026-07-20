@@ -1091,8 +1091,10 @@ export default function Admin() {
                 <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Discogs</div>
                 {editItem.discogs_listing_url ? (
                   <>
-                    <div style={{ fontSize: '12px', color: '#4ade80', marginBottom: '6px' }}>📦 Already listed on Discogs</div>
-                    <a href={editItem.discogs_listing_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: '#c9a84c', display: 'block', marginBottom: '8px' }}>{editItem.discogs_listing_url} →</a>
+                    <div style={{ fontSize: '12px', color: '#4ade80', marginBottom: '6px' }}>📦 Draft created on Discogs</div>
+                    <div style={{ fontSize: '11px', color: '#999', marginBottom: '8px', lineHeight: 1.5 }}>
+                      Drafts aren't publicly visible on Discogs — that's normal, not an error. To review and publish it: on Discogs, go to your Profile → Inventory → filter by "Draft."
+                    </div>
                     <button onClick={handleManageDiscogsDraft} disabled={manageDiscogsLoading}
                       style={{ width: '100%', padding: '8px', background: 'transparent', color: '#888', border: '1px solid #2a2a2a', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                       {manageDiscogsLoading ? 'Creating…' : 'Create another draft anyway'}
@@ -1161,7 +1163,7 @@ export default function Admin() {
                 <div style={{ fontSize: '13px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</div>
                 <div style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                 <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{item.sku} · {item.condition} · ${item.price}</div>
-                <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Listed on Discogs' : 'Not on Discogs'}</div>
+                <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Draft on Discogs' : 'Not on Discogs'}</div>
               </div>
               <div style={{ color: '#c9a84c', fontSize: '16px', flexShrink: 0 }}>›</div>
             </button>
