@@ -457,6 +457,20 @@ export default function Admin() {
     saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning, savedAt: Date.now() });
   }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning]);
 
+  // Discogs connection status — STEP 1 of a staged rebuild after the
+  // previous version of this feature caused a live white-screen crash
+  // I could not fully diagnose without a real browser to test against.
+  // This step adds ONLY the state + background check, no UI display at
+  // all yet, to isolate whether the crash came from the hooks/fetch
+  // logic itself or from the JSX that displayed it.
+  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null });
+  useEffect(() => {
+    fetch(FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com'), { headers: fytHeaders() })
+      .then(r => r.json())
+      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null }))
+      .catch(() => setDiscogsStatus({ checked: true, connected: false, username: null }));
+  }, []);
+
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
