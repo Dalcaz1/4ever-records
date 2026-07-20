@@ -250,6 +250,27 @@ const FYT_FORMATS = [
   ]},
 ];
 
+// FIX (July 19 session — category mismatch in saved inventory / 4 Ever
+// Verified Sales matcher): the 'cat' field saved to the records table was
+// always sourced from Stage 1's raw single-photo format guess, even after
+// Dig Deeper corrected the actual size using real evidence (catalog
+// number, track listing, RPM markings — see scan.js). This meant every
+// saved record's category could be wrong independent of what price was
+// actually shown, silently poisoning your own inventory data and, in
+// turn, the internal comp-matching pricing source. Maps Dig Deeper's
+// corrected release_type back to the same format label strings used by
+// FYT_FORMATS/SKU_PREFIXES.
+function releaseTypeToFormatLabel(releaseType) {
+  const map = {
+    VINYL_LP: '12" Vinyl', VINYL_12_SINGLE: '12" Vinyl',
+    VINYL_7_SINGLE: '7" Vinyl', VINYL_7_EP: '7" Vinyl',
+    CD_ALBUM: 'CD', CD_SINGLE: 'CD',
+    CASSETTE_ALBUM: 'Cassette', CASSETTE_SINGLE: 'Cassette',
+    '8_TRACK': '8-Track',
+  };
+  return map[releaseType] || '';
+}
+
 function getSlotsFor(format, type) {
   const fmt = FYT_FORMATS.find(f => f.label === format);
   if (!fmt) return [{ label: 'Photo', frame: 'square' }];
@@ -559,10 +580,11 @@ export default function Admin() {
       if (!res.ok) throw new Error(result.error || 'Scan failed');
       setScanResult(result);
       const enrichedNotes = [result.notes || '', result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '', result.variant ? 'Variant: ' + result.variant : '', result.matrix_runout ? 'Matrix / Runout: ' + result.matrix_runout : '', result.description ? 'Description: ' + result.description : ''].filter(Boolean).join('\n\n');
-      const updatedForm = { ...form, artist: result.artist || form.artist, title: result.title || form.title, year: result.year || form.year, label: result.label || form.label, catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number, country: result.country || form.country, pressing: result.pressing || result.format_details || form.pressing, genre: result.genre || form.genre, condition: result.condition || form.condition, notes: enrichedNotes || form.notes, cat: identification?.format || '' };
+      const correctedCat = releaseTypeToFormatLabel(result.release_type) || identification?.format || '';
+      const updatedForm = { ...form, artist: result.artist || form.artist, title: result.title || form.title, year: result.year || form.year, label: result.label || form.label, catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number, country: result.country || form.country, pressing: result.pressing || result.format_details || form.pressing, genre: result.genre || form.genre, condition: result.condition || form.condition, notes: enrichedNotes || form.notes, cat: correctedCat };
       setForm(updatedForm);
-      await fetchNextSku(identification?.format || '');
-      const pricingParams = new URLSearchParams({ artist: result.artist || '', title: result.title || '', year: result.year || '', country: result.country || '', catalog_number: result.catalog_number || result.catalogNumber || '', pressing: result.pressing || result.format_details || identification?.type || '', format: identification?.format || '', genre: result.genre || '', label: result.label || '', condition: result.condition || '', sealed: isSealed ? 'true' : 'false', vinyl_color: result.vinyl_color || '', matrix_runout: result.matrix_runout || '', variant: result.variant || '', label_details: result.label_details || '', pressing_evidence: result.pressing_evidence || '', cover_details: result.cover_details || '', identity_match: result.identity_match === false ? 'false' : 'true', identity_conflict_note: result.identity_conflict_note || '', deep: 'true' });
+      await fetchNextSku(correctedCat);
+      const pricingParams = new URLSearchParams({ artist: result.artist || '', title: result.title || '', year: result.year || '', country: result.country || '', catalog_number: result.catalog_number || result.catalogNumber || '', pressing: result.pressing || result.format_details || identification?.type || '', format: identification?.format || '', release_type: result.release_type || '', genre: result.genre || '', label: result.label || '', condition: result.condition || '', sealed: isSealed ? 'true' : 'false', vinyl_color: result.vinyl_color || '', matrix_runout: result.matrix_runout || '', variant: result.variant || '', label_details: result.label_details || '', pressing_evidence: result.pressing_evidence || '', cover_details: result.cover_details || '', identity_match: result.identity_match === false ? 'false' : 'true', identity_conflict_note: result.identity_conflict_note || '', deep: 'true' });
       fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: fytHeaders() }).then(r => r.json()).then(p => {
         setPricing(p);
         const base = p?.recommended ? String(p.recommended).replace('$', '') : null;
