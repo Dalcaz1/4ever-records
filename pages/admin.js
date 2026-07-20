@@ -708,7 +708,7 @@ export default function Admin() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Scan failed');
       setScanResult(result);
-      const enrichedNotes = [result.notes || '', result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '', result.variant ? 'Variant: ' + result.variant : '', result.matrix_runout ? 'Matrix / Runout: ' + result.matrix_runout : '', result.description ? 'Description: ' + result.description : ''].filter(Boolean).join('\n\n');
+      const enrichedNotes = [result.notes || '', result.year_era ? 'Estimated Era: ' + result.year_era : '', result.pressing_evidence || '', result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '', result.variant ? 'Variant: ' + result.variant : '', result.matrix_runout ? 'Matrix / Runout: ' + result.matrix_runout : '', result.description ? 'Description: ' + result.description : ''].filter(Boolean).join('\n\n');
       const correctedCat = releaseTypeToFormatLabel(result.release_type) || identification?.format || '';
       const updatedForm = { ...form, artist: result.artist || form.artist, title: result.title || form.title, year: result.year || form.year, label: result.label || form.label, catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number, country: result.country || form.country, pressing: result.pressing || result.format_details || form.pressing, genre: result.genre || form.genre, condition: result.condition || form.condition, notes: enrichedNotes || form.notes, cat: correctedCat };
       setForm(updatedForm);
@@ -1609,7 +1609,13 @@ export default function Admin() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div style={{ gridColumn: '1/-1' }}><label style={sectionLabel}>Artist *</label><input name="artist" value={form.artist} onChange={handleFormChange} placeholder="Artist name" style={inp} /></div>
             <div style={{ gridColumn: '1/-1' }}><label style={sectionLabel}>Title *</label><input name="title" value={form.title} onChange={handleFormChange} placeholder="Album or song title" style={inp} /></div>
-            <div><label style={sectionLabel}>Year</label><input name="year" value={form.year} onChange={handleFormChange} placeholder="1975" style={inp} /></div>
+            <div><label style={sectionLabel}>Year</label><input name="year" value={form.year} onChange={handleFormChange} placeholder="1975" style={inp} />
+              {!form.year && scanResult?.year_era && (
+                <div style={{ fontSize: '11px', color: '#c9a84c', marginTop: '4px', fontStyle: 'italic' }}>
+                  No exact date printed — evidence suggests <strong>{scanResult.year_era}</strong> (see Notes for details)
+                </div>
+              )}
+            </div>
             <div><label style={sectionLabel}>Label</label><input name="label" value={form.label} onChange={handleFormChange} placeholder="Record label" style={inp} /></div>
             <div><label style={sectionLabel}>Catalog number</label><input name="catalog_number" value={form.catalog_number || ''} onChange={handleFormChange} placeholder="e.g. FR-801" style={inp} /></div>
             <div><label style={sectionLabel}>Country</label><input name="country" value={form.country || ''} onChange={handleFormChange} placeholder="e.g. USA" style={inp} /></div>
