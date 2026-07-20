@@ -1583,6 +1583,21 @@ export default function Admin() {
                     <div style={{ fontSize: '9.5px', color: '#6a9aa3', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
                   </div>
                 )}
+                {pricing.musicBrainzIdentification && pricing.musicBrainzIdentification.found && (
+                  <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#a78bfa', marginBottom: '3px' }}>💿 MusicBrainz Corroboration</div>
+                    <div style={{ fontSize: '11px', color: '#ccc4fa', marginBottom: '6px' }}>{pricing.musicBrainzIdentification.status}</div>
+                    {pricing.musicBrainzIdentification.bestMatch && (
+                      <div style={{ fontSize: '10.5px', color: '#ddd' }}>
+                        {pricing.musicBrainzIdentification.bestMatch.artist} — {pricing.musicBrainzIdentification.bestMatch.title}
+                        {pricing.musicBrainzIdentification.bestMatch.date && <> · {pricing.musicBrainzIdentification.bestMatch.date}</>}
+                        {pricing.musicBrainzIdentification.bestMatch.country && <> · {pricing.musicBrainzIdentification.bestMatch.country}</>}
+                        {pricing.musicBrainzIdentification.confirmedCatalog && <> · Cat# {pricing.musicBrainzIdentification.confirmedCatalog}</>}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '9.5px', color: '#8a7fc2', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
+                  </div>
+                )}
                 {pricing.floorApplied && (
                   <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24', marginBottom: '3px' }}>⚠ Protected Floor Applied</div>
