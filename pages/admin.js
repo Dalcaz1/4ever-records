@@ -758,6 +758,8 @@ export default function Admin() {
     Object.entries(saveForm).forEach(([k, v]) => formData.append(k, v));
     formData.append('discCount', '1');
     formData.append('sleeveType', identification?.type || '');
+    formData.append('identity_match', scanResult?.identity_match === false ? 'false' : 'true');
+    if (scanResult?.identity_conflict_note) formData.append('identity_conflict_note', scanResult.identity_conflict_note);
     const compressedSlots = await Promise.all(
       photoSlots.map(async (slot, index) => {
         const photo = capturedPhotos[index];
@@ -992,6 +994,14 @@ export default function Admin() {
       formData.append('year', editForm.year || '');
       formData.append('label', editForm.label || '');
       formData.append('catalog_number', editForm.catalog_number || '');
+      // Correcting the identity clears a previously-flagged conflict —
+      // otherwise the warning would keep showing on an item that's now fixed.
+      const identityWasCorrected = editItem.identity_match === false &&
+        (editForm.artist !== editItem.artist || editForm.title !== editItem.title);
+      if (identityWasCorrected) {
+        formData.append('identity_match', 'true');
+        formData.append('identity_conflict_note', '');
+      }
       // FIX (July 7 session): this previously sent the raw, uncompressed
       // File straight from the camera input — a modern phone photo can
       // easily be 5-15MB, well past Vercel's 4.5MB serverless request body
@@ -1150,6 +1160,15 @@ export default function Admin() {
         {editItem && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '20px 16px' }}>
             <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px', marginTop: '20px' }}>
+              {editItem.identity_match === false && (
+                <div style={{ background: '#2a1000', border: '2px solid #ff9900', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>⚠️</span>
+                  <div>
+                    <div style={{ color: '#ff9900', fontSize: '13px', fontWeight: '900', letterSpacing: '0.03em', marginBottom: '2px' }}>VERIFY MANUALLY — IDENTIFICATION NOT FULLY CONFIRMED</div>
+                    <div style={{ color: '#ffcc88', fontSize: '12px', lineHeight: 1.4 }}>{editItem.identity_conflict_note || 'The original scan could not fully confirm the artist/title against its own findings. Check the label/cover directly, then correct the fields below.'}</div>
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div style={{ flex: 1 }}>
                   <input value={editForm.artist || ''} onChange={e => setEditForm(f => ({ ...f, artist: e.target.value }))}
@@ -1458,6 +1477,15 @@ export default function Admin() {
               <div style={{ fontSize: '11px', color: '#e8d5b0', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>📋 Write this SKU on the record label NOW</div>
               <div style={{ fontSize: '36px', fontWeight: '700', color: '#c9a84c', letterSpacing: '3px', fontFamily: 'monospace' }}>{nextSku}</div>
               <div style={{ fontSize: '11px', color: '#bbb', marginTop: '6px', fontStyle: 'italic' }}>This will be assigned when you save</div>
+            </div>
+          )}
+          {(scanResult?.identity_match === false) && (
+            <div style={{ background: '#2a1000', border: '2px solid #ff9900', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <div>
+                <div style={{ color: '#ff9900', fontSize: '13px', fontWeight: '900', letterSpacing: '0.03em', marginBottom: '2px' }}>VERIFY MANUALLY — IDENTIFICATION NOT FULLY CONFIRMED</div>
+                <div style={{ color: '#ffcc88', fontSize: '12px', lineHeight: 1.4 }}>{scanResult?.identity_conflict_note || 'The scan could not fully confirm the artist/title against its own findings. Check the label/cover directly before trusting this price.'}</div>
+              </div>
             </div>
           )}
           {Object.keys(capturedPhotos).length > 0 && (

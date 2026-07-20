@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       ? (Array.isArray(rawFiles.photo_cover) ? rawFiles.photo_cover[0] : rawFiles.photo_cover)
       : null;
 
-    const { id, artist, title, year, label, genre, condition, price, qty, notes, active, catalog_number } = fields;
+    const { id, artist, title, year, label, genre, condition, price, qty, notes, active, catalog_number, identity_match, identity_conflict_note } = fields;
 
     if (!id || id === 'undefined' || id === 'null') {
       console.error('update-record: missing/invalid id in request', { id, fieldKeys: Object.keys(fields) });
@@ -55,6 +55,8 @@ export default async function handler(req, res) {
     if (genre) updates.genre = genre;
     if (qty) updates.qty = parseInt(qty) || 1;
     if (catalog_number) updates.catalog_number = catalog_number;
+    if (identity_match !== undefined) updates.identity_match = identity_match === 'false' ? false : (identity_match === 'true' ? true : null);
+    if (identity_conflict_note !== undefined) updates.identity_conflict_note = identity_conflict_note || null;
 
     // FIX (July 19 session — real sold-price/date tracking): most actual
     // sales for this store happen at live shows via a manual "mark
