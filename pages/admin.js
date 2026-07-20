@@ -274,7 +274,17 @@ function releaseTypeToFormatLabel(releaseType) {
 function getSlotsFor(format, type) {
   const fmt = FYT_FORMATS.find(f => f.label === format);
   if (!fmt) return [{ label: 'Photo', frame: 'square' }];
-  const t = fmt.types.find(t => t.name === type) || fmt.types[0];
+  // FIX (July 19 session, CD/Cassette asking for unnecessary case photos):
+  // previously an unmatched type string silently fell back to
+  // fmt.types[0] — the richest option (Picture Case/Sleeve, most photos)
+  // — which meant any mismatch between what the model returned and the
+  // exact expected string defaulted to asking for MORE photos than
+  // needed. Now prefers the fewest-photos type as the fallback instead —
+  // asking for one extra photo the user can skip is a smaller
+  // inconvenience than asking for photos of case artwork that doesn't
+  // exist.
+  const fewestPhotosType = fmt.types.reduce((min, t) => (t.photos.length < min.photos.length ? t : min), fmt.types[0]);
+  const t = fmt.types.find(t => t.name === type) || fewestPhotosType;
   return t.photos;
 }
 function slotLabelToKey(label, index) {
