@@ -34,11 +34,21 @@ export default async function handler(req, res) {
       .select('id, sku, title, artist, condition')
       .in('id', ids);
 
-    // Mark all purchased records as inactive (sold)
-    const { error: updateError } = await supabase
-      .from('records')
-      .update({ active: false, qty: 0 })
-      .in('id', ids);
+    // FIX (July 19 session — real sold-price/date tracking): previously
+    // this bulk-updated every purchased id to active:false with no price
+    // or timestamp captured at all, meaning even a genuine completed
+    // online sale left no usable sold data for the internal pricing
+    // comp matcher. Now stamps each item's own actual sale price
+    // (from the cart, not the current listed price, in case it ever
+    // differs) and a shared sold timestamp for this order.
+    const soldAt = new Date().toISOString();
+    const updateResults = await Promise.all(cart.map(function(item) {
+      const itemPrice = parseFloat(item.price || item.p) || null;
+      return supabase.from('records')
+        .update({ active: false, qty: 0, sold_price: itemPrice, sold_at: soldAt })
+        .eq('id', item.id);
+    }));
+    const updateError = updateResults.find(function(r) { return r.error; })?.error;
 
     if (updateError) {
       console.error('Update error:', updateError);

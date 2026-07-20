@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       photoFiles[key] = Array.isArray(f) ? f[0] : f;
     }
 
-    const { artist, title, year, label, cat, genre, condition, price, qty, notes, sleeveType } = fields;
+    const { artist, title, year, label, cat, catalog_number, genre, condition, price, qty, notes, sleeveType } = fields;
 
     if (!artist || !title || !price) {
       return res.status(400).json({ error: 'Artist, title, and price are required' });
@@ -142,7 +142,7 @@ export default async function handler(req, res) {
       sku, artist, title,
       year: parseInt(year) || null,
       label: label || null,
-      category: cat, genre, condition,
+      category: cat, catalog_number: catalog_number || null, genre, condition,
       price: parseFloat(price),
       qty: parseInt(qty) || 1,
       notes: notes || null,

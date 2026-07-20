@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       ? (Array.isArray(rawFiles.photo_cover) ? rawFiles.photo_cover[0] : rawFiles.photo_cover)
       : null;
 
-    const { id, artist, title, year, label, genre, condition, price, qty, notes, active } = fields;
+    const { id, artist, title, year, label, genre, condition, price, qty, notes, active, catalog_number } = fields;
 
     if (!id || id === 'undefined' || id === 'null') {
       console.error('update-record: missing/invalid id in request', { id, fieldKeys: Object.keys(fields) });
@@ -54,6 +54,27 @@ export default async function handler(req, res) {
     if (label) updates.label = label || null;
     if (genre) updates.genre = genre;
     if (qty) updates.qty = parseInt(qty) || 1;
+    if (catalog_number) updates.catalog_number = catalog_number;
+
+    // FIX (July 19 session — real sold-price/date tracking): most actual
+    // sales for this store happen at live shows via a manual "mark
+    // inactive" edit here, not through the online Square checkout (see
+    // mark-sold.js). Previously that manual path just flipped `active` to
+    // false with no price or date captured at all — meaning the "4 Ever
+    // Memories Verified Sales" pricing source had no real sold data to
+    // draw from for these, the majority of actual sales. Now stamps
+    // sold_price/sold_at, but ONLY on a genuine true->false transition
+    // (fetched fresh here, not assumed from the request) and only once —
+    // a later edit correcting an unrelated field on an already-sold item
+    // must never overwrite the original real sale record.
+    if (updates.active === false) {
+      const { data: current } = await supabase
+        .from('records').select('active, sold_at').eq('id', id).single();
+      if (current && current.active === true && !current.sold_at) {
+        updates.sold_price = parseFloat(price) || null;
+        updates.sold_at = new Date().toISOString();
+      }
+    }
 
     // Upload photo if provided
     if (photoFile && photoFile.size > 0) {
