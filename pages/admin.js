@@ -667,6 +667,35 @@ export default function Admin() {
 
   const STORE_DISCOGS_EMAIL = 'dalcaz1@yahoo.com';
 
+  // FIX (July 19 session — "simply being told it does not work is not
+  // acceptable"): previously there was zero visibility, anywhere in
+  // admin.js, into which Discogs account drafts were being sent to, or
+  // whether that connection was even still valid — a failed save just
+  // said "unable to save" with no way to check or fix it. Fetches real
+  // status (connected? which username?) on mount via the trusted-admin
+  // + email path built for this in discogs-auth.js.
+  const [discogsStatus, setDiscogsStatus] = useState({ checked: false, connected: false, username: null });
+  const [discogsDisconnecting, setDiscogsDisconnecting] = useState(false);
+
+  function fetchDiscogsStatus() {
+    fetch(FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent(STORE_DISCOGS_EMAIL), { headers: fytHeaders() })
+      .then(r => r.json())
+      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null }))
+      .catch(() => setDiscogsStatus({ checked: true, connected: false, username: null }));
+  }
+
+  useEffect(() => { fetchDiscogsStatus(); }, []);
+
+  function handleDiscogsDisconnect() {
+    setDiscogsDisconnecting(true);
+    fetch(FYT_BASE + '/api/collection/discogs-disconnect', {
+      method: 'POST', headers: fytHeaders(), body: JSON.stringify({ email: STORE_DISCOGS_EMAIL }),
+    })
+      .then(r => r.json())
+      .then(() => { fetchDiscogsStatus(); setDiscogsDisconnecting(false); })
+      .catch(() => setDiscogsDisconnecting(false));
+  }
+
   // Extracted from the original handleSave so both the plain "Save" button
   // and the new combined "Save & List on Discogs" button share one save path
   // — avoids maintaining two separate copies of the photo-compression/
@@ -961,8 +990,28 @@ export default function Admin() {
           <a href="/" style={{ color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Store</a>
         </nav>
         <div style={{ maxWidth: '480px', margin: '0 auto', padding: '40px 20px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <div style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic' }}>What would you like to do?</div>
+          </div>
+          <div style={{ background: discogsStatus.checked && discogsStatus.connected ? '#0a1a0a' : '#1a1408', border: '1px solid ' + (discogsStatus.checked && discogsStatus.connected ? '#1a3a1a' : '#3a2f14'), borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', fontSize: '12px' }}>
+            {!discogsStatus.checked && <span style={{ color: '#999' }}>Checking Discogs connection…</span>}
+            {discogsStatus.checked && discogsStatus.connected && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#4ade80' }}>✅ Discogs connected as <strong>{discogsStatus.username || STORE_DISCOGS_EMAIL}</strong></span>
+                <button onClick={handleDiscogsDisconnect} disabled={discogsDisconnecting}
+                  style={{ background: 'transparent', border: 'none', color: '#999', textDecoration: 'underline', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  {discogsDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              </div>
+            )}
+            {discogsStatus.checked && !discogsStatus.connected && (
+              <div>
+                <div style={{ color: '#fbbf24', marginBottom: '4px' }}>⚠️ Discogs not connected — drafts will fail to save.</div>
+                <div style={{ color: '#999', fontSize: '11px', lineHeight: 1.5 }}>
+                  To fix: log into <strong>{STORE_DISCOGS_EMAIL}</strong> at findyourtunes.com, go to My Collection, and tap "Connect My Discogs Account."
+                </div>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <button onClick={() => { reset(); setMode('entry'); }}
@@ -1476,6 +1525,11 @@ export default function Admin() {
                 <>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#f87171', marginBottom: '4px' }}>📦 Discogs Draft Not Created</div>
                   <div style={{ fontSize: '12px', color: '#fca5a5' }}>{discogsDraftResult.error}</div>
+                  {/\bconnect|expired|not connected|invalid/i.test(discogsDraftResult.error || '') && (
+                    <div style={{ fontSize: '11px', color: '#999', marginTop: '8px', lineHeight: 1.5 }}>
+                      This looks like a connection problem. Check the Discogs status on the Home screen — if it shows disconnected, log into <strong>{STORE_DISCOGS_EMAIL}</strong> at findyourtunes.com → My Collection → "Connect My Discogs Account" to fix it.
+                    </div>
+                  )}
                 </>
               )}
             </div>
