@@ -975,8 +975,19 @@ export default function Admin() {
           <a href="/" style={{ color: '#555', fontSize: '12px', textDecoration: 'none', fontStyle: 'italic' }}>← Store</a>
         </nav>
         <div style={{ maxWidth: '480px', margin: '0 auto', padding: '40px 20px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <div style={{ fontSize: '13px', color: '#bbb', fontStyle: 'italic' }}>What would you like to do?</div>
+          </div>
+          {/* Discogs status rebuild — step 2: read-only display only,
+              deliberately no button/handler yet, to isolate further. */}
+          <div style={{ background: discogsStatus.checked && discogsStatus.connected ? '#0a1a0a' : '#1a1408', border: '1px solid ' + (discogsStatus.checked && discogsStatus.connected ? '#1a3a1a' : '#3a2f14'), borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', fontSize: '12px' }}>
+            {!discogsStatus.checked && <span style={{ color: '#999' }}>Checking Discogs connection…</span>}
+            {discogsStatus.checked && discogsStatus.connected && (
+              <span style={{ color: '#4ade80' }}>✅ Discogs connected as {discogsStatus.username || 'dalcaz1@yahoo.com'}</span>
+            )}
+            {discogsStatus.checked && !discogsStatus.connected && (
+              <span style={{ color: '#fbbf24' }}>⚠️ Discogs not connected — drafts will fail to save.</span>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <button onClick={() => { reset(); setMode('entry'); }}
