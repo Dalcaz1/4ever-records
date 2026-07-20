@@ -1597,7 +1597,7 @@ export default function Admin() {
                     <div style={{ fontSize: '9.5px', color: '#6a9aa3', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
                   </div>
                 )}
-                {pricing.musicBrainzIdentification && pricing.musicBrainzIdentification.found && (
+                {pricing.musicBrainzIdentification && (
                   <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#a78bfa', marginBottom: '3px' }}>💿 MusicBrainz Corroboration</div>
                     <div style={{ fontSize: '11px', color: '#ccc4fa', marginBottom: '6px' }}>{pricing.musicBrainzIdentification.status}</div>
