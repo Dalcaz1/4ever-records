@@ -23,7 +23,8 @@ export default async function handler(req, res) {
     );
     const data = await response.json();
     if (!response.ok) {
-      return res.status(200).json({ connected: false, username: null, error: data.error || 'Status check returned ' + response.status });
+      console.error('discogs-status proxy: upstream failed', response.status, data);
+      return res.status(200).json({ connected: false, username: null, error: data.error || 'Status check returned ' + response.status, debug: data.debug || null });
     }
     return res.status(200).json(data);
   } catch (err) {

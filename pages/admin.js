@@ -467,7 +467,7 @@ export default function Admin() {
   useEffect(() => {
     fetch('/api/discogs-status')
       .then(r => r.json())
-      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null, error: data.error || null }))
+      .then(data => setDiscogsStatus({ checked: true, connected: !!data.connected, username: data.username || null, error: data.error || null, debug: data.debug || null }))
       .catch(err => setDiscogsStatus({ checked: true, connected: false, username: null, error: 'Network error: ' + err.message }));
   }, []);
 
@@ -989,6 +989,11 @@ export default function Admin() {
               <div>
                 <div style={{ color: '#fbbf24' }}>⚠️ Discogs not connected — drafts will fail to save.</div>
                 {discogsStatus.error && <div style={{ color: '#f87171', fontSize: '11px', marginTop: '4px' }}>{discogsStatus.error}</div>}
+                {discogsStatus.debug && (
+                  <div style={{ color: '#67e8f9', fontSize: '10px', marginTop: '6px', fontFamily: 'monospace' }}>
+                    header received: {String(discogsStatus.debug.headerReceived)} (len {discogsStatus.debug.headerLength}) · secret configured: {String(discogsStatus.debug.envVarSet)} (len {discogsStatus.debug.envVarLength})
+                  </div>
+                )}
               </div>
             )}
           </div>
