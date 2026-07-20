@@ -1180,6 +1180,8 @@ export default function Admin() {
                       placeholder="Label" style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', flex: 1 }} />
                     <input value={editForm.catalog_number || ''} onChange={e => setEditForm(f => ({ ...f, catalog_number: e.target.value }))}
                       placeholder="Catalog #" style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', flex: 1 }} />
+                    <input value={editForm.year || ''} onChange={e => setEditForm(f => ({ ...f, year: e.target.value }))}
+                      placeholder="Year" style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', width: '70px', flexShrink: 0 }} />
                   </div>
                   <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>{editItem.sku}</div>
                 </div>
