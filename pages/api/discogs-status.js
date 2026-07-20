@@ -18,10 +18,24 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com'),
-      { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' } }
+      FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com') + '&_t=' + Date.now(),
+      { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' }, cache: 'no-store' }
     );
-    const data = await response.json();
+    const rawText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseErr) {
+      // Not valid JSON — likely an HTML page (e.g. Vercel's own
+      // deployment/access protection intercepting the request before it
+      // ever reaches our function code). Surface a snippet so this is
+      // distinguishable from a genuine application-level error.
+      console.error('discogs-status proxy: non-JSON response', response.status, rawText.slice(0, 300));
+      return res.status(200).json({
+        connected: false, username: null,
+        error: 'Upstream returned non-JSON (status ' + response.status + '): ' + rawText.slice(0, 150).replace(/\s+/g, ' '),
+      });
+    }
     if (!response.ok) {
       console.error('discogs-status proxy: upstream failed', response.status, data);
       return res.status(200).json({ connected: false, username: null, error: data.error || 'Status check returned ' + response.status, debug: data.debug || null });
