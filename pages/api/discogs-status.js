@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   try {
     const response = await fetch(
       FYT_BASE + '/api/collection/discogs-auth?check=1&email=' + encodeURIComponent('dalcaz1@yahoo.com'),
-      { headers: { 'x-4ever-admin': process.env.ADMIN_SHARED_SECRET || '' } }
+      { headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' } }
     );
     const data = await response.json();
     if (!response.ok) {
