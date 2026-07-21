@@ -551,6 +551,7 @@ export default function Admin() {
     setIdentification(null); setPhotoSlots([]); setCapturedPhotos({});
     setIdentifyError(''); setCameraSlotIndex(null);
     setForm(EMPTY_FORM); setMode('home');
+    setShowCostEntryReview(false); setReviewCostCents('');
     setPricing(null); setScanResult(null); setNextSku(null); setSavedSku(null); setSavedRecordId(null);
     setError(''); setShowAllEbay(false); setShowRejected(false); setAdjustedCondition(null); setDisplayPrice(null);
     setSavingAndListing(false); setDiscogsDraftResult(null); setShowDiscogsPicker(false); setDiscogsCandidates([]);
@@ -866,6 +867,29 @@ export default function Admin() {
     setCheckoutBusy(false);
   }
 
+  // ─── "I Paid" cost entry — same proven pattern already built in the FYT
+  // consumer app (pages/pricing-preview.js): a secondary, optional button
+  // that reveals a POS-style cents-entry field, digits fill from the right
+  // (99 -> $0.99, 1099 -> $10.99). Not a plain always-visible number input.
+  function formatCentsForDisplay(digits) {
+    const cents = digits ? parseInt(digits, 10) : 0;
+    return '$' + (cents / 100).toFixed(2);
+  }
+  const [showCostEntryReview, setShowCostEntryReview] = useState(false);
+  const [reviewCostCents, setReviewCostCents] = useState('');
+  function handleReviewCostChange(e) {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setReviewCostCents(digits);
+    setForm(f => ({ ...f, cost: digits ? (parseInt(digits, 10) / 100).toFixed(2) : '' }));
+  }
+  const [showCostEntryEdit, setShowCostEntryEdit] = useState(false);
+  const [editCostCents, setEditCostCents] = useState('');
+  function handleEditCostChange(e) {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setEditCostCents(digits);
+    setEditForm(f => ({ ...f, cost: digits ? (parseInt(digits, 10) / 100).toFixed(2) : '' }));
+  }
+
   const [printingLabels, setPrintingLabels] = useState(false);
   const [printLabelsError, setPrintLabelsError] = useState('');
   const [selectedForLabels, setSelectedForLabels] = useState(new Set());
@@ -1162,6 +1186,8 @@ export default function Admin() {
     });
     setEditPhotoFile(null);
     setEditError('');
+    setShowCostEntryEdit(false);
+    setEditCostCents('');
     setManageDiscogsResult(null); setManageDiscogsCandidates([]); setShowManageDiscogsPicker(false);
   }
 
@@ -1625,14 +1651,10 @@ export default function Admin() {
                 {editPhotoFile && <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '4px' }}>✓ {editPhotoFile.name}</div>}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                 <div>
                   <label style={sectionLabel}>Price ($)</label>
                   <input value={editForm.price || ''} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} type="number" placeholder="0.00" style={{ ...inp, marginBottom: 0 }} />
-                </div>
-                <div>
-                  <label style={sectionLabel}>Cost ($)</label>
-                  <input value={editForm.cost || ''} onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))} type="number" step="0.01" placeholder="What you paid" style={{ ...inp, marginBottom: 0 }} />
                 </div>
                 <div>
                   <label style={sectionLabel}>Condition</label>
@@ -1640,6 +1662,21 @@ export default function Admin() {
                     {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={sectionLabel}>Cost</label>
+                {!showCostEntryEdit ? (
+                  editForm.cost
+                    ? <button onClick={() => setShowCostEntryEdit(true)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#c9a84c', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>💰 I Paid ${editForm.cost}</button>
+                    : <button onClick={() => setShowCostEntryEdit(true)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#888', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>💰 I Paid… <span style={{ fontWeight: '400', fontStyle: 'italic' }}>(optional)</span></button>
+                ) : (
+                  <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '10px' }}>
+                    <input type="text" inputMode="numeric" value={formatCentsForDisplay(editCostCents)} onChange={handleEditCostChange} autoFocus
+                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #2a2a2a', background: '#111', color: '#e8d5b0', fontSize: '18px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', outline: 'none', boxSizing: 'border-box' }} />
+                    <button onClick={() => { setShowCostEntryEdit(false); setEditCostCents(''); setEditForm(f => ({ ...f, cost: '' })); }}
+                      style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px solid #444', borderRadius: '6px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>Cancel</button>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: '12px' }}>
@@ -2078,7 +2115,21 @@ export default function Admin() {
             <div><label style={sectionLabel}>Genre</label><select name="genre" value={form.genre} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>{GENRES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
             <div><label style={sectionLabel}>Condition</label><select name="condition" value={activeCondition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>{CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
             <div><label style={sectionLabel}>Price ($) *</label><input name="price" value={form.price} onChange={handleFormChange} placeholder="0.00" type="number" style={{ ...inp, marginBottom: 0 }} /></div>
-            <div><label style={sectionLabel}>Cost ($)</label><input name="cost" value={form.cost || ''} onChange={handleFormChange} placeholder="What you paid" type="number" step="0.01" style={{ ...inp, marginBottom: 0 }} /></div>
+            <div>
+              <label style={sectionLabel}>Cost</label>
+              {!showCostEntryReview ? (
+                form.cost
+                  ? <button onClick={() => setShowCostEntryReview(true)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#c9a84c', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>💰 I Paid ${form.cost}</button>
+                  : <button onClick={() => setShowCostEntryReview(true)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#888', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>💰 I Paid… <span style={{ fontWeight: '400', fontStyle: 'italic' }}>(optional)</span></button>
+              ) : (
+                <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '10px' }}>
+                  <input type="text" inputMode="numeric" value={formatCentsForDisplay(reviewCostCents)} onChange={handleReviewCostChange} autoFocus
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #2a2a2a', background: '#111', color: '#e8d5b0', fontSize: '18px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', outline: 'none', boxSizing: 'border-box' }} />
+                  <button onClick={() => { setShowCostEntryReview(false); setReviewCostCents(''); setForm(f => ({ ...f, cost: '' })); }}
+                    style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px solid #444', borderRadius: '6px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>Cancel</button>
+                </div>
+              )}
+            </div>
             <div><label style={sectionLabel}>Qty</label><input name="qty" value={form.qty} onChange={handleFormChange} placeholder="1" type="number" style={{ ...inp, marginBottom: 0 }} /></div>
             <div style={{ gridColumn: '1/-1' }}><label style={sectionLabel}>Notes</label><textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="B-side, promo markings, sleeve condition, etc." rows={2} style={{ ...inp, resize: 'none', marginBottom: 0 }} /></div>
           </div>
