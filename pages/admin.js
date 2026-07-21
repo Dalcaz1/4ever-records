@@ -1390,9 +1390,22 @@ export default function Admin() {
               <div style={{ fontSize: '13px', color: '#bbb', marginBottom: '4px' }}>Total: ${Number(checkoutResult.total).toFixed(2)}</div>
               {checkoutResult.paymentMethod === 'card' && (
                 <div style={{ fontSize: '11px', color: '#888', marginTop: '10px', fontStyle: 'italic' }}>
-                  Complete the payment in the new tab that opened. Items will mark as sold automatically once payment completes.
+                  Complete the payment in the new tab that opened. Items will mark as sold automatically once payment completes. Square's own checkout page offers the customer an emailed receipt as part of completing payment there.
                 </div>
               )}
+              {checkoutResult.paymentMethod === 'cash' && (
+                <div style={{ marginTop: '14px' }}>
+                  {checkoutResult.receiptUrl ? (
+                    <a href={checkoutResult.receiptUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'block', padding: '12px', background: 'transparent', border: '2px solid #c9a84c', borderRadius: '8px', color: '#c9a84c', fontSize: '13px', fontWeight: '700', textDecoration: 'none', fontFamily: 'Georgia, serif' }}>
+                      🧾 View / Print / Share Receipt
+                    </a>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: '#f87171', fontStyle: 'italic' }}>Square receipt link wasn't returned — write a hand receipt for this sale.</div>
+                  )}
+                </div>
+              )}
+              <div style={{ fontSize: '10.5px', color: '#666', marginTop: '10px', fontStyle: 'italic' }}>A hand-written receipt is always fine too, if preferred.</div>
               <button onClick={() => setCheckoutResult(null)}
                 style={{ marginTop: '18px', padding: '12px 20px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                 Start New Sale

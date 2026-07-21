@@ -176,6 +176,7 @@ export default async function handler(req, res) {
       }
       return res.status(200).json({
         success: true, paymentMethod: 'cash', squareOrderId,
+        receiptUrl: paymentData.payment?.receipt_url || null,
         subtotal: (totalCents - taxCents) / 100, taxAmount: taxCents / 100, total: totalCents / 100,
       });
     }
