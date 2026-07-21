@@ -774,9 +774,10 @@ export default function Admin() {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutResult, setCheckoutResult] = useState(null); // { paymentMethod, total, ... } after a completed sale
-  const [checkoutPreview, setCheckoutPreview] = useState(null); // { subtotal, taxAmount, total } from Square
+  const [checkoutPreview, setCheckoutPreview] = useState(null); // { subtotal, discountAmount, taxAmount, total } from Square
   const [checkoutPreviewLoading, setCheckoutPreviewLoading] = useState(false);
   const [checkoutPreviewError, setCheckoutPreviewError] = useState('');
+  const [checkoutDiscountInput, setCheckoutDiscountInput] = useState(''); // cashier-entered $ amount
 
   useEffect(() => {
     if (mode !== 'checkout' || checkoutCart.length === 0) { setCheckoutPreview(null); return; }
@@ -785,7 +786,7 @@ export default function Admin() {
     fetch('/api/checkout-instore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cart: checkoutCart, mode: 'preview' }),
+      body: JSON.stringify({ cart: checkoutCart, mode: 'preview', discountAmount: checkoutDiscountInput || 0 }),
     })
       .then(r => r.json().then(data => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
@@ -797,7 +798,7 @@ export default function Admin() {
       .finally(() => { if (!cancelled) setCheckoutPreviewLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutCart, mode]);
+  }, [checkoutCart, mode, checkoutDiscountInput]);
 
   async function handleCheckoutScanCapture(file) {
     setCheckoutScanning(false);
@@ -837,6 +838,7 @@ export default function Admin() {
   }
 
   const checkoutSubtotal = checkoutPreview?.subtotal ?? checkoutCart.reduce((s, i) => s + (parseFloat(i.price) || 0), 0);
+  const checkoutDiscount = checkoutPreview?.discountAmount ?? 0;
   const checkoutTax = checkoutPreview?.taxAmount ?? 0;
   const checkoutTotal = checkoutPreview?.total ?? checkoutSubtotal;
 
@@ -848,7 +850,7 @@ export default function Admin() {
       const res = await fetch('/api/checkout-instore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cart: checkoutCart, paymentMethod }),
+        body: JSON.stringify({ cart: checkoutCart, paymentMethod, discountAmount: checkoutDiscountInput || 0 }),
       });
       const data = await res.json();
       if (!res.ok) { setCheckoutError(data.error || 'Checkout failed'); setCheckoutBusy(false); return; }
@@ -857,6 +859,7 @@ export default function Admin() {
       }
       setCheckoutResult(data);
       setCheckoutCart([]);
+      setCheckoutDiscountInput('');
     } catch (err) {
       setCheckoutError('Checkout failed: ' + err.message);
     }
@@ -1154,7 +1157,7 @@ export default function Admin() {
   function openEditItem(item) {
     setEditItem(item);
     setEditForm({
-      price: item.price, condition: item.condition, notes: item.notes || '', active: item.active !== false,
+      price: item.price, cost: item.cost || '', condition: item.condition, notes: item.notes || '', active: item.active !== false,
       artist: item.artist || '', title: item.title || '', year: item.year || '', label: item.label || '', catalog_number: item.catalog_number || '',
     });
     setEditPhotoFile(null);
@@ -1168,6 +1171,7 @@ export default function Admin() {
       const formData = new FormData();
       formData.append('id', editItem.id);
       formData.append('price', editForm.price);
+      formData.append('cost', editForm.cost || '');
       formData.append('condition', editForm.condition);
       formData.append('notes', editForm.notes);
       formData.append('active', editForm.active ? 'true' : 'false');
@@ -1399,8 +1403,16 @@ export default function Admin() {
 
               {checkoutCart.length > 0 && (
                 <>
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={sectionLabel}>Discount ($)</label>
+                    <input value={checkoutDiscountInput} onChange={e => setCheckoutDiscountInput(e.target.value)}
+                      type="number" step="0.01" min="0" placeholder="0.00" style={{ ...inp, marginBottom: 0 }} />
+                  </div>
                   <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px', marginBottom: '18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '6px' }}><span>Subtotal</span><span>${checkoutSubtotal.toFixed(2)}</span></div>
+                    {checkoutDiscount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#4ade80', marginBottom: '6px' }}><span>Discount</span><span>−${checkoutDiscount.toFixed(2)}</span></div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '6px' }}><span>Tax {checkoutPreviewLoading ? '(calculating…)' : '(from Square)'}</span><span>${checkoutTax.toFixed(2)}</span></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px', color: '#c9a84c', fontWeight: '700', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #2a2a2a' }}><span>Total</span><span>${checkoutTotal.toFixed(2)}</span></div>
                   </div>
@@ -1416,6 +1428,140 @@ export default function Admin() {
                     </button>
                   </div>
                 </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Reports ──────────────────────────────────────────────────────────────
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+  const [reportCategory, setReportCategory] = useState('all');
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState('');
+
+  function runReport() {
+    setReportLoading(true); setReportError('');
+    const params = new URLSearchParams();
+    if (reportStartDate) params.set('startDate', reportStartDate);
+    if (reportEndDate) params.set('endDate', reportEndDate);
+    if (reportCategory !== 'all') params.set('category', reportCategory);
+    fetch('/api/sales-report?' + params.toString())
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) { setReportError(data.error || 'Failed to load report'); setReportData(null); return; }
+        setReportData(data);
+      })
+      .catch(err => setReportError('Failed to load report: ' + err.message))
+      .finally(() => setReportLoading(false));
+  }
+
+  // ─── REPORTS ──────────────────────────────────────────────────────────────
+  if (mode === 'reports') {
+    const s = reportData?.summary;
+    return (
+      <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
+        <style>{`* { box-sizing: border-box; } input:focus, select:focus { outline: none; border-color: #c9a84c !important; }`}</style>
+        <AdminNav subtitle="Reports" />
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
+          <button style={backBtn} onClick={() => setMode('manage')}>← Back</button>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div>
+              <label style={sectionLabel}>From</label>
+              <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} style={{ ...inp, marginBottom: 0 }} />
+            </div>
+            <div>
+              <label style={sectionLabel}>To</label>
+              <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} style={{ ...inp, marginBottom: 0 }} />
+            </div>
+          </div>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={sectionLabel}>Item Type</label>
+            <select value={reportCategory} onChange={e => setReportCategory(e.target.value)} style={{ ...inp, marginBottom: 0 }}>
+              <option value="all">All Types</option>
+              <option value='7" Vinyl'>7" Vinyl</option>
+              <option value='12" Vinyl'>12" Vinyl</option>
+              <option value="CD">CD</option>
+              <option value="Cassette">Cassette</option>
+              <option value="8-Track">8-Track</option>
+            </select>
+          </div>
+          <button onClick={runReport} disabled={reportLoading}
+            style={{ width: '100%', padding: '14px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', marginBottom: '20px' }}>
+            {reportLoading ? 'Running…' : '📊 Run Report'}
+          </button>
+
+          {reportError && <div style={{ background: '#2a1a1a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', fontSize: '12px', color: '#f87171' }}>{reportError}</div>}
+
+          {s && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Items Sold</div>
+                  <div style={{ fontSize: '22px', color: '#e8d5b0', fontWeight: '700' }}>{s.itemsSold}</div>
+                </div>
+                <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Revenue</div>
+                  <div style={{ fontSize: '22px', color: '#c9a84c', fontWeight: '700' }}>${s.totalRevenue.toFixed(2)}</div>
+                </div>
+                <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Sales Tax Collected</div>
+                  <div style={{ fontSize: '22px', color: '#e8d5b0', fontWeight: '700' }}>${s.totalTaxCollected.toFixed(2)}</div>
+                </div>
+                <div style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Discounts Given</div>
+                  <div style={{ fontSize: '22px', color: '#e8d5b0', fontWeight: '700' }}>${s.totalDiscountsGiven.toFixed(2)}</div>
+                </div>
+              </div>
+
+              <div style={{ background: '#0a1a0a', border: '1px solid #1a3a1a', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
+                <div style={{ fontSize: '10px', color: '#7fbf7f', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Cost vs Sold</div>
+                {s.itemsWithCostOnFile === 0 ? (
+                  <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>No items in this range have a cost on file yet — enter Cost when scanning or editing items to see margin here.</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '4px' }}><span>Total Cost</span><span>${s.totalCost.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#bbb', marginBottom: '4px' }}><span>Gross Profit</span><span>${s.grossProfit.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px', color: '#4ade80', fontWeight: '700', marginTop: '6px' }}><span>Margin</span><span>{s.marginPercent}%</span></div>
+                    {s.itemsMissingCost > 0 && (
+                      <div style={{ fontSize: '10.5px', color: '#888', marginTop: '8px', fontStyle: 'italic' }}>
+                        Based on {s.itemsWithCostOnFile} of {s.itemsSold} items — {s.itemsMissingCost} sold item(s) in this range have no cost on file and aren't included in this margin.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {reportData.categoryBreakdown.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>By Item Type</div>
+                  {reportData.categoryBreakdown.map(c => (
+                    <div key={c.category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', color: '#e8d5b0', fontWeight: '700' }}>{c.category}</div>
+                        <div style={{ fontSize: '10px', color: '#555' }}>{c.count} sold{c.marginPercent != null ? ' · ' + c.marginPercent + '% margin' : ''}</div>
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${c.revenue.toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reportData.paymentMethodBreakdown.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>By Payment Method</div>
+                  {reportData.paymentMethodBreakdown.map(p => (
+                    <div key={p.paymentMethod} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                      <div style={{ fontSize: '13px', color: '#e8d5b0', textTransform: 'capitalize' }}>{p.paymentMethod} <span style={{ color: '#555', fontSize: '10px', textTransform: 'none' }}>({p.count})</span></div>
+                      <div style={{ fontSize: '14px', color: '#c9a84c', fontWeight: '700' }}>${p.revenue.toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
               )}
             </>
           )}
@@ -1479,10 +1625,14 @@ export default function Admin() {
                 {editPhotoFile && <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '4px' }}>✓ {editPhotoFile.name}</div>}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                 <div>
                   <label style={sectionLabel}>Price ($)</label>
                   <input value={editForm.price || ''} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} type="number" placeholder="0.00" style={{ ...inp, marginBottom: 0 }} />
+                </div>
+                <div>
+                  <label style={sectionLabel}>Cost ($)</label>
+                  <input value={editForm.cost || ''} onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))} type="number" step="0.01" placeholder="What you paid" style={{ ...inp, marginBottom: 0 }} />
                 </div>
                 <div>
                   <label style={sectionLabel}>Condition</label>
@@ -1555,7 +1705,13 @@ export default function Admin() {
         )}
 
         <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px 16px 40px' }}>
-          <button style={backBtn} onClick={() => setMode('home')}>← Back</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <button style={backBtn} onClick={() => setMode('home')}>← Back</button>
+            <button onClick={() => setMode('reports')}
+              style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#c9a84c', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+              📊 Reports
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
             <input value={manageSearch} onChange={e => setManageSearch(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && loadManageItems()}
@@ -1922,6 +2078,7 @@ export default function Admin() {
             <div><label style={sectionLabel}>Genre</label><select name="genre" value={form.genre} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>{GENRES.map(g => <option key={g} value={g}>{g}</option>)}</select></div>
             <div><label style={sectionLabel}>Condition</label><select name="condition" value={activeCondition} onChange={handleFormChange} style={{ ...inp, marginBottom: 0 }}>{CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
             <div><label style={sectionLabel}>Price ($) *</label><input name="price" value={form.price} onChange={handleFormChange} placeholder="0.00" type="number" style={{ ...inp, marginBottom: 0 }} /></div>
+            <div><label style={sectionLabel}>Cost ($)</label><input name="cost" value={form.cost || ''} onChange={handleFormChange} placeholder="What you paid" type="number" step="0.01" style={{ ...inp, marginBottom: 0 }} /></div>
             <div><label style={sectionLabel}>Qty</label><input name="qty" value={form.qty} onChange={handleFormChange} placeholder="1" type="number" style={{ ...inp, marginBottom: 0 }} /></div>
             <div style={{ gridColumn: '1/-1' }}><label style={sectionLabel}>Notes</label><textarea name="notes" value={form.notes} onChange={handleFormChange} placeholder="B-side, promo markings, sleeve condition, etc." rows={2} style={{ ...inp, resize: 'none', marginBottom: 0 }} /></div>
           </div>

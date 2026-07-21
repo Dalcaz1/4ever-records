@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       photoFiles[key] = Array.isArray(f) ? f[0] : f;
     }
 
-    const { artist, title, year, label, cat, catalog_number, genre, condition, price, qty, notes, sleeveType, identity_match, identity_conflict_note } = fields;
+    const { artist, title, year, label, cat, catalog_number, genre, condition, price, qty, notes, sleeveType, identity_match, identity_conflict_note, cost } = fields;
 
     if (!artist || !title || !price) {
       return res.status(400).json({ error: 'Artist, title, and price are required' });
@@ -148,6 +148,7 @@ export default async function handler(req, res) {
       notes: notes || null,
       identity_match: identity_match === 'false' ? false : (identity_match === 'true' ? true : null),
       identity_conflict_note: identity_conflict_note || null,
+      cost: cost ? parseFloat(cost) : null,
       photo_cover, photo_a, photo_b, photo_c,
       active: true,
       created_at: new Date().toISOString(),

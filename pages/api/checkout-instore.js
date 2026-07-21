@@ -28,23 +28,37 @@
 //     never computed independently here, since this app doesn't know
 //     the tax rate anymore.
 
-function buildOrder(cart, locationId) {
+function buildOrder(cart, locationId, discountAmount) {
   const lineItems = cart.map(item => ({
     name: (item.title || '') + (item.artist ? ' - ' + item.artist : '') + (item.condition ? ' (' + item.condition + ')' : ''),
     quantity: '1',
     base_price_money: { amount: Math.round(parseFloat(item.price) * 100), currency: 'USD' },
   }));
-  return {
+  const order = {
     location_id: locationId,
     line_items: lineItems,
     pricing_options: { auto_apply_taxes: true },
   };
+  // Cashier-entered discount, per direct instruction. A real Square
+  // order-level discount (not something computed here) — Square applies
+  // it to the subtotal BEFORE auto-calculating tax, matching standard
+  // retail expectations (tax is owed on what was actually paid, not the
+  // pre-discount price).
+  const discountCents = Math.round((parseFloat(discountAmount) || 0) * 100);
+  if (discountCents > 0) {
+    order.discounts = [{
+      name: 'Discount',
+      amount_money: { amount: discountCents, currency: 'USD' },
+      scope: 'ORDER',
+    }];
+  }
+  return order;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { cart, paymentMethod, mode } = req.body || {};
+  const { cart, paymentMethod, mode, discountAmount } = req.body || {};
   if (!cart || cart.length === 0) return res.status(400).json({ error: 'Cart is empty' });
 
   const accessToken = process.env.SQUARE_ACCESS_TOKEN;
@@ -75,7 +89,7 @@ export default async function handler(req, res) {
       const dbRecord = dbRecords.find(r => r.id === item.id);
       return { ...item, price: dbRecord.price, title: dbRecord.title };
     });
-    const order = buildOrder(priced, locationId);
+    const order = buildOrder(priced, locationId, discountAmount);
 
     // ── Preview — just ask Square what the total would be, commit nothing.
     if (mode === 'preview') {
@@ -91,7 +105,8 @@ export default async function handler(req, res) {
       }
       const o = calcData.order;
       return res.status(200).json({
-        subtotal: (o.total_money?.amount - (o.total_tax_money?.amount || 0)) / 100,
+        subtotal: (o.total_money?.amount - (o.total_tax_money?.amount || 0) + (o.total_discount_money?.amount || 0)) / 100,
+        discountAmount: (o.total_discount_money?.amount || 0) / 100,
         taxAmount: (o.total_tax_money?.amount || 0) / 100,
         total: (o.total_money?.amount || 0) / 100,
       });
@@ -120,6 +135,7 @@ export default async function handler(req, res) {
       // computed independently here.
       const totalCents = squareOrder.total_money?.amount || 0;
       const taxCents = squareOrder.total_tax_money?.amount || 0;
+      const discountCents = squareOrder.total_discount_money?.amount || 0;
 
       const paymentIdemKey = Date.now() + '-' + Math.random().toString(36).slice(2);
       const paymentRes = await fetch('https://connect.squareup.com/v2/payments', {
@@ -142,11 +158,13 @@ export default async function handler(req, res) {
 
       const soldAt = new Date().toISOString();
       const perItemTax = priced.length ? Math.round((taxCents / priced.length)) / 100 : 0;
+      const perItemDiscount = priced.length ? Math.round((discountCents / priced.length)) / 100 : 0;
       const updateResults = await Promise.all(priced.map(item =>
         supabase.from('records').update({
           active: false, qty: 0,
           sold_price: item.price, sold_at: soldAt,
           sold_payment_method: 'cash', sold_tax_amount: perItemTax,
+          sold_discount_amount: perItemDiscount,
           sold_square_order_id: squareOrderId,
           sold_square_payment_id: paymentData.payment?.id || null,
         }).eq('id', item.id)
@@ -185,11 +203,19 @@ export default async function handler(req, res) {
     }
 
     const orderId = data.payment_link.order_id;
+    // Best-effort: Payment Links' response typically includes the full
+    // computed order (with auto-applied tax/discount totals) under
+    // related_resources. If present, capture the real figures now so
+    // mark-sold.js can stamp accurate sold_tax_amount/sold_discount_amount
+    // later instead of defaulting to 0 for every Card sale.
+    const relatedOrder = data.related_resources?.orders?.[0];
+    const knownTaxAmount = relatedOrder?.total_tax_money ? relatedOrder.total_tax_money.amount / 100 : null;
+    const knownDiscountAmount = relatedOrder?.total_discount_money ? relatedOrder.total_discount_money.amount / 100 : null;
 
     await supabase.from('pending_orders').insert({
       square_order_id: orderId,
       cart: JSON.stringify(priced),
-      form: JSON.stringify({ inStore: true, paymentMethod: 'card' }),
+      form: JSON.stringify({ inStore: true, paymentMethod: 'card', taxAmount: knownTaxAmount, discountAmount: knownDiscountAmount }),
       total: null, // unknown here — Square computed the real total with auto-applied tax; mark-sold.js doesn't need this field to function
       created_at: new Date().toISOString(),
     });

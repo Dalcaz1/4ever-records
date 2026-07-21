@@ -45,6 +45,8 @@ export default async function handler(req, res) {
     const isInStore = !!form?.inStore;
     const orderTaxAmount = parseFloat(form?.taxAmount) || 0;
     const perItemTax = cart.length ? Math.round((orderTaxAmount / cart.length) * 100) / 100 : 0;
+    const orderDiscountAmount = parseFloat(form?.discountAmount) || 0;
+    const perItemDiscount = cart.length ? Math.round((orderDiscountAmount / cart.length) * 100) / 100 : 0;
     const updateResults = await Promise.all(cart.map(function(item) {
       const itemPrice = parseFloat(item.price || item.p) || null;
       return supabase.from('records')
@@ -52,6 +54,7 @@ export default async function handler(req, res) {
           active: false, qty: 0, sold_price: itemPrice, sold_at: soldAt,
           sold_payment_method: 'card',
           sold_tax_amount: isInStore ? perItemTax : null,
+          sold_discount_amount: isInStore ? perItemDiscount : null,
         })
         .eq('id', item.id);
     }));
