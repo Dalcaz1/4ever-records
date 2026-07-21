@@ -61,6 +61,7 @@ export default function SearchPage() {
       <a href="/" className="backLink">← Back to 4 Ever Memories</a>
       <div className="header">Search Everything</div>
       <div className="sub">Searches 4 Ever Memories' own inventory and every FYT user's storefront, together.</div>
+      <a href="https://www.findyourtunes.com/pricing" target="_blank" rel="noopener noreferrer" className="fytPromo">📱 Get the FYT app free →</a>
 
       <form className="searchRow" onSubmit={runSearch}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Artist, title, or label…" className="searchInput" />
@@ -88,6 +89,7 @@ export default function SearchPage() {
         .backLink { color: #888; text-decoration: none; font-size: 13px; display: inline-block; margin-bottom: 16px; }
         .header { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
         .sub { font-size: 13px; color: #999; margin-bottom: 20px; }
+        .fytPromo { display: inline-block; background: linear-gradient(135deg,#00d4ff,#a855f7); color: #0b0a14; font-weight: 800; font-size: 11px; padding: 6px 12px; border-radius: 100px; text-decoration: none; margin-bottom: 18px; }
         .searchRow { display: flex; gap: 8px; margin-bottom: 20px; max-width: 500px; }
         .searchInput { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2a2a; background: #111; color: #e8d5b0; font-size: 14px; font-family: inherit; outline: none; box-sizing: border-box; }
         .searchBtn { padding: 12px 20px; border-radius: 10px; border: none; background: #c9a84c; color: #0d0d0d; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; }
