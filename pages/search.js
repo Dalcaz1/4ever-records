@@ -61,7 +61,7 @@ export default function SearchPage() {
       <a href="/" className="backLink">← Back to 4 Ever Memories</a>
       <div className="header">Search Everything</div>
       <div className="sub">Searches 4 Ever Memories' own inventory and every FYT user's storefront, together.</div>
-      <a href="https://www.findyourtunes.com/pricing" target="_blank" rel="noopener noreferrer" className="fytPromo">📱 Get the FYT app free →</a>
+      <a href="https://www.findyourtunes.com/pricing" target="_blank" rel="noopener noreferrer" className="fytPromo">📱 Click Here to get the FYT app free →</a>
 
       <form className="searchRow" onSubmit={runSearch}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Artist, title, or label…" className="searchInput" />

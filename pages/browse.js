@@ -618,7 +618,7 @@ export default function Browse() {
       <a href="https://www.findyourtunes.com/pricing" target="_blank" rel="noopener noreferrer"
         style={{ display: 'block', background: 'linear-gradient(135deg,#00d4ff,#a855f7)', padding: '8px 16px', textAlign: 'center', textDecoration: 'none' }}>
         <span style={{ fontSize: '11.5px', color: '#0b0a14', fontWeight: '800' }}>
-          📱 Powered by FYT — scan any record, get a real price in seconds. Get the app free →
+          📱 Powered by FYT — scan any record, get a real price in seconds. Click Here to get the app free →
         </span>
       </a>
 
