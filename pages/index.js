@@ -494,6 +494,13 @@ export default function Home() {
         </span>
       </div>
 
+      <a href="https://www.findyourtunes.com/pricing" target="_blank" rel="noopener noreferrer"
+        style={{ display: 'block', background: 'linear-gradient(135deg,#00d4ff,#a855f7)', padding: '8px 16px', textAlign: 'center', textDecoration: 'none' }}>
+        <span style={{ fontSize: '11.5px', color: '#0b0a14', fontWeight: '800' }}>
+          📱 Powered by FYT — scan any record, get a real price in seconds. Get the app free →
+        </span>
+      </a>
+
       <InstallBanner installPrompt={installPrompt} isInstalled={isInstalled} isIos={isIos} triggerInstall={triggerInstall} />
 
       <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', position: 'sticky', top: 0, zIndex: 50 }}>
