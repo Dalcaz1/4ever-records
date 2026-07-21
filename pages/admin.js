@@ -1798,18 +1798,14 @@ export default function Admin() {
             return (
               <>
                 <div style={{ marginBottom: '14px', padding: '10px 12px', background: '#1a1a0a', border: '1px solid #3a3010', borderRadius: '8px', fontSize: '12px', color: '#e8d5b0', lineHeight: '1.5' }}>
-                  Tap the checkbox on each item below that needs a shelf label. Each one you tap fills the next open slot on the sheet preview, in the order you tap them — so you can see exactly what will print before you print it.
+                  <strong>1.</strong> Tap the sheet slot where the first label should go.{' '}
+                  <strong>2.</strong> Check items below — each one fills the next open slot, and the sheet shows you where the next one will land.{' '}
+                  <strong>3.</strong> To remove an item, tap its filled slot on the sheet (or uncheck it below) — everything after it shifts up automatically.
                 </div>
 
                 <div style={{ marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>Avery 8167 sheet · 80 labels · {selectedForLabels.size} selected</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#bbb' }}>
-                      Start at slot
-                      <input type="number" min="1" max="80" value={labelStartPos}
-                        onChange={e => setLabelStartPos(Math.max(1, Math.min(80, parseInt(e.target.value, 10) || 1)))}
-                        style={{ width: '48px', padding: '4px 6px', background: '#0a0a0a', border: '1px solid #333', borderRadius: '6px', color: '#e8d5b0', fontSize: '11px' }} />
-                    </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>Avery 8167 sheet · 80 labels · {selectedForLabels.size} selected · starting at slot {labelStartPos}</span>
                   </div>
 
                   <div style={{ background: '#f5f0e6', borderRadius: '8px', padding: '8px' }}>
@@ -1819,8 +1815,24 @@ export default function Admin() {
                         const skipped = pos < labelStartPos;
                         const filled = pos >= labelStartPos && pos < labelStartPos + orderedSelected.length;
                         const item = filled ? orderedSelected[pos - labelStartPos] : null;
+                        const nextOpen = !filled && pos === labelStartPos + orderedSelected.length;
                         return (
-                          <div key={pos} style={{ aspectRatio: '3.5 / 1', border: '1px solid ' + (item ? '#c9a84c' : '#d8d0bc'), borderRadius: '2px', background: item ? '#fff' : (skipped ? '#e3ddc8' : '#faf7ee'), display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2px 3px', overflow: 'hidden' }}>
+                          <div key={pos}
+                            onClick={() => {
+                              if (item) {
+                                setSelectedForLabels(prev => { const next = new Set(prev); next.delete(item.id); return next; });
+                              } else {
+                                setLabelStartPos(pos);
+                              }
+                            }}
+                            title={item ? 'Tap to remove ' + item.artist + ' — ' + item.title + ' from this slot' : 'Tap to start the sheet here'}
+                            style={{
+                              aspectRatio: '3.5 / 1', borderRadius: '2px', cursor: 'pointer',
+                              border: '1.5px solid ' + (item ? '#c9a84c' : nextOpen ? '#c9a84c' : '#d8d0bc'),
+                              borderStyle: nextOpen ? 'dashed' : 'solid',
+                              background: item ? '#fff' : (skipped ? '#e3ddc8' : nextOpen ? '#fff9e8' : '#faf7ee'),
+                              display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2px 3px', overflow: 'hidden',
+                            }}>
                             {item ? (
                               <>
                                 <div style={{ fontFamily: 'Courier, monospace', fontWeight: '700', fontSize: '6px', color: '#000', lineHeight: '1.1' }}>{item.sku}</div>
@@ -1828,7 +1840,7 @@ export default function Admin() {
                                 <div style={{ fontSize: '6px', fontWeight: '700', color: '#000', alignSelf: 'flex-end', lineHeight: '1.1' }}>{item.price != null ? '$' + Number(item.price).toFixed(2) : ''}</div>
                               </>
                             ) : (
-                              <span style={{ fontSize: '6px', color: skipped ? '#a89f88' : '#c4bca4', textAlign: 'center' }}>{pos}</span>
+                              <span style={{ fontSize: '6px', color: skipped ? '#a89f88' : nextOpen ? '#b8952f' : '#c4bca4', textAlign: 'center', fontWeight: nextOpen ? '700' : '400' }}>{pos}</span>
                             )}
                           </div>
                         );
@@ -1836,9 +1848,10 @@ export default function Admin() {
                     </div>
                   </div>
                   <div style={{ fontSize: '10px', color: '#777', marginTop: '6px', fontStyle: 'italic' }}>
-                    Plain numbers = empty slots. Darker gray = skipped (already used on a partial sheet). Gold-bordered = your selected items, shown as they'll actually print.
+                    Plain numbers = empty, tap to start the sheet there. Darker gray = skipped (before your start slot). Dashed gold = next slot waiting to be filled. Solid gold = your selected items — tap one to remove it.
                   </div>
                 </div>
+
 
                 <div style={{ position: 'sticky', top: '0', zIndex: 10, background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <button onClick={() => printLabels([...selectedForLabels], labelStartPos)} disabled={printingLabels || selectedForLabels.size === 0}
