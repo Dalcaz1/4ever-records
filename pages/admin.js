@@ -539,6 +539,53 @@ export default function Admin() {
     window.location.href = url;
   }
 
+
+  // --- Hooks relocated above the early-return to fix rules-of-hooks violation ---
+  const [checkoutCart, setCheckoutCart] = useState([]); // [{id, sku, artist, title, price, condition}]
+  const [checkoutScanning, setCheckoutScanning] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutResult, setCheckoutResult] = useState(null); // { paymentMethod, total, ... } after a completed sale
+  const [checkoutPreview, setCheckoutPreview] = useState(null); // { subtotal, discountAmount, taxAmount, total } from Square
+  const [checkoutPreviewLoading, setCheckoutPreviewLoading] = useState(false);
+  const [checkoutPreviewError, setCheckoutPreviewError] = useState('');
+  const [checkoutDiscountInput, setCheckoutDiscountInput] = useState(''); // cashier-entered $ amount
+
+  useEffect(() => {
+    if (mode !== 'checkout' || checkoutCart.length === 0) { setCheckoutPreview(null); return; }
+    let cancelled = false;
+    setCheckoutPreviewLoading(true); setCheckoutPreviewError('');
+    fetch('/api/checkout-instore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cart: checkoutCart, mode: 'preview', discountAmount: checkoutDiscountInput || 0 }),
+    })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (!ok) { setCheckoutPreviewError(data.error || 'Could not calculate total from Square'); setCheckoutPreview(null); return; }
+        setCheckoutPreview(data);
+      })
+      .catch(err => { if (!cancelled) setCheckoutPreviewError('Could not reach Square: ' + err.message); })
+      .finally(() => { if (!cancelled) setCheckoutPreviewLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutCart, mode, checkoutDiscountInput]);
+  const [showCostEntryReview, setShowCostEntryReview] = useState(false);
+  const [reviewCostCents, setReviewCostCents] = useState('');
+  const [showCostEntryEdit, setShowCostEntryEdit] = useState(false);
+  const [editCostCents, setEditCostCents] = useState('');
+  const [printingLabels, setPrintingLabels] = useState(false);
+  const [printLabelsError, setPrintLabelsError] = useState('');
+  const [selectedForLabels, setSelectedForLabels] = useState(new Set());
+  const [labelStartPos, setLabelStartPos] = useState(1);
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+  const [reportCategory, setReportCategory] = useState('all');
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState('');
+
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
@@ -770,36 +817,6 @@ export default function Admin() {
   // total shown here comes from a live call to Square's own Calculate
   // Order endpoint (mode: 'preview' on checkout-instore.js), which applies
   // whatever tax rule the seller configured in their own Square Dashboard.
-  const [checkoutCart, setCheckoutCart] = useState([]); // [{id, sku, artist, title, price, condition}]
-  const [checkoutScanning, setCheckoutScanning] = useState(false);
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
-  const [checkoutError, setCheckoutError] = useState('');
-  const [checkoutResult, setCheckoutResult] = useState(null); // { paymentMethod, total, ... } after a completed sale
-  const [checkoutPreview, setCheckoutPreview] = useState(null); // { subtotal, discountAmount, taxAmount, total } from Square
-  const [checkoutPreviewLoading, setCheckoutPreviewLoading] = useState(false);
-  const [checkoutPreviewError, setCheckoutPreviewError] = useState('');
-  const [checkoutDiscountInput, setCheckoutDiscountInput] = useState(''); // cashier-entered $ amount
-
-  useEffect(() => {
-    if (mode !== 'checkout' || checkoutCart.length === 0) { setCheckoutPreview(null); return; }
-    let cancelled = false;
-    setCheckoutPreviewLoading(true); setCheckoutPreviewError('');
-    fetch('/api/checkout-instore', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cart: checkoutCart, mode: 'preview', discountAmount: checkoutDiscountInput || 0 }),
-    })
-      .then(r => r.json().then(data => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (cancelled) return;
-        if (!ok) { setCheckoutPreviewError(data.error || 'Could not calculate total from Square'); setCheckoutPreview(null); return; }
-        setCheckoutPreview(data);
-      })
-      .catch(err => { if (!cancelled) setCheckoutPreviewError('Could not reach Square: ' + err.message); })
-      .finally(() => { if (!cancelled) setCheckoutPreviewLoading(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkoutCart, mode, checkoutDiscountInput]);
 
   async function handleCheckoutScanCapture(file) {
     setCheckoutScanning(false);
@@ -875,25 +892,17 @@ export default function Admin() {
     const cents = digits ? parseInt(digits, 10) : 0;
     return '$' + (cents / 100).toFixed(2);
   }
-  const [showCostEntryReview, setShowCostEntryReview] = useState(false);
-  const [reviewCostCents, setReviewCostCents] = useState('');
   function handleReviewCostChange(e) {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
     setReviewCostCents(digits);
     setForm(f => ({ ...f, cost: digits ? (parseInt(digits, 10) / 100).toFixed(2) : '' }));
   }
-  const [showCostEntryEdit, setShowCostEntryEdit] = useState(false);
-  const [editCostCents, setEditCostCents] = useState('');
   function handleEditCostChange(e) {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
     setEditCostCents(digits);
     setEditForm(f => ({ ...f, cost: digits ? (parseInt(digits, 10) / 100).toFixed(2) : '' }));
   }
 
-  const [printingLabels, setPrintingLabels] = useState(false);
-  const [printLabelsError, setPrintLabelsError] = useState('');
-  const [selectedForLabels, setSelectedForLabels] = useState(new Set());
-  const [labelStartPos, setLabelStartPos] = useState(1);
   function toggleLabelSelect(id) {
     setSelectedForLabels(prev => {
       const next = new Set(prev);
@@ -1476,12 +1485,6 @@ export default function Admin() {
   }
 
   // ─── Reports ──────────────────────────────────────────────────────────────
-  const [reportStartDate, setReportStartDate] = useState('');
-  const [reportEndDate, setReportEndDate] = useState('');
-  const [reportCategory, setReportCategory] = useState('all');
-  const [reportData, setReportData] = useState(null);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState('');
 
   function runReport() {
     setReportLoading(true); setReportError('');
