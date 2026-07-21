@@ -84,6 +84,36 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: 'Some items are no longer available: ' + unavailable.join(', '), unavailable });
     }
 
+    // ── Guard against duplicate real charges. Card payments finish
+    // asynchronously (customer pays on Square's hosted page, a webhook
+    // confirms it later) — there's a real window where these same items
+    // are still "active" in our DB while a payment for them may already
+    // be in flight or even completed-but-not-yet-webhooked. Block a
+    // second attempt at any of these ids while an earlier attempt hasn't
+    // resolved yet, instead of silently allowing a second real charge.
+    const { data: inFlight } = await supabase
+      .from('pending_orders')
+      .select('square_order_id, cart, status, error_message');
+    if (inFlight) {
+      for (const row of inFlight) {
+        let rowIds = [];
+        try { rowIds = JSON.parse(row.cart).map(i => i.id); } catch (e) { continue; }
+        const overlap = rowIds.filter(id => ids.includes(id));
+        if (overlap.length > 0) {
+          if (row.status === 'failed') {
+            return res.status(409).json({
+              error: 'Square Order ' + row.square_order_id + ' already charged one or more of these items, but our inventory update failed at the time (' + (row.error_message || 'unknown error') + '). Do NOT charge again — resolve this in Manage Inventory first, referencing that order id.',
+              inFlightOrderId: row.square_order_id,
+            });
+          }
+          return res.status(409).json({
+            error: 'A charge (Square Order ' + row.square_order_id + ') is already in progress for one or more of these items. Wait for it to confirm, or check Square Dashboard, before charging again.',
+            inFlightOrderId: row.square_order_id,
+          });
+        }
+      }
+    }
+
     // Always use the DB's own current price, not whatever the client sent.
     const priced = cart.map(item => {
       const dbRecord = dbRecords.find(r => r.id === item.id);
@@ -172,6 +202,18 @@ export default async function handler(req, res) {
       const failed = updateResults.filter(r => r.error);
       if (failed.length > 0) {
         console.error('Cash sale — Square succeeded but some items failed to mark sold:', failed);
+        // Record this as a 'failed' pending_order so the in-flight guard
+        // above blocks any retry on these same items — the real Square
+        // charge already happened, a second cash attempt would double it.
+        await supabase.from('pending_orders').insert({
+          square_order_id: squareOrderId,
+          cart: JSON.stringify(priced),
+          form: JSON.stringify({ inStore: true, paymentMethod: 'cash' }),
+          total: totalCents / 100,
+          status: 'failed',
+          error_message: failed.map(f => f.error.message || String(f.error)).join('; '),
+          created_at: new Date().toISOString(),
+        });
         return res.status(500).json({ error: 'Cash payment recorded in Square but some items failed to update here — check Manage Inventory manually.', squareOrderId });
       }
       return res.status(200).json({
@@ -221,7 +263,7 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString(),
     });
 
-    return res.status(200).json({ success: true, paymentMethod: 'card', paymentUrl: data.payment_link.url });
+    return res.status(200).json({ success: true, paymentMethod: 'card', paymentUrl: data.payment_link.url, squareOrderId: orderId });
   } catch (err) {
     console.error('checkout-instore error:', err);
     return res.status(500).json({ error: err.message });

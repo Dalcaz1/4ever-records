@@ -550,6 +550,49 @@ export default function Admin() {
   const [checkoutPreviewLoading, setCheckoutPreviewLoading] = useState(false);
   const [checkoutPreviewError, setCheckoutPreviewError] = useState('');
   const [checkoutDiscountInput, setCheckoutDiscountInput] = useState(''); // cashier-entered $ amount
+  // Real confirmation tracking for Card — a payment link being opened is
+  // NOT the same as the charge having gone through. See checkout-status.js.
+  const [checkoutPendingOrderId, setCheckoutPendingOrderId] = useState(null);
+  const [checkoutPendingStatus, setCheckoutPendingStatus] = useState(null); // 'waiting' | 'confirmed' | 'failed' | 'timeout'
+  const [checkoutPendingAttempts, setCheckoutPendingAttempts] = useState(0);
+  // Lockout state: something WAS actually charged in Square (Card or
+  // Cash) but our own inventory update failed. Recharging would create a
+  // second real charge, so this blocks the checkout buttons entirely
+  // until the admin explicitly acknowledges they've resolved it by hand.
+  const [checkoutLockError, setCheckoutLockError] = useState(null);
+  const [checkoutLockOrderId, setCheckoutLockOrderId] = useState(null);
+
+  useEffect(() => {
+    if (!checkoutPendingOrderId || checkoutPendingStatus !== 'waiting') return;
+    if (checkoutPendingAttempts >= 30) { // ~2 minutes at 4s intervals
+      setCheckoutPendingStatus('timeout');
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/checkout-status?orderId=' + encodeURIComponent(checkoutPendingOrderId));
+        const data = await res.json();
+        if (data.status === 'confirmed') {
+          setCheckoutPendingStatus('confirmed');
+          setCheckoutResult({ paymentMethod: 'card', total: checkoutTotal, squareOrderId: checkoutPendingOrderId });
+          setCheckoutCart([]);
+          setCheckoutDiscountInput('');
+          setCheckoutPendingOrderId(null);
+        } else if (data.status === 'failed') {
+          setCheckoutPendingStatus('failed');
+          setCheckoutLockError(data.error || 'Payment succeeded in Square but inventory update failed.');
+          setCheckoutLockOrderId(checkoutPendingOrderId);
+          setCheckoutPendingOrderId(null);
+        } else {
+          setCheckoutPendingAttempts(a => a + 1);
+        }
+      } catch (err) {
+        setCheckoutPendingAttempts(a => a + 1);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [checkoutPendingOrderId, checkoutPendingStatus, checkoutPendingAttempts]);
+
 
   useEffect(() => {
     if (mode !== 'checkout' || checkoutCart.length === 0) { setCheckoutPreview(null); return; }
@@ -863,6 +906,7 @@ export default function Admin() {
 
   async function runCheckout(paymentMethod) {
     if (checkoutCart.length === 0) return;
+    if (checkoutLockError) return; // locked out until explicitly resolved — see the danger banner
     if (paymentMethod === 'cash' && !confirm('Confirm cash sale for $' + checkoutTotal.toFixed(2) + '?')) return;
     setCheckoutBusy(true); setCheckoutError('');
     try {
@@ -872,9 +916,32 @@ export default function Admin() {
         body: JSON.stringify({ cart: checkoutCart, paymentMethod, discountAmount: checkoutDiscountInput || 0 }),
       });
       const data = await res.json();
-      if (!res.ok) { setCheckoutError(data.error || 'Checkout failed'); setCheckoutBusy(false); return; }
+      if (!res.ok) {
+        if (data.squareOrderId) {
+          // Something already charged for real in Square, but our own
+          // update failed — this is NOT safe to just retry. Lock the
+          // checkout screen until the admin confirms it's been resolved.
+          setCheckoutLockError(data.error);
+          setCheckoutLockOrderId(data.squareOrderId);
+        } else {
+          // Nothing was charged (e.g. Square order/payment-link creation
+          // itself failed, or the in-flight guard blocked a duplicate
+          // attempt) — safe to leave the cart as-is and let them retry.
+          setCheckoutError(data.error || 'Checkout failed');
+        }
+        setCheckoutBusy(false);
+        return;
+      }
       if (paymentMethod === 'card' && data.paymentUrl) {
         window.open(data.paymentUrl, '_blank');
+        // Do NOT clear the cart or declare success yet — we don't actually
+        // know the customer finished paying. Track this order and poll
+        // checkout-status.js for a real answer.
+        setCheckoutPendingOrderId(data.squareOrderId);
+        setCheckoutPendingStatus('waiting');
+        setCheckoutPendingAttempts(0);
+        setCheckoutBusy(false);
+        return;
       }
       setCheckoutResult(data);
       setCheckoutCart([]);
@@ -1403,18 +1470,59 @@ export default function Admin() {
           <CameraModal label="SKU Label" selectedFormat="" onCapture={handleCheckoutScanCapture} onClose={() => setCheckoutScanning(false)} />
         )}
         <div style={{ maxWidth: '480px', margin: '0 auto', padding: '20px 16px 40px' }}>
-          <button style={backBtn} onClick={() => { setMode('home'); setCheckoutResult(null); setCheckoutError(''); }}>← Back</button>
+          <button style={backBtn} onClick={() => { setMode('home'); setCheckoutResult(null); setCheckoutError(''); setCheckoutPendingOrderId(null); setCheckoutPendingStatus(null); setCheckoutLockError(null); setCheckoutLockOrderId(null); }}>← Back</button>
 
-          {checkoutResult ? (
+          {checkoutLockError ? (
+            <div style={{ background: '#2a0a0a', border: '2px solid #f87171', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+              <div style={{ fontSize: '16px', color: '#f87171', fontWeight: '700', marginBottom: '10px' }}>Do Not Charge Again</div>
+              <div style={{ fontSize: '13px', color: '#e8d5b0', lineHeight: '1.6', marginBottom: '10px' }}>{checkoutLockError}</div>
+              {checkoutLockOrderId && (
+                <div style={{ fontSize: '11px', color: '#888', fontFamily: 'Courier, monospace', marginBottom: '14px' }}>Square Order: {checkoutLockOrderId}</div>
+              )}
+              <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', marginBottom: '18px' }}>
+                A real charge already went through in Square for these items. Go mark them sold manually in Manage Inventory, referencing the order id above, before starting a new sale with them.
+              </div>
+              <button onClick={() => { setCheckoutLockError(null); setCheckoutLockOrderId(null); setCheckoutCart([]); setCheckoutDiscountInput(''); }}
+                style={{ padding: '12px 20px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                I've Resolved This — Clear Cart
+              </button>
+            </div>
+          ) : (checkoutPendingStatus === 'waiting' || checkoutPendingStatus === 'timeout') ? (
+            <div style={{ background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>{checkoutPendingStatus === 'waiting' ? '⏳' : '❓'}</div>
+              <div style={{ fontSize: '16px', color: '#c9a84c', fontWeight: '700', marginBottom: '6px' }}>
+                {checkoutPendingStatus === 'waiting' ? 'Waiting for Payment Confirmation…' : 'Still Not Confirmed'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#bbb', marginBottom: '10px' }}>
+                {checkoutPendingStatus === 'waiting'
+                  ? 'Checking automatically every few seconds. Complete the payment in the tab that opened.'
+                  : "This has been checked for about 2 minutes without confirming. It may still complete — check Square Dashboard for this order before trying to charge again."}
+              </div>
+              <div style={{ fontSize: '11px', color: '#888', fontFamily: 'Courier, monospace', marginBottom: '18px' }}>Square Order: {checkoutPendingOrderId}</div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                {checkoutPendingStatus === 'timeout' && (
+                  <button onClick={() => { setCheckoutPendingStatus('waiting'); setCheckoutPendingAttempts(0); }}
+                    style={{ padding: '10px 16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    Keep Checking
+                  </button>
+                )}
+                <button onClick={() => { setCheckoutPendingOrderId(null); setCheckoutPendingStatus(null); setCheckoutCart([]); setCheckoutDiscountInput(''); }}
+                  style={{ padding: '10px 16px', background: 'transparent', border: '1px solid #444', borderRadius: '8px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                  Dismiss (keeps checking in the background)
+                </button>
+              </div>
+            </div>
+          ) : checkoutResult ? (
             <div style={{ background: '#0a1a0a', border: '2px solid #4ade80', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
               <div style={{ fontSize: '40px', marginBottom: '12px' }}>{checkoutResult.paymentMethod === 'cash' ? '💵' : '💳'}</div>
               <div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700', marginBottom: '6px' }}>
-                {checkoutResult.paymentMethod === 'cash' ? 'Cash Sale Recorded' : 'Card Payment Link Opened'}
+                {checkoutResult.paymentMethod === 'cash' ? 'Cash Sale Recorded' : '✅ Card Sale Confirmed'}
               </div>
               <div style={{ fontSize: '13px', color: '#bbb', marginBottom: '4px' }}>Total: ${Number(checkoutResult.total).toFixed(2)}</div>
               {checkoutResult.paymentMethod === 'card' && (
                 <div style={{ fontSize: '11px', color: '#888', marginTop: '10px', fontStyle: 'italic' }}>
-                  Complete the payment in the new tab that opened. Items will mark as sold automatically once payment completes. Square's own checkout page offers the customer an emailed receipt as part of completing payment there.
+                  Payment confirmed and items marked sold. Square's own checkout page offered the customer an emailed receipt as part of completing payment there.
                 </div>
               )}
               {checkoutResult.paymentMethod === 'cash' && (
