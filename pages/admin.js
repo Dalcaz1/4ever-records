@@ -579,6 +579,7 @@ export default function Admin() {
   const [printLabelsError, setPrintLabelsError] = useState('');
   const [selectedForLabels, setSelectedForLabels] = useState(new Set());
   const [labelStartPos, setLabelStartPos] = useState(1);
+  const [labelModeActive, setLabelModeActive] = useState(false);
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
   const [reportCategory, setReportCategory] = useState('all');
@@ -909,6 +910,20 @@ export default function Admin() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }
+  // Preserves the order items were clicked in (Set iterates in insertion
+  // order) so the sheet preview fills left-to-right, top-to-bottom in the
+  // same order the user selected them — matching what actually prints.
+  function getOrderedSelectedItems() {
+    return [...selectedForLabels]
+      .map(id => manageItems.find(it => it.id === id))
+      .filter(Boolean);
+  }
+  function exitLabelMode() {
+    setLabelModeActive(false);
+    setSelectedForLabels(new Set());
+    setLabelStartPos(1);
+    setPrintLabelsError('');
   }
   async function printLabels(ids, startPosition) {
     setPrintingLabels(true); setPrintLabelsError('');
@@ -1765,6 +1780,12 @@ export default function Admin() {
               📊 Reports
             </button>
           </div>
+
+          <button onClick={() => labelModeActive ? exitLabelMode() : setLabelModeActive(true)}
+            style={{ width: '100%', padding: '11px 14px', margin: '10px 0 16px', background: labelModeActive ? '#c9a84c' : 'transparent', border: '1px solid #c9a84c', borderRadius: '8px', color: labelModeActive ? '#0d0d0d' : '#c9a84c', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+            {labelModeActive ? '✕ Done Making Labels' : '🏷️ Make or Generate Labels'}
+          </button>
+
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
             <input value={manageSearch} onChange={e => setManageSearch(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && loadManageItems()}
@@ -1772,39 +1793,81 @@ export default function Admin() {
             <button onClick={loadManageItems} style={{ padding: '10px 16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontWeight: '700', whiteSpace: 'nowrap' }}>Search</button>
           </div>
 
+          {labelModeActive && (() => {
+            const orderedSelected = getOrderedSelectedItems();
+            return (
+              <>
+                <div style={{ marginBottom: '14px', padding: '10px 12px', background: '#1a1a0a', border: '1px solid #3a3010', borderRadius: '8px', fontSize: '12px', color: '#e8d5b0', lineHeight: '1.5' }}>
+                  Tap the checkbox on each item below that needs a shelf label. Each one you tap fills the next open slot on the sheet preview, in the order you tap them — so you can see exactly what will print before you print it.
+                </div>
+
+                <div style={{ marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>Avery 8167 sheet · 80 labels · {selectedForLabels.size} selected</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#bbb' }}>
+                      Start at slot
+                      <input type="number" min="1" max="80" value={labelStartPos}
+                        onChange={e => setLabelStartPos(Math.max(1, Math.min(80, parseInt(e.target.value, 10) || 1)))}
+                        style={{ width: '48px', padding: '4px 6px', background: '#0a0a0a', border: '1px solid #333', borderRadius: '6px', color: '#e8d5b0', fontSize: '11px' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#f5f0e6', borderRadius: '8px', padding: '8px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '3px 8px' }}>
+                      {Array.from({ length: 80 }).map((_, idx) => {
+                        const pos = idx + 1;
+                        const skipped = pos < labelStartPos;
+                        const filled = pos >= labelStartPos && pos < labelStartPos + orderedSelected.length;
+                        const item = filled ? orderedSelected[pos - labelStartPos] : null;
+                        return (
+                          <div key={pos} style={{ aspectRatio: '3.5 / 1', border: '1px solid ' + (item ? '#c9a84c' : '#d8d0bc'), borderRadius: '2px', background: item ? '#fff' : (skipped ? '#e3ddc8' : '#faf7ee'), display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2px 3px', overflow: 'hidden' }}>
+                            {item ? (
+                              <>
+                                <div style={{ fontFamily: 'Courier, monospace', fontWeight: '700', fontSize: '6px', color: '#000', lineHeight: '1.1' }}>{item.sku}</div>
+                                <div style={{ fontSize: '5px', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.2' }}>{item.artist} — {item.title}</div>
+                                <div style={{ fontSize: '6px', fontWeight: '700', color: '#000', alignSelf: 'flex-end', lineHeight: '1.1' }}>{item.price != null ? '$' + Number(item.price).toFixed(2) : ''}</div>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: '6px', color: skipped ? '#a89f88' : '#c4bca4', textAlign: 'center' }}>{pos}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#777', marginTop: '6px', fontStyle: 'italic' }}>
+                    Plain numbers = empty slots. Darker gray = skipped (already used on a partial sheet). Gold-bordered = your selected items, shown as they'll actually print.
+                  </div>
+                </div>
+
+                <div style={{ position: 'sticky', top: '0', zIndex: 10, background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <button onClick={() => printLabels([...selectedForLabels], labelStartPos)} disabled={printingLabels || selectedForLabels.size === 0}
+                    style={{ padding: '8px 14px', background: selectedForLabels.size === 0 ? '#5a4d28' : '#c9a84c', border: 'none', borderRadius: '8px', color: '#0d0d0d', fontSize: '12px', fontWeight: '700', cursor: selectedForLabels.size === 0 ? 'default' : 'pointer', fontFamily: 'Georgia, serif' }}>
+                    {printingLabels ? 'Generating…' : '🏷️ Print ' + selectedForLabels.size + (selectedForLabels.size === 1 ? ' Label' : ' Labels')}
+                  </button>
+                  <button onClick={() => setSelectedForLabels(new Set())}
+                    style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #444', borderRadius: '8px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    Clear Selection
+                  </button>
+                  {printLabelsError && <div style={{ width: '100%', fontSize: '11px', color: '#f87171' }}>{printLabelsError}</div>}
+                </div>
+              </>
+            );
+          })()}
+
           {manageLoading && <div style={{ textAlign: 'center', color: '#bbb', padding: '40px', fontStyle: 'italic' }}>Loading...</div>}
 
           {!manageLoading && manageItems.length === 0 && (
             <div style={{ textAlign: 'center', color: '#555', padding: '40px', fontStyle: 'italic' }}>No items found</div>
           )}
 
-          {selectedForLabels.size > 0 && (
-            <div style={{ position: 'sticky', top: '0', zIndex: 10, background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12px', color: '#e8d5b0', fontWeight: '700' }}>{selectedForLabels.size} selected</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#bbb' }}>
-                Start at slot
-                <input type="number" min="1" max="80" value={labelStartPos}
-                  onChange={e => setLabelStartPos(Math.max(1, Math.min(80, parseInt(e.target.value, 10) || 1)))}
-                  style={{ width: '48px', padding: '4px 6px', background: '#0a0a0a', border: '1px solid #333', borderRadius: '6px', color: '#e8d5b0', fontSize: '11px' }} />
-                <span style={{ fontStyle: 'italic' }}>(1\u201380, for reusing a partial sheet)</span>
-              </div>
-              <button onClick={() => printLabels([...selectedForLabels], labelStartPos)} disabled={printingLabels}
-                style={{ padding: '8px 14px', background: '#c9a84c', border: 'none', borderRadius: '8px', color: '#0d0d0d', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                {printingLabels ? 'Generating…' : '🏷️ Print Labels'}
-              </button>
-              <button onClick={() => setSelectedForLabels(new Set())}
-                style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #444', borderRadius: '8px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                Clear
-              </button>
-              {printLabelsError && <div style={{ width: '100%', fontSize: '11px', color: '#f87171' }}>{printLabelsError}</div>}
-            </div>
-          )}
-
           {!manageLoading && manageItems.map(item => (
             <div key={item.id}
               style={{ width: '100%', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'Georgia, serif' }}>
-              <input type="checkbox" checked={selectedForLabels.has(item.id)} onChange={() => toggleLabelSelect(item.id)}
-                style={{ width: '18px', height: '18px', flexShrink: 0, cursor: 'pointer' }} />
+              {labelModeActive && (
+                <input type="checkbox" checked={selectedForLabels.has(item.id)} onChange={() => toggleLabelSelect(item.id)}
+                  style={{ width: '18px', height: '18px', flexShrink: 0, cursor: 'pointer' }} />
+              )}
               <button onClick={() => openEditItem(item)}
                 style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                 {item.photo_cover
