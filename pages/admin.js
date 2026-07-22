@@ -361,6 +361,20 @@ export default function Admin() {
   const [pendingIdentification, setPendingIdentification] = useState(null);
   const [formatChoices, setFormatChoices] = useState([]);
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
+  // FIX (July 22 session — camera reacquisition delay on slot photos 2+):
+  // this ref holds the live camera MediaStream across the entire slots
+  // stage. CameraModal is conditionally mounted per-slot (unmounted between
+  // taps), which previously meant every slot after the first paid a fresh
+  // getUserMedia() cost (2-4s on real devices). Now the stream lives here,
+  // gets reattached instantly on each CameraModal mount, and is only
+  // actually stopped when the slots stage ends (all photos done, or reset).
+  const slotStreamRef = useRef(null);
+  function stopSlotStream() {
+    if (slotStreamRef.current) {
+      slotStreamRef.current.getTracks().forEach(t => { try { t.stop(); } catch {} });
+      slotStreamRef.current = null;
+    }
+  }
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('home');
   const [scanning, setScanning] = useState(false);
@@ -457,6 +471,14 @@ export default function Admin() {
     if (!authed) return;
     saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning, savedAt: Date.now() });
   }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning]);
+
+  // Safety net: if the whole admin page unmounts/navigates away while the
+  // shared slot camera stream is still live (e.g. user backs out of the
+  // browser tab mid-scan), make sure the camera hardware actually gets
+  // released rather than left running.
+  useEffect(() => {
+    return () => stopSlotStream();
+  }, []);
 
   // Discogs connection status — STEP 1 of a staged rebuild after the
   // previous version of this feature caused a live white-screen crash
@@ -638,6 +660,7 @@ export default function Admin() {
   const shownPrice = displayPrice || baseRecommended;
 
   function reset() {
+    stopSlotStream();
     setEntryStage('camera1');
     setIdentification(null); setPhotoSlots([]); setCapturedPhotos({});
     setIdentifyError(''); setCameraSlotIndex(null);
@@ -790,6 +813,7 @@ export default function Admin() {
   }
 
   async function runFullScan(photosMap) {
+    stopSlotStream();
     setScanning(true); setError('');
     try {
       const photosArray = photoSlots.map((slot, i) => ({ file: photosMap[i]?.file, label: slot?.label || '' })).filter(p => p.file);
@@ -2077,7 +2101,7 @@ export default function Admin() {
       return (
         <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
           <style>{`* { box-sizing: border-box; } input:focus, select:focus { outline: none; border-color: #c9a84c !important; }`}</style>
-          {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} />}
+          {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} persistentStreamRef={slotStreamRef} />}
           <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <svg width="32" height="32" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" /><circle cx="20" cy="20" r="8" fill="#c9a84c" /><circle cx="20" cy="20" r="3" fill="#0a0a0a" /></svg>
