@@ -1,7 +1,7 @@
 export const getServerSideProps = async () => ({ props: { v: 16 } });
 
 import { useState, useEffect, useRef } from 'react';
-import CameraModal, { startCameraStream, stopCameraStream } from '../components/CameraModal';
+import CameraModal from '../components/CameraModal';
 
 const SESSION_KEY = '4em_admin_state';
 // FIX (July 7 session): migrated from sessionStorage to localStorage.
@@ -361,37 +361,6 @@ export default function Admin() {
   const [pendingIdentification, setPendingIdentification] = useState(null);
   const [formatChoices, setFormatChoices] = useState([]);
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
-  // FIX (July 22 session, round 2 — the "reuse the same stream" fix alone
-  // didn't hold on real devices, delay reported as WORSE, 5-7s): the first
-  // pass kept the same MediaStream object alive across slots and stopped
-  // calling getUserMedia repeatedly, but CameraModal still fully unmounts
-  // between slots — meaning for the seconds in between, NO <video> element
-  // anywhere is actually consuming/playing that stream. Mobile browsers
-  // (iOS Safari in particular, increasingly Chrome for power reasons)
-  // routinely suspend/throttle a camera track with zero active consumers to
-  // save power — even while track.readyState still reports 'live' in JS.
-  // Reattaching it then forces the sensor to actually re-power and
-  // refocus, which is indistinguishable in practice from a cold
-  // getUserMedia() call. That's almost certainly the real 5-7s cost, and
-  // it's why just "not stopping the tracks" wasn't enough.
-  //
-  // Real fix: keep an always-mounted (visually hidden) <video> element
-  // continuously playing the shared stream for the entire slots stage —
-  // not only while a CameraModal instance happens to be open — so the
-  // stream never goes without a live consumer between shots. CameraModal
-  // just borrows the same MediaStream object (a MediaStream can be played
-  // by multiple <video> elements at once; this is standard, not a hack).
-  const slotStreamRef = useRef(null);
-  const hiddenSlotVideoRef = useRef(null);
-  function stopSlotStream() {
-    if (hiddenSlotVideoRef.current) {
-      try { hiddenSlotVideoRef.current.pause(); hiddenSlotVideoRef.current.srcObject = null; } catch {}
-    }
-    if (slotStreamRef.current) {
-      slotStreamRef.current.getTracks().forEach(t => { try { t.stop(); } catch {} });
-      slotStreamRef.current = null;
-    }
-  }
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('home');
   const [scanning, setScanning] = useState(false);
@@ -489,31 +458,6 @@ export default function Admin() {
     saveSession({ form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning, savedAt: Date.now() });
   }, [authed, form, mode, pricing, scanResult, nextSku, adjustedCondition, identification, photoSlots, displayPrice, entryStage, bSideWarning]);
 
-  // Safety net: if the whole admin page unmounts/navigates away while the
-  // shared slot camera stream is still live (e.g. user backs out of the
-  // browser tab mid-scan), make sure the camera hardware actually gets
-  // released rather than left running.
-  useEffect(() => {
-    return () => stopSlotStream();
-  }, []);
-
-  // Acquire the shared camera stream as soon as the slots stage begins
-  // (rather than lazily on the first CameraModal mount) and keep the
-  // hidden <video> playing it for the whole stage — this is the actual
-  // fix for the reacquisition delay: see the comment on slotStreamRef
-  // above. If the browser suspends the track anyway (tab backgrounded,
-  // etc.), reacquire the same way the visibilitychange handler in
-  // CameraModal already does for the modal's own video.
-  useEffect(() => {
-    if (entryStage !== 'slots') return;
-    const el = hiddenSlotVideoRef.current;
-    if (!slotStreamRef.current || slotStreamRef.current.getVideoTracks?.()[0]?.readyState !== 'live') {
-      startCameraStream({ current: el }, slotStreamRef, () => {}, () => {});
-    } else if (el) {
-      el.srcObject = slotStreamRef.current;
-      el.play().catch(() => {});
-    }
-  }, [entryStage]);
 
   // Discogs connection status — STEP 1 of a staged rebuild after the
   // previous version of this feature caused a live white-screen crash
@@ -695,7 +639,6 @@ export default function Admin() {
   const shownPrice = displayPrice || baseRecommended;
 
   function reset() {
-    stopSlotStream();
     setEntryStage('camera1');
     setIdentification(null); setPhotoSlots([]); setCapturedPhotos({});
     setIdentifyError(''); setCameraSlotIndex(null);
@@ -789,23 +732,35 @@ export default function Admin() {
     // this could produce a confidently wrong price with no warning.
     const bSide = data.b_side_scanned === true;
     setBSideWarning(bSide);
+    let initialCaptured;
     if (!bSide) {
-      setCapturedPhotos({ 0: { file, label: slots[0]?.label || 'Front' } });
+      initialCaptured = { 0: { file, label: slots[0]?.label || 'Front' } };
     } else {
       const bSlotIndex = slots.findIndex(s => {
         const l = String(s?.label || '').toLowerCase();
         return l.includes('b side') || l.includes('side b');
       });
       if (bSlotIndex !== -1) {
-        setCapturedPhotos({ [bSlotIndex]: { file, label: slots[bSlotIndex]?.label || 'B Side Label' } });
+        initialCaptured = { [bSlotIndex]: { file, label: slots[bSlotIndex]?.label || 'B Side Label' } };
       } else {
         // Format has no A/B side slots (CD, Cassette, etc.) — shouldn't
         // normally happen since identify.js only flags b_side_scanned for
         // vinyl-style items with visible side markings, but fail safe.
-        setCapturedPhotos({});
+        initialCaptured = {};
       }
     }
+    setCapturedPhotos(initialCaptured);
     setEntryStage('slots');
+    // FIX (July 22 session, round 3 — stay-in-camera model): previously the
+    // user landed on the slot list and had to tap the first slot to open
+    // the camera at all. Now open it immediately for whichever slot still
+    // needs a photo, so the camera stays continuously open from the
+    // identification photo straight through the rest of the sequence —
+    // matching how a real camera app's viewfinder behaves. Only shows the
+    // list at all if every slot is somehow already filled (shouldn't
+    // normally happen) or the user backs out mid-sequence.
+    const firstMissing = slots.findIndex((_, i) => !initialCaptured[i]?.file);
+    if (firstMissing !== -1) setCameraSlotIndex(firstMissing);
   }
 
   function resolveFormatDisambiguation(chosenFormat) {
@@ -834,21 +789,36 @@ export default function Admin() {
     if (bSlotIndex === -1 || aSlotIndex === -1 || !capturedPhotos[bSlotIndex]?.file) return;
     const updated = { ...capturedPhotos, [aSlotIndex]: { file: capturedPhotos[bSlotIndex].file, label: photoSlots[aSlotIndex]?.label || 'A Side Label' } };
     setCapturedPhotos(updated);
-    const allDone = photoSlots.every((_, i) => updated[i]?.file != null);
-    if (allDone) runFullScan(updated);
+    const nextIndex = photoSlots.findIndex((_, i) => !updated[i]?.file);
+    if (nextIndex !== -1) {
+      setCameraSlotIndex(nextIndex);
+    } else {
+      runFullScan(updated);
+    }
   }
 
   function handleSlotCapture(file) {
     const label = photoSlots[cameraSlotIndex]?.label || '';
     const updated = { ...capturedPhotos, [cameraSlotIndex]: { file, label } };
     setCapturedPhotos(updated);
-    setCameraSlotIndex(null);
-    const allDone = photoSlots.every((_, i) => updated[i]?.file != null);
-    if (allDone) runFullScan(updated);
+    // FIX (July 22 session, round 3 — stay-in-camera model): this used to
+    // always setCameraSlotIndex(null), unmounting CameraModal after every
+    // single shot and forcing a full camera reacquisition for the next one.
+    // Now advance directly to the next not-yet-captured slot instead —
+    // CameraModal stays mounted the whole time (same live stream, no
+    // reopen cost), only its label/guide props change. It only actually
+    // closes (cameraSlotIndex -> null) once every slot is filled, or if the
+    // user explicitly backs out with the X button.
+    const nextIndex = photoSlots.findIndex((_, i) => !updated[i]?.file);
+    if (nextIndex !== -1) {
+      setCameraSlotIndex(nextIndex);
+    } else {
+      setCameraSlotIndex(null);
+      runFullScan(updated);
+    }
   }
 
   async function runFullScan(photosMap) {
-    stopSlotStream();
     setScanning(true); setError('');
     try {
       const photosArray = photoSlots.map((slot, i) => ({ file: photosMap[i]?.file, label: slot?.label || '' })).filter(p => p.file);
@@ -2136,9 +2106,7 @@ export default function Admin() {
       return (
         <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
           <style>{`* { box-sizing: border-box; } input:focus, select:focus { outline: none; border-color: #c9a84c !important; }`}</style>
-          <video ref={hiddenSlotVideoRef} autoPlay muted playsInline
-            style={{ position: 'fixed', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: 0, left: 0 }} />
-          {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} persistentStreamRef={slotStreamRef} />}
+          {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} />}
           <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <svg width="32" height="32" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" /><circle cx="20" cy="20" r="8" fill="#c9a84c" /><circle cx="20" cy="20" r="3" fill="#0a0a0a" /></svg>

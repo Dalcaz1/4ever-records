@@ -185,7 +185,7 @@ const GOLD = '#c9a84c';
 
 // ─── CameraModal — identical behavior to FYT, 4 Ever gold colors ──────────────
 
-export default function CameraModal({ label, selectedFormat, onClose, onCapture, persistentStreamRef }) {
+export default function CameraModal({ label, selectedFormat, onClose, onCapture }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const guideRef = useRef(null);
@@ -209,33 +209,20 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture,
     : `min(${Math.round(outerVW * (settings.aspect || 1))}vw, calc((100vh - 260px) * ${(settings.aspect || 1).toFixed(3)}))`;
 
   useEffect(() => {
-    // FIX (July 22 session — 2-4 second pause reported on every photo
-    // after the first): CameraModal previously ran a fresh
-    // startCameraStream()/getUserMedia() on every single mount, and admin.js
-    // fully unmounts/remounts this component between every slot photo. That
-    // meant every slot after the first tore the camera hardware all the way
-    // down and cold-renegotiated a new 3840x2160 stream from scratch — the
-    // real source of the multi-second delay (photo 1 didn't have this
-    // problem because it goes through the separately-mounted, already-warm
-    // Stage1Camera). Fix: if the caller passes a persistentStreamRef that
-    // already holds a live stream, reattach it directly instead of calling
-    // getUserMedia again. Reattaching an existing MediaStream to a new
-    // <video> element is near-instant; only the very first acquisition
-    // (or a dead/backgrounded track) pays the getUserMedia cost.
-    async function init() {
-      const existing = persistentStreamRef?.current;
-      if (existing && existing.getVideoTracks?.()[0]?.readyState === 'live') {
-        streamRef.current = existing;
-        if (videoRef.current) {
-          videoRef.current.srcObject = existing;
-          try { await videoRef.current.play(); } catch {}
-        }
-      } else {
-        await startCameraStream(videoRef, streamRef, () => {}, setError);
-        if (persistentStreamRef) persistentStreamRef.current = streamRef.current;
-      }
-    }
-    init();
+    // ARCHITECTURE CHANGE (July 22 session, round 3 — replacing the round-2
+    // hidden-video workaround entirely): the actual source of the camera
+    // delay was the app's flow, not just the code — every slot photo used
+    // to close the camera back to a slot list, requiring the camera to be
+    // reopened (and the hardware reacquired) for every single shot. Real
+    // camera apps never do this: they keep one viewfinder session open and
+    // just grab a frame per shutter press. admin.js now keeps this same
+    // CameraModal instance mounted for the entire slot-photo sequence —
+    // only the `label`/`selectedFormat` props change between shots to swap
+    // the guide overlay, the component itself does not unmount and remount.
+    // That means one getUserMedia() call covers the whole sequence, and the
+    // persistentStreamRef/hidden-video approach from round 2 is no longer
+    // needed — simpler and more correct.
+    startCameraStream(videoRef, streamRef, () => {}, setError);
 
     // FIX (July 7 session): mobile browsers commonly stop or mute the
     // camera track when the tab loses visibility (backgrounding to answer
@@ -248,22 +235,14 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture,
       if (document.visibilityState !== 'visible') return;
       const track = streamRef.current?.getVideoTracks?.()[0];
       if (!track || track.readyState !== 'live') {
-        startCameraStream(videoRef, streamRef, () => {}, setError).then(() => {
-          if (persistentStreamRef) persistentStreamRef.current = streamRef.current;
-        });
+        startCameraStream(videoRef, streamRef, () => {}, setError);
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // If a persistentStreamRef was supplied, the parent (admin.js) owns
-      // the stream's lifecycle across multiple slot photos — do not stop
-      // it here just because this particular modal instance is unmounting.
-      // Only stop it when this modal acquired and owns the stream itself.
-      if (!persistentStreamRef) {
-        stopCameraStream(streamRef, videoRef);
-      }
+      stopCameraStream(streamRef, videoRef);
     };
   }, []);
 
@@ -315,15 +294,14 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture,
       if (!blob) return;
       const file = new File([blob], 'scan.jpg', { type: 'image/jpeg' });
       onCapture(file);
-      // FIX (July 22 session): this used to stop the camera stream on
-      // every single capture, which is the other half of the reacquisition
-      // delay — even before the unmount teardown, the hardware was already
-      // being killed the instant the shutter fired. When a persistentStreamRef
-      // is in play, the parent owns the stream across the whole slot
-      // sequence, so leave it running here.
-      if (!persistentStreamRef) {
-        stopCameraStream(streamRef, videoRef);
-      }
+      // FIX (July 22 session, round 3): previously stopped the camera
+      // stream right here after every single shot, which made sense when
+      // each slot photo got its own short-lived CameraModal mount. Now the
+      // same modal instance stays open across the entire slot sequence
+      // (admin.js just updates the label/guide via props between shots),
+      // so the stream must keep running here — it's only actually torn
+      // down in the effect cleanup when the modal really unmounts (all
+      // slots done, or the user backs out).
     }, 'image/jpeg', 0.86);
   }
 
