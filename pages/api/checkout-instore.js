@@ -147,44 +147,33 @@ export default async function handler(req, res) {
     }
 
     if (paymentMethod === 'cash') {
-      const orderIdemKey = Date.now() + '-' + Math.random().toString(36).slice(2);
-      const orderRes = await fetch('https://connect.squareup.com/v2/orders', {
+      // Per direct instruction: Cash sales use Square ONLY to compute the
+      // correct tax (the same non-committal Calculate Order call the
+      // 'preview' mode above uses) — nothing is ever created in Square.
+      // No real Order, no real Payment, no Square receipt, and Cash
+      // sales will not appear in Square's own sales reporting or
+      // dashboard. This also means a failure marking our own inventory
+      // sold has NO external side effect to worry about — since nothing
+      // was ever sent to Square, retrying is always safe.
+      const calcRes = await fetch('https://connect.squareup.com/v2/orders/calculate', {
         method: 'POST',
         headers: { 'Square-Version': '2024-01-18', Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idempotency_key: orderIdemKey, order }),
+        body: JSON.stringify({ order }),
       });
-      const orderData = await orderRes.json();
-      if (orderData.errors) {
-        console.error('Square order create error (cash):', JSON.stringify(orderData.errors));
-        return res.status(500).json({ error: 'Failed to create Square order', details: orderData.errors });
+      const calcData = await calcRes.json();
+      if (calcData.errors) {
+        console.error('Square calculate error (cash):', JSON.stringify(calcData.errors));
+        return res.status(500).json({ error: 'Could not calculate tax for this sale', details: calcData.errors });
       }
-      const squareOrder = orderData.order;
-      const squareOrderId = squareOrder.id;
-      // The amount to charge comes FROM Square's own computed order total
-      // (which already includes whatever tax Square auto-applied) — never
-      // computed independently here.
-      const totalCents = squareOrder.total_money?.amount || 0;
-      const taxCents = squareOrder.total_tax_money?.amount || 0;
-      const discountCents = squareOrder.total_discount_money?.amount || 0;
+      const calcOrder = calcData.order;
+      const totalCents = calcOrder.total_money?.amount || 0;
+      const taxCents = calcOrder.total_tax_money?.amount || 0;
+      const discountCents = calcOrder.total_discount_money?.amount || 0;
 
-      const paymentIdemKey = Date.now() + '-' + Math.random().toString(36).slice(2);
-      const paymentRes = await fetch('https://connect.squareup.com/v2/payments', {
-        method: 'POST',
-        headers: { 'Square-Version': '2024-01-18', Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idempotency_key: paymentIdemKey,
-          source_id: 'CASH',
-          order_id: squareOrderId,
-          location_id: locationId,
-          amount_money: { amount: totalCents, currency: 'USD' },
-          cash_details: { buyer_supplied_money: { amount: totalCents, currency: 'USD' } },
-        }),
-      });
-      const paymentData = await paymentRes.json();
-      if (paymentData.errors) {
-        console.error('Square cash payment error:', JSON.stringify(paymentData.errors));
-        return res.status(500).json({ error: 'Failed to record cash payment in Square', details: paymentData.errors });
-      }
+      // A local reference id for this sale — takes the place of a real
+      // Square order id (there isn't one anymore) so receipts/reports
+      // still have something to key off of.
+      const localSaleId = 'CASH-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 
       const soldAt = new Date().toISOString();
       const perItemTax = priced.length ? Math.round((taxCents / priced.length)) / 100 : 0;
@@ -195,30 +184,23 @@ export default async function handler(req, res) {
           sold_price: item.price, sold_at: soldAt,
           sold_payment_method: 'cash', sold_tax_amount: perItemTax,
           sold_discount_amount: perItemDiscount,
-          sold_square_order_id: squareOrderId,
-          sold_square_payment_id: paymentData.payment?.id || null,
+          // No real Square order/payment exists for Cash anymore — these
+          // stay null. sold_square_order_id historically meant "look this
+          // up in Square"; a local id here would be misleading in that
+          // column, so it's left null and localSaleId only appears in
+          // this response for the receipt/email, not stored as if it
+          // were a Square reference.
+          sold_square_order_id: null,
+          sold_square_payment_id: null,
         }).eq('id', item.id)
       ));
       const failed = updateResults.filter(r => r.error);
       if (failed.length > 0) {
-        console.error('Cash sale — Square succeeded but some items failed to mark sold:', failed);
-        // Record this as a 'failed' pending_order so the in-flight guard
-        // above blocks any retry on these same items — the real Square
-        // charge already happened, a second cash attempt would double it.
-        await supabase.from('pending_orders').insert({
-          square_order_id: squareOrderId,
-          cart: JSON.stringify(priced),
-          form: JSON.stringify({ inStore: true, paymentMethod: 'cash' }),
-          total: totalCents / 100,
-          status: 'failed',
-          error_message: failed.map(f => f.error.message || String(f.error)).join('; '),
-          created_at: new Date().toISOString(),
-        });
-        return res.status(500).json({ error: 'Cash payment recorded in Square but some items failed to update here — check Manage Inventory manually.', squareOrderId });
+        console.error('Cash sale — inventory update failed (nothing was sent to Square, safe to retry):', failed);
+        return res.status(500).json({ error: 'Failed to mark items sold: ' + failed.map(f => f.error.message || String(f.error)).join('; ') + '. Nothing was charged or recorded in Square — safe to try again.' });
       }
       return res.status(200).json({
-        success: true, paymentMethod: 'cash', squareOrderId,
-        receiptUrl: paymentData.payment?.receipt_url || null,
+        success: true, paymentMethod: 'cash', localSaleId,
         subtotal: (totalCents - taxCents) / 100, taxAmount: taxCents / 100, total: totalCents / 100,
       });
     }

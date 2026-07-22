@@ -1527,13 +1527,11 @@ export default function Admin() {
               )}
               {checkoutResult.paymentMethod === 'cash' && (
                 <div style={{ marginTop: '14px' }}>
-                  {checkoutResult.receiptUrl ? (
-                    <a href={checkoutResult.receiptUrl} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'block', padding: '12px', background: 'transparent', border: '2px solid #c9a84c', borderRadius: '8px', color: '#c9a84c', fontSize: '13px', fontWeight: '700', textDecoration: 'none', fontFamily: 'Georgia, serif' }}>
-                      🧾 View / Print / Share Receipt
-                    </a>
-                  ) : (
-                    <div style={{ fontSize: '11px', color: '#f87171', fontStyle: 'italic' }}>Square receipt link wasn't returned — write a hand receipt for this sale.</div>
+                  <div style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', marginBottom: '8px' }}>
+                    Cash sales aren't sent to Square — Square was only used to calculate the tax above. Nothing appears in Square's own dashboard or reports for this sale; your inventory here is the record of it.
+                  </div>
+                  {checkoutResult.localSaleId && (
+                    <div style={{ fontSize: '10px', color: '#666', fontFamily: 'Courier, monospace' }}>Reference: {checkoutResult.localSaleId}</div>
                   )}
                 </div>
               )}
