@@ -62,7 +62,24 @@ function stopCameraStream(streamRef, videoRef) {
 
 // ─── CropHelpers (inlined from FYT) ───────────────────────────────────────────
 
-function getCropFromGuide(video, guide) {
+// FIX (leniency request — 4 Ever admin, this session): the guide overlay
+// was previously a hard clip — the captured photo contained ONLY what was
+// exactly inside the drawn guide box/circle, with zero tolerance. A user
+// whose item was even slightly outside the guide got a photo with part of
+// the item cut off, which then read as a failure downstream — effectively
+// "not letting them take the photo" even though the shutter itself always
+// fired. The guide is meant to be an aim-point, not a strict boundary.
+//
+// Fix: capture a generously larger region than what's visually drawn,
+// centered on the same point as the guide. CAPTURE_MARGIN controls how much
+// slack is allowed — 1.35 means the real captured width/height are 35%
+// larger than the guide box in each dimension (roughly 17.5% of overflow
+// tolerated per side) before anything gets cut off. The on-screen guide
+// itself is unchanged — same size, same aim target — only the actual
+// captured/cropped region is more forgiving.
+const CAPTURE_MARGIN = 1.35;
+
+function getCropFromGuide(video, guide, marginMultiplier = CAPTURE_MARGIN) {
   const videoRect = video.getBoundingClientRect();
   const guideRect = guide.getBoundingClientRect();
   const videoW = video.videoWidth;
@@ -76,10 +93,25 @@ function getCropFromGuide(video, guide) {
   const offsetY = (boxH - renderedH) / 2;
   const guideX = guideRect.left - videoRect.left;
   const guideY = guideRect.top - videoRect.top;
-  let cropX = (guideX - offsetX) / coverScale;
-  let cropY = (guideY - offsetY) / coverScale;
-  let cropW = guideRect.width / coverScale;
-  let cropH = guideRect.height / coverScale;
+
+  // Guide's own exact bounds, in video pixel space (the old, strict crop).
+  const guideCropX = (guideX - offsetX) / coverScale;
+  const guideCropY = (guideY - offsetY) / coverScale;
+  const guideCropW = guideRect.width / coverScale;
+  const guideCropH = guideRect.height / coverScale;
+
+  // Expand around the same center point rather than the same top-left, so
+  // the extra margin is distributed evenly on all sides.
+  const centerX = guideCropX + guideCropW / 2;
+  const centerY = guideCropY + guideCropH / 2;
+  const expandedW = guideCropW * marginMultiplier;
+  const expandedH = guideCropH * marginMultiplier;
+
+  let cropX = centerX - expandedW / 2;
+  let cropY = centerY - expandedH / 2;
+  let cropW = expandedW;
+  let cropH = expandedH;
+
   cropX = Math.max(0, cropX);
   cropY = Math.max(0, cropY);
   cropW = Math.min(videoW - cropX, cropW);
