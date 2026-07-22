@@ -1122,7 +1122,24 @@ export default function Admin() {
   async function backfillYearFromDiscogs(updatedForm) {
     const lookup = await findDiscogsReleaseId(updatedForm.artist, updatedForm.title, updatedForm.catalog_number, identification?.format);
     if (lookup.error || !lookup.results || lookup.results.length === 0) return;
-    const years = [...new Set(lookup.results.map(r => r.year).filter(Boolean))];
+    // FIX (July 22 session — real case: Betty Johnson "Winter In Miami",
+    // Atlantic 45-1169, never got a year despite Discogs unambiguously
+    // showing 1957 for that exact catalog number). discogs-lookup.js
+    // intentionally also returns candidates that only match on artist/title
+    // (no catalog match at all) — useful for its other job of letting a
+    // human pick a release to list on Discogs, where showing every likely
+    // pressing is a feature. But using that SAME broad set to auto-fill a
+    // year meant any other pressing of a well-reissued song (a different
+    // country, different catalog number, different year — e.g. this song's
+    // own 1958 Australian reissue) could inject a conflicting year and
+    // trip the "multiple years, can't auto-determine" safeguard — even
+    // though the actual catalog number on this specific copy was
+    // completely unambiguous. The more reissued a record is, the more
+    // certain this was to fail. Only consider candidates that genuinely
+    // matched the catalog number itself.
+    const catalogMatches = lookup.results.filter(r => r.catalogHit);
+    if (catalogMatches.length === 0) return;
+    const years = [...new Set(catalogMatches.map(r => r.year).filter(Boolean))];
     if (years.length === 1) {
       setForm(f => (f.year ? f : {
         ...f, year: String(years[0]),
@@ -1131,7 +1148,7 @@ export default function Admin() {
     } else if (years.length > 1) {
       setForm(f => ({
         ...f,
-        notes: (f.notes ? f.notes + '\n\n' : '') + 'No date printed on this copy. Discogs shows ' + lookup.results.length + ' candidate pressing(s) under catalog ' + updatedForm.catalog_number + ' spanning years ' + years.sort().join(', ') + ' — could not auto-determine which one this specific copy is.',
+        notes: (f.notes ? f.notes + '\n\n' : '') + 'No date printed on this copy. Discogs shows ' + catalogMatches.length + ' candidate pressing(s) actually matching catalog ' + updatedForm.catalog_number + ' spanning years ' + years.sort().join(', ') + ' — could not auto-determine which one this specific copy is.',
       }));
     }
   }
