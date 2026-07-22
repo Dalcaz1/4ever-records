@@ -18,6 +18,7 @@ import {
   getEbaySoldPrices,
   getPopsikePrices,
   get45catPressingInfo,
+  getMusicBrainzIdentification,
   getMusicStackPrices,
   getFourEverMemoriesData,
   getResearchSource,
@@ -194,6 +195,7 @@ export default async function handler(req, res) {
       popsikePrices,
       musicStackResult,
       pressingInfo,
+      musicBrainzResult,
     ] = await Promise.all([
       getFourEverMemoriesData(artist, title, releaseType, catalog_number || '', label || '', condition || ''),
       getDiscogsMarket(artist, title, process.env.DISCOGS_TOKEN, catalog_number || '', year || '', releaseType, usCountryFilter, 'Discogs U.S.', label || ''),
@@ -203,6 +205,7 @@ export default async function handler(req, res) {
       getPopsikePrices(artist, title, releaseType, catalog_number || '', label || ''),
       getMusicStackPrices(artist, title, releaseType, catalog_number || '', label || ''),
       get45catPressingInfo(artist, title, catalog_number || '', label || ''),
+      getMusicBrainzIdentification(artist, title, catalog_number || '', label || '', releaseType),
     ]);
 
     const sources = [
@@ -357,6 +360,16 @@ export default async function handler(req, res) {
         countriesFound: pressingInfo.countriesFound || [],
         status: pressingInfo.status || null,
         searchUrl: pressingInfo.searchUrl || null,
+      } : null,
+
+      musicBrainzIdentification: musicBrainzResult ? {
+        found: musicBrainzResult.found || false,
+        bestMatch: musicBrainzResult.bestMatch || null,
+        releases: musicBrainzResult.releases || [],
+        confirmedCountry: musicBrainzResult.confirmedCountry || null,
+        confirmedLabel: musicBrainzResult.confirmedLabel || null,
+        confirmedCatalog: musicBrainzResult.confirmedCatalog || null,
+        status: musicBrainzResult.status || null,
       } : null,
 
       weightedAverage,

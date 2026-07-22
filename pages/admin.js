@@ -2246,6 +2246,21 @@ export default function Admin() {
                     <div style={{ fontSize: '9.5px', color: '#8a7fc2', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
                   </div>
                 )}
+                {pricing.pressingIdentification && (
+                  <div style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#60a5fa', marginBottom: '3px' }}>🎵 45cat Corroboration</div>
+                    <div style={{ fontSize: '11px', color: '#bfdbfe', marginBottom: '6px' }}>{pricing.pressingIdentification.status}</div>
+                    <div style={{ fontSize: '10.5px', color: '#ddd', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <span>{pricing.pressingIdentification.confirmed ? '✓ Pressing confirmed' : 'Not confirmed'}</span>
+                      <span>{pricing.pressingIdentification.catalogFound ? '✓ Catalog # found' : 'Catalog # not found'}</span>
+                      {pricing.pressingIdentification.countriesFound?.length > 0 && <span>Countries: {pricing.pressingIdentification.countriesFound.join(', ')}</span>}
+                    </div>
+                    {pricing.pressingIdentification.searchUrl && (
+                      <a href={pricing.pressingIdentification.searchUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10.5px', color: '#60a5fa', display: 'inline-block', marginTop: '6px' }}>View on 45cat →</a>
+                    )}
+                    <div style={{ fontSize: '9.5px', color: '#5b8fd6', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
+                  </div>
+                )}
                 {pricing.floorApplied && (
                   <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24', marginBottom: '3px' }}>⚠ Protected Floor Applied</div>

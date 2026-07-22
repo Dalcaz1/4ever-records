@@ -759,7 +759,43 @@ export async function get45catPressingInfo(
   }
 }
 
-// ─── MusicStack ───────────────────────────────────────────────────────────────
+// ─── MusicBrainz ────────────────────────────────────────────────────────────
+// Ported from findyourtunes/pages/api/PricingSources.js — free, open API, no
+// key required. Identification/corroboration only, same as 45cat above:
+// never used for pricing, never auto-applied to identification fields.
+// Displayed in admin.js's Pricing Transparency panel next to 45cat.
+
+export async function getMusicBrainzIdentification(artist, title, catalog_number, label, releaseType) {
+  const MB_USER_AGENT = '4EverMemoriesRecords/1.0 ( https://www.4evermemoriesrecordstore.com )';
+  try {
+    var formatType = '';
+    if (releaseType && releaseType.indexOf('VINYL') !== -1) formatType = 'Vinyl';
+    else if (releaseType && releaseType.indexOf('CD') !== -1) formatType = 'CD';
+    else if (releaseType && releaseType.indexOf('CASSETTE') !== -1) formatType = 'Cassette';
+    var queryParts = [];
+    if (artist) queryParts.push('artist:"' + stripAccents(artist).replace(/"/g, '') + '"');
+    if (title) queryParts.push('release:"' + stripAccents(title).replace(/"/g, '') + '"');
+    if (label) queryParts.push('label:"' + stripAccents(label).replace(/"/g, '') + '"');
+    if (catalog_number) queryParts.push('catno:"' + catalog_number.replace(/"/g, '') + '"');
+    var searchUrl = 'https://musicbrainz.org/ws/2/release/?query=' + encodeURIComponent(queryParts.join(' AND ')) + '&fmt=json&limit=10';
+    if (formatType) searchUrl += '&format=' + encodeURIComponent(formatType);
+    const res = await fetch(searchUrl, { headers: { 'User-Agent': MB_USER_AGENT } });
+    if (!res.ok) throw new Error('MusicBrainz returned ' + res.status);
+    const data = await res.json();
+    var releases = data.releases || [];
+    if (!releases.length) { return { source: 'MusicBrainz', sourceType: 'identification', found: false, releases: [], status: 'No MusicBrainz releases found', note: 'Identification only' }; }
+    var identified = releases.slice(0, 5).map(function(r) {
+      var labelInfo = r['label-info'] && r['label-info'].length ? r['label-info'].map(function(li) { return { label: li.label ? li.label.name : '', catalog: li['catalog-number'] || '' }; }) : [];
+      return { mbid: r.id || '', title: r.title || '', artist: r['artist-credit'] ? r['artist-credit'].map(function(ac) { return ac.name || (ac.artist && ac.artist.name) || ''; }).join(', ') : '', date: r.date || '', country: r.country || '', labelInfo: labelInfo, trackCount: r['track-count'] || 0, score: r.score || 0 };
+    });
+    var best = identified[0];
+    return { source: 'MusicBrainz', sourceType: 'identification', found: true, bestMatch: best, releases: identified, confirmedCountry: best.country || null, confirmedLabel: best.labelInfo.length ? best.labelInfo[0].label : null, confirmedCatalog: best.labelInfo.length ? best.labelInfo[0].catalog : null, status: 'MusicBrainz — ' + identified.length + ' release(s) found', note: 'Identification only — not used for pricing' };
+  } catch (err) {
+    return { source: 'MusicBrainz', sourceType: 'identification', found: false, releases: [], status: 'MusicBrainz failed: ' + err.message, note: 'Identification only' };
+  }
+}
+
+
 
 export async function getMusicStackPrices(
   artist, title, releaseType, catalog_number, label
