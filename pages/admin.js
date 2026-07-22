@@ -2261,6 +2261,20 @@ export default function Admin() {
                     <div style={{ fontSize: '9.5px', color: '#5b8fd6', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing.</div>
                   </div>
                 )}
+                {pricing.wikidataIdentification?.found && (
+                  <div style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#34d399', marginBottom: '3px' }}>🌐 Wikidata Corroboration</div>
+                    <div style={{ fontSize: '11px', color: '#a7f3d0', marginBottom: '6px' }}>{pricing.wikidataIdentification.status}</div>
+                    <div style={{ fontSize: '10.5px', color: '#ddd', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      {pricing.wikidataIdentification.confirmedDate && <span>Date: {pricing.wikidataIdentification.confirmedDate}</span>}
+                      {pricing.wikidataIdentification.confirmedCatalog && <span>Cat# {pricing.wikidataIdentification.confirmedCatalog}</span>}
+                    </div>
+                    {pricing.wikidataIdentification.itemUrl && (
+                      <a href={pricing.wikidataIdentification.itemUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10.5px', color: '#34d399', display: 'inline-block', marginTop: '6px' }}>View on Wikidata →</a>
+                    )}
+                    <div style={{ fontSize: '9.5px', color: '#5bc298', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing. Independent of 45cat/MusicBrainz — kept as a backup signal in case either goes down.</div>
+                  </div>
+                )}
                 {pricing.floorApplied && (
                   <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24', marginBottom: '3px' }}>⚠ Protected Floor Applied</div>
