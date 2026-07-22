@@ -2106,7 +2106,7 @@ export default function Admin() {
       return (
         <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
           <style>{`* { box-sizing: border-box; } input:focus, select:focus { outline: none; border-color: #c9a84c !important; }`}</style>
-          {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} />}
+          {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} slotIndex={cameraSlotIndex} totalSlots={photoSlots.length} />}
           <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <svg width="32" height="32" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#0d0d0d" stroke="#333" strokeWidth="1" /><circle cx="20" cy="20" r="8" fill="#c9a84c" /><circle cx="20" cy="20" r="3" fill="#0a0a0a" /></svg>

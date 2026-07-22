@@ -185,7 +185,7 @@ const GOLD = '#c9a84c';
 
 // ─── CameraModal — identical behavior to FYT, 4 Ever gold colors ──────────────
 
-export default function CameraModal({ label, selectedFormat, onClose, onCapture }) {
+export default function CameraModal({ label, selectedFormat, onClose, onCapture, slotIndex, totalSlots }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const guideRef = useRef(null);
@@ -310,14 +310,42 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture 
     <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
 
       {/* Header */}
-      <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0d0d0d', flex: '0 0 auto', borderBottom: '1px solid #2a2a2a' }}>
-        <div style={{ color: GOLD, fontWeight: '900', fontSize: '18px', fontFamily: 'Georgia, serif' }}>
-          {slotLabel}
+      <div style={{ padding: '10px 14px', background: '#0d0d0d', flex: '0 0 auto', borderBottom: '1px solid #2a2a2a' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {/* FIX (July 22 session — real user errors from not knowing
+                which photo they were on): the header previously showed only
+                the slot label (e.g. "Back Cover") with no indication of
+                position in the sequence. Now shows an explicit "Photo X of Y"
+                count above the label whenever the caller provides slotIndex/
+                totalSlots (the checkout single-shot scan doesn't, and simply
+                omits this row). */}
+            {Number.isInteger(slotIndex) && totalSlots > 0 && (
+              <div style={{ color: '#e8d5b0', fontSize: '11px', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+                Photo {slotIndex + 1} of {totalSlots}
+              </div>
+            )}
+            <div style={{ color: GOLD, fontWeight: '900', fontSize: '18px', fontFamily: 'Georgia, serif' }}>
+              {slotLabel}
+            </div>
+          </div>
+          <button type="button" onClick={handleClose} aria-label="Close camera"
+            style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '34px', lineHeight: 1, cursor: 'pointer', padding: '4px 8px', zIndex: 10000 }}>
+            ×
+          </button>
         </div>
-        <button type="button" onClick={handleClose} aria-label="Close camera"
-          style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '34px', lineHeight: 1, cursor: 'pointer', padding: '4px 8px', zIndex: 10000 }}>
-          ×
-        </button>
+        {Number.isInteger(slotIndex) && totalSlots > 0 && (
+          <div style={{ display: 'flex', gap: '5px', marginTop: '8px' }}>
+            {Array.from({ length: totalSlots }).map((_, i) => (
+              <div key={i} style={{
+                flex: 1,
+                height: '4px',
+                borderRadius: '2px',
+                background: i < slotIndex ? '#4ade80' : i === slotIndex ? GOLD : '#333',
+              }} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Viewfinder */}
