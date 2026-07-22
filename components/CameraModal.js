@@ -252,16 +252,26 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture,
   }
 
   function resizeCanvasForUpload(sourceCanvas) {
+    // FIX (July 22 session — delay reintroduced after removing the camera
+    // reacquisition cost): getCropFromGuide() already clamps cropW/cropH to
+    // at most the video's own resolution (3840x2160 requested ideal), and
+    // maxSize here is 4000 — 3840 < 4000 always, so the scale-down branch
+    // below could never actually fire in practice. Every single capture was
+    // still paying for a full second canvas allocation plus a complete
+    // redundant pixel copy of up to ~3840x2160 pixels before encoding, for
+    // zero benefit. That cost was always there; it just wasn't the
+    // noticeable bottleneck while camera reacquisition was a bigger one
+    // sitting in front of it. Skip the copy entirely unless a downscale is
+    // actually needed.
     const maxSize = 4000;
+    if (sourceCanvas.width <= maxSize && sourceCanvas.height <= maxSize) {
+      return sourceCanvas;
+    }
     const finalCanvas = document.createElement('canvas');
     const finalCtx = finalCanvas.getContext('2d');
-    let finalW = sourceCanvas.width;
-    let finalH = sourceCanvas.height;
-    if (finalW > maxSize || finalH > maxSize) {
-      const scale = Math.min(maxSize / finalW, maxSize / finalH);
-      finalW = Math.round(finalW * scale);
-      finalH = Math.round(finalH * scale);
-    }
+    const scale = Math.min(maxSize / sourceCanvas.width, maxSize / sourceCanvas.height);
+    const finalW = Math.round(sourceCanvas.width * scale);
+    const finalH = Math.round(sourceCanvas.height * scale);
     finalCanvas.width = finalW;
     finalCanvas.height = finalH;
     finalCtx.fillStyle = '#000';
