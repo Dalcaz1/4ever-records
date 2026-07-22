@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 // ─── CameraHelpers (inlined from FYT) ─────────────────────────────────────────
 
-async function startCameraStream(videoRef, streamRef, setReady, setCamError) {
+export async function startCameraStream(videoRef, streamRef, setReady, setCamError) {
   try {
     let stream = null;
     try {
@@ -50,7 +50,7 @@ async function startCameraStream(videoRef, streamRef, setReady, setCamError) {
   }
 }
 
-function stopCameraStream(streamRef, videoRef) {
+export function stopCameraStream(streamRef, videoRef) {
   if (streamRef.current) {
     streamRef.current.getTracks().forEach(track => { try { track.stop(); } catch {} });
     streamRef.current = null;

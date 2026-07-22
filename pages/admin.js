@@ -1,7 +1,7 @@
 export const getServerSideProps = async () => ({ props: { v: 16 } });
 
 import { useState, useEffect, useRef } from 'react';
-import CameraModal from '../components/CameraModal';
+import CameraModal, { startCameraStream, stopCameraStream } from '../components/CameraModal';
 
 const SESSION_KEY = '4em_admin_state';
 // FIX (July 7 session): migrated from sessionStorage to localStorage.
@@ -361,15 +361,32 @@ export default function Admin() {
   const [pendingIdentification, setPendingIdentification] = useState(null);
   const [formatChoices, setFormatChoices] = useState([]);
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
-  // FIX (July 22 session — camera reacquisition delay on slot photos 2+):
-  // this ref holds the live camera MediaStream across the entire slots
-  // stage. CameraModal is conditionally mounted per-slot (unmounted between
-  // taps), which previously meant every slot after the first paid a fresh
-  // getUserMedia() cost (2-4s on real devices). Now the stream lives here,
-  // gets reattached instantly on each CameraModal mount, and is only
-  // actually stopped when the slots stage ends (all photos done, or reset).
+  // FIX (July 22 session, round 2 — the "reuse the same stream" fix alone
+  // didn't hold on real devices, delay reported as WORSE, 5-7s): the first
+  // pass kept the same MediaStream object alive across slots and stopped
+  // calling getUserMedia repeatedly, but CameraModal still fully unmounts
+  // between slots — meaning for the seconds in between, NO <video> element
+  // anywhere is actually consuming/playing that stream. Mobile browsers
+  // (iOS Safari in particular, increasingly Chrome for power reasons)
+  // routinely suspend/throttle a camera track with zero active consumers to
+  // save power — even while track.readyState still reports 'live' in JS.
+  // Reattaching it then forces the sensor to actually re-power and
+  // refocus, which is indistinguishable in practice from a cold
+  // getUserMedia() call. That's almost certainly the real 5-7s cost, and
+  // it's why just "not stopping the tracks" wasn't enough.
+  //
+  // Real fix: keep an always-mounted (visually hidden) <video> element
+  // continuously playing the shared stream for the entire slots stage —
+  // not only while a CameraModal instance happens to be open — so the
+  // stream never goes without a live consumer between shots. CameraModal
+  // just borrows the same MediaStream object (a MediaStream can be played
+  // by multiple <video> elements at once; this is standard, not a hack).
   const slotStreamRef = useRef(null);
+  const hiddenSlotVideoRef = useRef(null);
   function stopSlotStream() {
+    if (hiddenSlotVideoRef.current) {
+      try { hiddenSlotVideoRef.current.pause(); hiddenSlotVideoRef.current.srcObject = null; } catch {}
+    }
     if (slotStreamRef.current) {
       slotStreamRef.current.getTracks().forEach(t => { try { t.stop(); } catch {} });
       slotStreamRef.current = null;
@@ -479,6 +496,24 @@ export default function Admin() {
   useEffect(() => {
     return () => stopSlotStream();
   }, []);
+
+  // Acquire the shared camera stream as soon as the slots stage begins
+  // (rather than lazily on the first CameraModal mount) and keep the
+  // hidden <video> playing it for the whole stage — this is the actual
+  // fix for the reacquisition delay: see the comment on slotStreamRef
+  // above. If the browser suspends the track anyway (tab backgrounded,
+  // etc.), reacquire the same way the visibilitychange handler in
+  // CameraModal already does for the modal's own video.
+  useEffect(() => {
+    if (entryStage !== 'slots') return;
+    const el = hiddenSlotVideoRef.current;
+    if (!slotStreamRef.current || slotStreamRef.current.getVideoTracks?.()[0]?.readyState !== 'live') {
+      startCameraStream({ current: el }, slotStreamRef, () => {}, () => {});
+    } else if (el) {
+      el.srcObject = slotStreamRef.current;
+      el.play().catch(() => {});
+    }
+  }, [entryStage]);
 
   // Discogs connection status — STEP 1 of a staged rebuild after the
   // previous version of this feature caused a live white-screen crash
@@ -2101,6 +2136,8 @@ export default function Admin() {
       return (
         <div style={{ fontFamily: 'Georgia, serif', background: '#0d0d0d', minHeight: '100vh', color: '#e8d5b0' }}>
           <style>{`* { box-sizing: border-box; } input:focus, select:focus { outline: none; border-color: #c9a84c !important; }`}</style>
+          <video ref={hiddenSlotVideoRef} autoPlay muted playsInline
+            style={{ position: 'fixed', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none', top: 0, left: 0 }} />
           {cameraSlotIndex !== null && <CameraModal label={photoSlots[cameraSlotIndex]} selectedFormat={identification?.format || ''} onCapture={handleSlotCapture} onClose={() => setCameraSlotIndex(null)} persistentStreamRef={slotStreamRef} />}
           <nav style={{ background: '#0a0a0a', borderBottom: '1px solid #2a2a2a', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', position: 'sticky', top: 0, zIndex: 50 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
