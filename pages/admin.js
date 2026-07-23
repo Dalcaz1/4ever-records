@@ -261,7 +261,7 @@ function ScanningOverlay() {
 // Sealed Item scans now ask for a back photo too (front+back exterior,
 // still no seal broken), and Sealed CD specifically now uses the correct
 // jewel-case aspect ratio guide instead of a plain square.
-import { getSlotsFor } from '../shared/scanFormats';
+import { getSlotsFor, FORMATS } from '../shared/scanFormats';
 import { backfillYearFromDiscogs as backfillYearFromDiscogsShared, backfillYearFromMusicBrainz } from '../shared/yearBackfill';
 import { lookupDiscogs } from '../shared/discogsLookup';
 
@@ -360,6 +360,20 @@ export default function Admin() {
   const [pendingIdentification, setPendingIdentification] = useState(null);
   const [formatChoices, setFormatChoices] = useState([]);
   const [cameraSlotIndex, setCameraSlotIndex] = useState(null);
+  // FIX (July 22 session, direct user report — an item stored in a plain
+  // protective poly sleeve was detected as "Sealed" by the AI, presumably
+  // because a clear plastic sleeve can visually resemble shrink wrap in a
+  // photo, with no way to correct it afterward — which matters a lot,
+  // since a wrongly-detected Sealed Item locks the photo request flow into
+  // the abbreviated 2-photo sealed set instead of the full set an opened
+  // item actually needs for accurate identification/pricing). This is the
+  // mirror-image case of the sealed toggle built earlier today (that one
+  // handles the AI missing a real seal; this one handles the AI seeing a
+  // seal that isn't there) — same principle: the person looking at the
+  // physical item knows better than a photo, give them a direct way to
+  // say so, at the point where it's actually discovered (after seeing the
+  // wrong "Sealed" result), not just before the first photo.
+  const [showSealedCorrection, setShowSealedCorrection] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [mode, setMode] = useState('home');
   const [scanning, setScanning] = useState(false);
@@ -661,6 +675,7 @@ export default function Admin() {
     setDiscogsResult(null); setEditItem(null); setEditForm({}); setEditPhotoFile(null);
     setBSideWarning(false);
     setPendingIdentification(null); setFormatChoices([]);
+    setShowSealedCorrection(false);
     clearSession();
   }
 
@@ -781,6 +796,33 @@ export default function Admin() {
     // list at all if every slot is somehow already filled (shouldn't
     // normally happen) or the user backs out mid-sequence.
     const firstMissing = slots.findIndex((_, i) => !initialCaptured[i]?.file);
+    if (firstMissing !== -1) setCameraSlotIndex(firstMissing);
+  }
+
+  // FIX (July 22 session, direct user report — item in a protective poly
+  // sleeve wrongly detected as "Sealed," no way to correct it): called
+  // when the user taps "Not actually sealed" and picks the real type
+  // matching what they see. Recomputes the full photo-slot set for that
+  // corrected type and remaps any already-captured photo by matching its
+  // LABEL text against the new slots — not by index, since a Sealed
+  // Item's 2 slots and e.g. a Picture Cover's 4 slots don't line up
+  // positionally, only by what each photo actually shows (a captured
+  // "Front Cover" photo stays valid under the new type; there's nothing
+  // to carry over for slots the Sealed flow never asked for, like label
+  // photos). Auto-opens the camera at the first still-needed slot, same
+  // pattern as the initial identification.
+  function correctSealedMisdetection(newType) {
+    const newSlots = getSlotsFor(identification.format, newType);
+    const remapped = {};
+    newSlots.forEach((slot, newIndex) => {
+      const existing = Object.values(capturedPhotos).find(cp => cp.label === slot.label);
+      if (existing) remapped[newIndex] = existing;
+    });
+    setIdentification(id => ({ ...id, type: newType }));
+    setPhotoSlots(newSlots);
+    setCapturedPhotos(remapped);
+    setShowSealedCorrection(false);
+    const firstMissing = newSlots.findIndex((_, i) => !remapped[i]?.file);
     if (firstMissing !== -1) setCameraSlotIndex(firstMissing);
   }
 
@@ -2315,6 +2357,34 @@ export default function Admin() {
                   ))}
                 </div>
                 <button onClick={reset} style={{ marginTop: '12px', background: 'transparent', border: '1px solid #333', color: '#aaa', borderRadius: '6px', padding: '5px 12px', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>← Start over</button>
+                {identification.type === 'Sealed Item' && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #2a2a2a' }}>
+                    {!showSealedCorrection ? (
+                      <button onClick={() => setShowSealedCorrection(true)}
+                        style={{ width: '100%', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                        📦 Detected as Sealed — not actually sealed (e.g. just in a protective sleeve)? Tap to correct
+                      </button>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#fbbf24', marginBottom: '8px' }}>What does this item actually have? This replaces the sealed-item photos with the full set needed:</div>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {(FORMATS.find(f => f.label === identification.format)?.types || [])
+                            .filter(t => t.name !== 'Sealed Item')
+                            .map(t => (
+                              <button key={t.name} onClick={() => correctSealedMisdetection(t.name)}
+                                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #c9a84c', background: '#1a1a0a', color: '#c9a84c', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                                {t.name}
+                              </button>
+                            ))}
+                          <button onClick={() => setShowSealedCorrection(false)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #444', background: 'transparent', color: '#999', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <div style={{ fontSize: '11px', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Photos needed · {Object.keys(capturedPhotos).length} of {photoSlots.length} captured</div>
