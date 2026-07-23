@@ -2130,6 +2130,18 @@ export default function Admin() {
 
           {labelModeActive && (() => {
             const orderedSelected = getOrderedSelectedItems();
+            // FIX (July 22 session, direct user report — "having to keep
+            // count from 1-80 was tedious and actually confusing"):
+            // computed once here so both the grid-area display and the
+            // sticky action bar (the one actually positioned to stay
+            // visible while scrolling the checklist below) show the same
+            // real capacity-aware numbers, accounting for labelStartPos —
+            // a partially-used sheet has fewer than 80 slots left, and
+            // nothing previously accounted for that or warned about
+            // spilling onto a second physical sheet.
+            const labelMaxCapacity = 80 - labelStartPos + 1;
+            const labelRemaining = labelMaxCapacity - selectedForLabels.size;
+            const labelOverflowing = labelRemaining < 0;
             return (
               <>
                 <div style={{ marginBottom: '14px', padding: '10px 12px', background: '#1a1a0a', border: '1px solid #3a3010', borderRadius: '8px', fontSize: '12px', color: '#e8d5b0', lineHeight: '1.5' }}>
@@ -2139,8 +2151,24 @@ export default function Admin() {
                 </div>
 
                 <div style={{ marginBottom: '14px' }}>
-                  <div style={{ marginBottom: '8px' }}>
-                    <span style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>Avery 8167 sheet · 80 labels · {selectedForLabels.size} selected · starting at slot {labelStartPos}</span>
+                  <div style={{ background: '#0d0d0d', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                        <span style={{ fontSize: '22px', fontWeight: '900', color: labelOverflowing ? '#f87171' : '#c9a84c', lineHeight: 1 }}>{selectedForLabels.size}</span>
+                        <span style={{ fontSize: '12px', color: '#bbb' }}>selected</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: labelOverflowing ? '#f87171' : '#4ade80', fontWeight: labelOverflowing ? '700' : '400' }}>
+                        {labelOverflowing
+                          ? ('⚠️ ' + Math.abs(labelRemaining) + ' over this sheet — will spill onto a 2nd sheet')
+                          : (labelRemaining + ' slot' + (labelRemaining === 1 ? '' : 's') + ' left on this sheet')}
+                      </div>
+                    </div>
+                    <div style={{ height: '6px', background: '#1a1a1a', borderRadius: '3px', marginTop: '8px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: Math.min(100, (selectedForLabels.size / labelMaxCapacity) * 100) + '%', background: labelOverflowing ? '#f87171' : '#c9a84c', transition: 'width 0.15s ease' }} />
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '4px', fontStyle: 'italic' }}>
+                      Avery 8167 sheet · 80 labels total · starting at slot {labelStartPos}
+                    </div>
                   </div>
 
                   <div style={{ background: '#f5f0e6', borderRadius: '8px', padding: '8px' }}>
@@ -2188,16 +2216,29 @@ export default function Admin() {
                 </div>
 
 
-                <div style={{ position: 'sticky', top: '0', zIndex: 10, background: '#1a1a0a', border: '2px solid #c9a84c', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <button onClick={() => printLabels([...selectedForLabels], labelStartPos)} disabled={printingLabels || selectedForLabels.size === 0}
-                    style={{ padding: '8px 14px', background: selectedForLabels.size === 0 ? '#5a4d28' : '#c9a84c', border: 'none', borderRadius: '8px', color: '#0d0d0d', fontSize: '12px', fontWeight: '700', cursor: selectedForLabels.size === 0 ? 'default' : 'pointer', fontFamily: 'Georgia, serif' }}>
-                    {printingLabels ? 'Generating…' : '🏷️ Print ' + selectedForLabels.size + (selectedForLabels.size === 1 ? ' Label' : ' Labels')}
-                  </button>
-                  <button onClick={() => setSelectedForLabels(new Set())}
-                    style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #444', borderRadius: '8px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                    Clear Selection
-                  </button>
-                  {printLabelsError && <div style={{ width: '100%', fontSize: '11px', color: '#f87171' }}>{printLabelsError}</div>}
+                <div style={{ position: 'sticky', top: '0', zIndex: 10, background: '#1a1a0a', border: '2px solid ' + (labelOverflowing ? '#f87171' : '#c9a84c'), borderRadius: '10px', padding: '12px 14px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '26px', fontWeight: '900', color: labelOverflowing ? '#f87171' : '#c9a84c', lineHeight: 1 }}>{selectedForLabels.size}</span>
+                      <span style={{ fontSize: '12px', color: '#bbb' }}>selected</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: labelOverflowing ? '#f87171' : '#4ade80', fontWeight: labelOverflowing ? '700' : '400', textAlign: 'right' }}>
+                      {labelOverflowing
+                        ? ('⚠️ ' + Math.abs(labelRemaining) + ' over — will spill onto a 2nd sheet')
+                        : (labelRemaining + ' slot' + (labelRemaining === 1 ? '' : 's') + ' left on this sheet')}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <button onClick={() => printLabels([...selectedForLabels], labelStartPos)} disabled={printingLabels || selectedForLabels.size === 0}
+                      style={{ padding: '8px 14px', background: selectedForLabels.size === 0 ? '#5a4d28' : '#c9a84c', border: 'none', borderRadius: '8px', color: '#0d0d0d', fontSize: '12px', fontWeight: '700', cursor: selectedForLabels.size === 0 ? 'default' : 'pointer', fontFamily: 'Georgia, serif' }}>
+                      {printingLabels ? 'Generating…' : '🏷️ Print ' + selectedForLabels.size + (selectedForLabels.size === 1 ? ' Label' : ' Labels')}
+                    </button>
+                    <button onClick={() => setSelectedForLabels(new Set())}
+                      style={{ padding: '8px 14px', background: 'transparent', border: '1px solid #444', borderRadius: '8px', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                      Clear Selection
+                    </button>
+                    {printLabelsError && <div style={{ width: '100%', fontSize: '11px', color: '#f87171' }}>{printLabelsError}</div>}
+                  </div>
                 </div>
               </>
             );
