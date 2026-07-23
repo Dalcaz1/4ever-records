@@ -247,51 +247,22 @@ function ScanningOverlay() {
 }
 
 // ─── FYT_FORMATS ─────────────────────────────────────────────────────────────
-// frame values must match GUIDE_SETTINGS keys in CameraModal:
-//   'square', 'vinyl-circle', 'cd-circle', 'cassette-rect', '8track-rect', 'rectangle'
-const FYT_FORMATS = [
-  { label: '7" Vinyl', types: [
-    { name: 'Picture Sleeve', photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
-    { name: 'Generic Sleeve', photos: [{ label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
-    { name: 'Sleeve Only', photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }] },
-    // FIX (July 22 session, direct user report — confirmed on 12" and
-    // predicted to also affect 7"): identify.js explicitly instructs the
-    // AI to return type "Picture Disc" or "Picture Disc in Sleeve" for
-    // this format, but neither name existed here at all. getSlotsFor's
-    // fewest-photos fallback (July 19 fix) silently caught both and handed
-    // back the single-photo Sealed Item layout instead — meaning a picture
-    // disc, where the artwork IS the vinyl surface on both sides, only
-    // ever got one photo of one side. Both sides needed, always — the
-    // whole point of a picture disc is the printed image on each side.
-    { name: 'Picture Disc', photos: [{ label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
-    { name: 'Picture Disc in Sleeve', photos: [{ label: 'Sleeve', frame: 'square' }, { label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
-    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
-  ]},
-  { label: '12" Vinyl', types: [
-    { name: 'Picture Cover', photos: [{ label: 'Front Cover', frame: 'square' }, { label: 'Back Cover', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
-    { name: 'Generic Cover', photos: [{ label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
-    { name: 'Cover Only', photos: [{ label: 'Front Cover', frame: 'square' }, { label: 'Back Cover', frame: 'square' }] },
-    // FIX (July 22 session — this is the exact case the user tested and
-    // confirmed): same gap as 7" Vinyl above, same fix.
-    { name: 'Picture Disc', photos: [{ label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
-    { name: 'Picture Disc in Sleeve', photos: [{ label: 'Sleeve', frame: 'square' }, { label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
-    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
-  ]},
-  { label: 'CD', types: [
-    { name: 'Picture Case', photos: [{ label: 'Front Case', frame: 'square' }, { label: 'Back Case', frame: 'square' }, { label: 'Disc', frame: 'cd-circle' }] },
-    { name: 'Generic Case', photos: [{ label: 'Disc', frame: 'cd-circle' }] },
-    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
-  ]},
-  { label: 'Cassette', types: [
-    { name: 'Picture Case', photos: [{ label: 'Front Case', frame: 'cassette-rect' }, { label: 'Tape Label', frame: 'cassette-rect' }, { label: 'J-card Back', frame: 'cassette-rect' }] },
-    { name: 'Generic Case', photos: [{ label: 'Front Case', frame: 'cassette-rect' }, { label: 'Tape Label', frame: 'cassette-rect' }] },
-    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'cassette-rect' }] },
-  ]},
-  { label: '8-Track', types: [
-    { name: '8-Track', photos: [{ label: 'Side 1', frame: '8track-rect' }, { label: 'Side 2', frame: '8track-rect' }] },
-    { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
-  ]},
-];
+// FIX (July 22 session, direct instruction — "every piece of it should be
+// done using FYT"): this used to be a local, independently hand-maintained
+// copy that had already drifted from findyourtunes' own version in real,
+// confirmed ways — missing Picture Disc types entirely (now fixed), and a
+// less thorough Sealed Item definition (1 photo here vs. FYT's front+back,
+// still fully non-destructive since neither requires opening the item).
+// Now imported directly from ../shared/, synced fresh from findyourtunes at
+// build time — see scripts/sync-shared-from-fyt.js. Both apps now
+// genuinely share one copy, not two that can silently diverge again.
+//
+// Visible behavior changes from this migration, worth knowing about:
+// Sealed Item scans now ask for a back photo too (front+back exterior,
+// still no seal broken), and Sealed CD specifically now uses the correct
+// jewel-case aspect ratio guide instead of a plain square.
+import { getSlotsFor } from '../shared/scanFormats';
+import { backfillYearFromDiscogs as backfillYearFromDiscogsShared, backfillYearFromMusicBrainz } from '../shared/yearBackfill';
 
 // FIX (July 19 session — category mismatch in saved inventory / 4 Ever
 // Verified Sales matcher): the 'cat' field saved to the records table was
@@ -314,22 +285,6 @@ function releaseTypeToFormatLabel(releaseType) {
   return map[releaseType] || '';
 }
 
-function getSlotsFor(format, type) {
-  const fmt = FYT_FORMATS.find(f => f.label === format);
-  if (!fmt) return [{ label: 'Photo', frame: 'square' }];
-  // FIX (July 19 session, CD/Cassette asking for unnecessary case photos):
-  // previously an unmatched type string silently fell back to
-  // fmt.types[0] — the richest option (Picture Case/Sleeve, most photos)
-  // — which meant any mismatch between what the model returned and the
-  // exact expected string defaulted to asking for MORE photos than
-  // needed. Now prefers the fewest-photos type as the fallback instead —
-  // asking for one extra photo the user can skip is a smaller
-  // inconvenience than asking for photos of case artwork that doesn't
-  // exist.
-  const fewestPhotosType = fmt.types.reduce((min, t) => (t.photos.length < min.photos.length ? t : min), fmt.types[0]);
-  const t = fmt.types.find(t => t.name === type) || fewestPhotosType;
-  return t.photos;
-}
 function slotLabelToKey(label, index) {
   const l = String(label || '').toLowerCase();
   if (l.includes('front cover') || l.includes('front case') || l.includes('front sleeve') || l === 'front') return 'front';
@@ -928,13 +883,13 @@ export default function Admin() {
         // at this point (no printed date, no Discogs catalog match found
         // one either) and MusicBrainz found a single confirmed release with
         // a 4-digit date, use it — same "only take it when unambiguous"
-        // discipline as the Discogs backfill.
-        const mbDate = p?.musicBrainzIdentification?.bestMatch?.date;
-        const mbYear = mbDate ? String(mbDate).match(/^(\d{4})/)?.[1] : null;
-        if (mbYear) {
+        // discipline as the Discogs backfill. Now calls the shared
+        // ../shared/yearBackfill.js function — same one findyourtunes uses.
+        const mbResult = backfillYearFromMusicBrainz(p?.musicBrainzIdentification);
+        if (mbResult?.year) {
           setForm(f => (f.year ? f : {
-            ...f, year: mbYear,
-            notes: (f.notes ? f.notes + '\n\n' : '') + 'Year sourced from MusicBrainz confirmed release date — no date was directly printed on this copy.',
+            ...f, year: mbResult.year,
+            notes: (f.notes ? f.notes + '\n\n' : '') + mbResult.note,
           }));
         }
       }).catch(() => {});
@@ -1225,38 +1180,30 @@ export default function Admin() {
   // different pressing years across matches) — same "don't fabricate a
   // specific wrong year" discipline as the rest of this pipeline, just
   // backed by real external data instead of only the physical photos.
+  //
+  // FIX (July 22 session, direct instruction — "every piece of it should
+  // be done using FYT"): the actual decision logic here (which candidates
+  // count, what note to write) now lives in ../shared/yearBackfill.js, the
+  // same file findyourtunes itself uses. findDiscogsReleaseId above stays
+  // local since it's genuinely transport-specific (trusted-admin header +
+  // absolute FYT_BASE URL here, vs. a Bearer token + relative URL there) —
+  // and it's also still used standalone by the edit-modal Discogs picker
+  // elsewhere in this file, unrelated to year backfill.
   async function backfillYearFromDiscogs(updatedForm) {
-    const lookup = await findDiscogsReleaseId(updatedForm.artist, updatedForm.title, updatedForm.catalog_number, identification?.format);
-    if (lookup.error || !lookup.results || lookup.results.length === 0) return;
-    // FIX (July 22 session — real case: Betty Johnson "Winter In Miami",
-    // Atlantic 45-1169, never got a year despite Discogs unambiguously
-    // showing 1957 for that exact catalog number). discogs-lookup.js
-    // intentionally also returns candidates that only match on artist/title
-    // (no catalog match at all) — useful for its other job of letting a
-    // human pick a release to list on Discogs, where showing every likely
-    // pressing is a feature. But using that SAME broad set to auto-fill a
-    // year meant any other pressing of a well-reissued song (a different
-    // country, different catalog number, different year — e.g. this song's
-    // own 1958 Australian reissue) could inject a conflicting year and
-    // trip the "multiple years, can't auto-determine" safeguard — even
-    // though the actual catalog number on this specific copy was
-    // completely unambiguous. The more reissued a record is, the more
-    // certain this was to fail. Only consider candidates that genuinely
-    // matched the catalog number itself.
-    const catalogMatches = lookup.results.filter(r => r.catalogHit);
-    if (catalogMatches.length === 0) return;
-    const years = [...new Set(catalogMatches.map(r => r.year).filter(Boolean))];
-    if (years.length === 1) {
-      setForm(f => (f.year ? f : {
-        ...f, year: String(years[0]),
-        notes: (f.notes ? f.notes + '\n\n' : '') + 'Year sourced from Discogs catalog-number match (' + updatedForm.catalog_number + ') — no date was directly printed on this copy.',
-      }));
-    } else if (years.length > 1) {
-      setForm(f => ({
+    const result = await backfillYearFromDiscogsShared({
+      artist: updatedForm.artist, title: updatedForm.title,
+      catalogNumber: updatedForm.catalog_number, format: identification?.format,
+      lookupDiscogs: findDiscogsReleaseId,
+    });
+    if (!result) return;
+    setForm(f => {
+      if (result.year && f.year) return f; // never overwrite an existing year
+      return {
         ...f,
-        notes: (f.notes ? f.notes + '\n\n' : '') + 'No date printed on this copy. Discogs shows ' + catalogMatches.length + ' candidate pressing(s) actually matching catalog ' + updatedForm.catalog_number + ' spanning years ' + years.sort().join(', ') + ' — could not auto-determine which one this specific copy is.',
-      }));
-    }
+        ...(result.year ? { year: result.year } : {}),
+        notes: (f.notes ? f.notes + '\n\n' : '') + result.note,
+      };
+    });
   }
 
 

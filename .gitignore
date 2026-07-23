@@ -1,2 +1,6 @@
 node_modules/
 .next/
+# Synced fresh from findyourtunes on every build/dev start — see
+# scripts/sync-shared-from-fyt.js. Never commit this; committing it would
+# reintroduce the exact "silently goes stale" problem this exists to fix.
+/shared/

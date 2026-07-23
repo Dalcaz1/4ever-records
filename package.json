@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/sync-shared-from-fyt.js",
+    "predev": "node scripts/sync-shared-from-fyt.js",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"

@@ -1,4 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  GUIDE_SETTINGS,
+  getSettings,
+  isDualCircle,
+  isCircleFrame,
+  DEFAULT_GUIDE_SIZE,
+  GUIDE_SIZE_MIN,
+  GUIDE_SIZE_MAX,
+  clampGuideSize,
+} from '../shared/captureGuide';
 
 // ─── CameraHelpers (inlined from FYT) ─────────────────────────────────────────
 
@@ -119,83 +129,12 @@ function getCropFromGuide(video, guide, marginMultiplier = CAPTURE_MARGIN) {
   return { cropX, cropY, cropW, cropH };
 }
 
-// ─── GuideControls (inlined from FYT) ─────────────────────────────────────────
-// Real-world dimensions in inches:
-// 12" LP jacket = 12.5" x 12.5" — at 12-14" fills ~82% of phone screen
-// 7" vinyl disc = 7.0" diameter — at 10-12" fills ~82% of phone screen
-// CD jewel case = 5.59" x 4.96" — at 8-10" fills ~62% of phone screen
-// Cassette = 4.25" x 2.75" — at 6-8" fills ~88% of phone screen (landscape rect)
-// 8-Track = 5.25" x 4.0" — at 8-10" fills ~82% of phone screen
-
-const GUIDE_SETTINGS = {
-  'square': {
-    vw: 82, aspect: 1,
-    instruction: 'Hold item 12–14 inches away and fill the guide completely.',
-  },
-  'vinyl-circle': {
-    outerVW: 82, innerRatio: 0.363,
-    instruction: 'Hold record 12–14 inches away. Align the label inside the inner circle.',
-  },
-  // FIX (July 22 session): added alongside the Picture Disc slot-layout
-  // fix in admin.js. The crop itself was already fine reusing
-  // 'vinyl-circle' — getCropFromGuide only ever measures the OUTER circle
-  // (the inner one is a pure visual overlay with its own div, not wired
-  // to the crop math at all) — but 'align the label inside the inner
-  // circle' is actively wrong instruction for a picture disc: there is no
-  // small label, the entire surface out to the edge IS the image. A
-  // single-circle guide with accurate instructions.
-  'picture-disc-circle': {
-    outerVW: 82,
-    instruction: 'Hold record 12–14 inches away. The full printed surface is the image — fill the guide edge to edge.',
-  },
-  '7-square': {
-    vw: 82, aspect: 1,
-    instruction: 'Hold item 10–12 inches away and fill the guide completely.',
-  },
-  '7-circle': {
-    outerVW: 82, innerRatio: 0.58,
-    instruction: 'Hold record 10–12 inches away. Align the label inside the inner circle.',
-  },
-  '7-picture-disc-circle': {
-    outerVW: 82,
-    instruction: 'Hold record 10–12 inches away. The full printed surface is the image — fill the guide edge to edge.',
-  },
-  'cd-circle': {
-    outerVW: 72,
-    instruction: 'Hold disc 8–10 inches away and fill the guide completely.',
-  },
-  'rectangle': {
-    vw: 72, aspect: 4.96 / 5.59,
-    instruction: 'Hold case 8–10 inches away and fill the guide completely.',
-  },
-  'cassette-rect': {
-    vw: 88, aspect: 2.75 / 4.25,
-    instruction: 'Hold cassette 6–8 inches away and fill the guide completely.',
-  },
-  '8track-rect': {
-    vw: 82, aspect: 4.0 / 5.25,
-    instruction: 'Hold 8-track 8–10 inches away and fill the guide completely.',
-  },
-};
-
-const DEFAULT_GUIDE_SIZE = 100;
-const GUIDE_SIZE_MIN = 80;
-const GUIDE_SIZE_MAX = 115;
-
-function clampGuideSize(size) {
-  return Math.max(GUIDE_SIZE_MIN, Math.min(GUIDE_SIZE_MAX, size));
-}
-
-function getSettings(frame, is7inch) {
-  if (frame === 'square' && is7inch) return GUIDE_SETTINGS['7-square'];
-  if (frame === 'vinyl-circle' && is7inch) return GUIDE_SETTINGS['7-circle'];
-  if (frame === 'picture-disc-circle' && is7inch) return GUIDE_SETTINGS['7-picture-disc-circle'];
-  return GUIDE_SETTINGS[frame] || GUIDE_SETTINGS['square'];
-}
-
-function isDualCircle(frame) {
-  return frame === 'vinyl-circle';
-}
+// ─── GuideControls ─────────────────────────────────────────────────────────
+// FIX (July 22 session): this used to be a local copy (originally inlined
+// from FYT, then diverged — this file had picture-disc-circle before FYT
+// did, until that gap was closed too). Now imported from ../shared/, which
+// is synced fresh from findyourtunes at build time — see
+// scripts/sync-shared-from-fyt.js. Both apps now genuinely share one copy.
 
 // ─── 4 Ever gold brand colors ──────────────────────────────────────────────────
 const GOLD = '#c9a84c';
@@ -213,7 +152,7 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture,
   const slotLabel = typeof label === 'string' ? label : label?.label || '';
   const frame = typeof label === 'object' ? label?.frame || 'square' : 'square';
   const is7inch = String(selectedFormat || '').includes('7');
-  const isCircle = frame === 'vinyl-circle' || frame === 'cd-circle' || frame === 'picture-disc-circle';
+  const isCircle = isCircleFrame(frame);
   const isDual = isDualCircle(frame);
   const settings = getSettings(frame, is7inch);
 
