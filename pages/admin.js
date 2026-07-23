@@ -405,6 +405,11 @@ export default function Admin() {
   const [discogsResult, setDiscogsResult] = useState(null);
   // Manage inventory state
   const [manageItems, setManageItems] = useState([]);
+  // FIX (July 22 session, direct user report — genuinely sold items with
+  // real SKUs invisible to this search entirely, looking like a data
+  // integrity mystery when they were actually just correctly-recorded
+  // past sales this UI had no way to show): 'active' | 'sold' | 'all'.
+  const [manageActiveFilter, setManageActiveFilter] = useState('active');
   const [manageLoading, setManageLoading] = useState(false);
   const [manageSearch, setManageSearch] = useState('');
   const [editItem, setEditItem] = useState(null);
@@ -1403,7 +1408,10 @@ export default function Admin() {
     setManageLoading(true);
     try {
       const q = manageSearch ? '&search=' + encodeURIComponent(manageSearch) : '';
-      const res = await fetch('/api/records?active=true&limit=100' + q);
+      const activeParam = manageActiveFilter === 'active' ? 'true' : manageActiveFilter === 'sold' ? 'false' : 'all';
+      const res = await fetch('/api/records?active=' + activeParam + '&limit=100' + q, {
+        headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' },
+      });
       const data = await res.json();
       setManageItems(data.records || data || []);
     } catch { setManageItems([]); }
@@ -2115,6 +2123,15 @@ export default function Admin() {
               onKeyDown={e => e.key === 'Enter' && loadManageItems()}
               placeholder="Search artist or title..." style={{ ...inp, marginBottom: 0, flex: 1 }} />
             <button onClick={loadManageItems} style={{ padding: '10px 16px', background: '#c9a84c', color: '#0d0d0d', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Georgia, serif', fontWeight: '700', whiteSpace: 'nowrap' }}>Search</button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            {[{ v: 'active', label: '✅ Active' }, { v: 'sold', label: '💰 Sold' }, { v: 'all', label: 'All' }].map(opt => (
+              <button key={opt.v} onClick={() => { setManageActiveFilter(opt.v); setTimeout(loadManageItems, 0); }}
+                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid ' + (manageActiveFilter === opt.v ? '#c9a84c' : '#2a2a2a'), background: manageActiveFilter === opt.v ? '#1a1a0a' : '#0a0a0a', color: manageActiveFilter === opt.v ? '#c9a84c' : '#999', fontSize: '12px', fontWeight: manageActiveFilter === opt.v ? '700' : '400', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                {opt.label}
+              </button>
+            ))}
           </div>
 
           {labelModeActive && (() => {
