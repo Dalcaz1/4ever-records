@@ -667,25 +667,19 @@ export default function Admin() {
     setEntryStage('identifying'); setIdentifyError('');
     try {
       const base64 = await fileToBase64(file);
-      const res = await fetch(FYT_BASE + '/api/identify', { method: 'POST', headers: fytHeaders(), body: JSON.stringify({ image: base64 }) });
+      // FIX (July 22 session, direct instruction — "every piece of it
+      // should be done using FYT"): this used to force sealedOverride/
+      // formatOverride client-side, after the fact, on the response —
+      // duplicating logic identify.js already implements itself for
+      // isSealed (since June 20), and now also implements for
+      // formatOverride (ported there today alongside FYT's own version of
+      // this same toggle). Passing both straight through in the request
+      // body means the server enforces them once, consistently, for every
+      // caller — this app and FYT's own consumer flow both — with no
+      // separate client-side copy of that logic to keep in sync.
+      const res = await fetch(FYT_BASE + '/api/identify', { method: 'POST', headers: fytHeaders(), body: JSON.stringify({ image: base64, isSealed: sealedOverride === true, formatOverride: formatOverride || undefined }) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Identification failed');
-
-      // FIX (July 22 session, direct user report): apply the operator's
-      // own sealed declaration before any downstream branching, so it
-      // survives every path this data object can take from here — direct
-      // commit, low-confidence retake, or format disambiguation — not just
-      // the happy path. The AI's own type guess is overridden outright:
-      // the person holding the physical item knows better than a read of
-      // one photo, and this only ever fires when they explicitly said so.
-      if (sealedOverride) data.type = 'Sealed Item';
-      // FIX (July 22 session — sealed 12" items directly misread as CD or
-      // 45): same principle, for physical size/format. The operator knows
-      // this with total certainty just by holding the item — force it and
-      // clear any format_alternatives ambiguity, since a direct human
-      // declaration resolves that ambiguity outright rather than needing
-      // the disambiguation prompt to ask about it.
-      if (formatOverride) { data.format = formatOverride; data.format_alternatives = []; }
 
       // FIX (NO GUESSING requirement, flagged critical July 7, built July
       // 19): previously a low-confidence guess — e.g. a Sun label scan
