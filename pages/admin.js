@@ -23,36 +23,22 @@ function fytHeaders() {
   return { 'Content-Type': 'application/json', 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' };
 }
 
-const CONDITION_MULTIPLIERS = { 'Sealed': 2.80, 'M': 2.50, 'NM': 1.60, 'VG+': 1.25, 'VG': 1.0, 'G': 0.60 };
+// FIX (July 22 session): CONDITION_MULTIPLIERS used to drive a client-side
+// price approximation on condition change (recalcPriceForCondition, removed
+// below) that had drifted from the real pricing engine in pages/api/pricing.js.
+// Removed entirely — condition changes now re-call the real pricing engine
+// (see refetchPriceForCondition) instead of approximating client-side.
 
-function isSpanishOrRegionalLikely(artist, label, genre, country) {
-  const haystack = [artist, label, genre, country].join(' ').toLowerCase();
-  return /tejano|conjunto|norteno|norteño|regional mexican|spanish|mexican|freddie|latin|ranchera|cumbia|spain|espana/.test(haystack);
-}
-function getSpanishFloor(format, condition) {
-  const isLP = /lp|12/i.test(format);
-  if (isLP) return { 'Sealed': 34.99, 'M': 24.99, 'NM': 24.99, 'VG+': 19.99, 'VG': 17.99, 'G': 16.99 }[condition] || 17.99;
-  return { 'Sealed': 14.99, 'M': 9.99, 'NM': 9.99, 'VG+': 7.99, 'VG': 5.99, 'G': 4.99 }[condition] || 5.99;
-}
-function hasPictureSleeve(identification) { return (identification?.type || '').toLowerCase().includes('picture'); }
-function getPictureSleeveMultiplier(identification) {
-  const fmt = (identification?.format || '').toLowerCase();
-  if (!hasPictureSleeve(identification)) return 1.0;
-  return fmt.includes('7') ? 1.40 : 1.25;
-}
-function recalcPriceForCondition(basePrice, condition, identification, form) {
-  if (!basePrice) return null;
-  const base = parseFloat(basePrice);
-  if (isNaN(base)) return null;
-  const baseAtVG = base / CONDITION_MULTIPLIERS['VG+'];
-  let price = baseAtVG * (CONDITION_MULTIPLIERS[condition] || 1.0);
-  price = price * getPictureSleeveMultiplier(identification);
-  if (isSpanishOrRegionalLikely(form.artist, form.label, form.genre, form.country)) {
-    const floor = getSpanishFloor(identification?.format || '', condition);
-    if (price < floor) price = floor;
-  }
-  return price.toFixed(2);
-}
+// FIX (July 22 session — condition-change price recalculation was a crude
+// client-side approximation that had drifted from the real pricing engine:
+// flat 1.40x/1.25x picture-sleeve multipliers vs the real 1.80x/1.30x/1.40x
+// gated on EP-vs-single and sold-comp data, and a hard-dollar Spanish/
+// regional floor vs the real flat 1.08x multiplier — two genuinely
+// different pricing mechanisms, not just different numbers. Every
+// condition change in admin was quietly showing a price the real pricing
+// engine would never have produced. Removed in favor of actually re-
+// calling /api/pricing with the new condition — see refetchPriceForCondition
+// below and its call sites in handleFormChange/handleConditionChange.
 
 function PinLock({ onUnlock }) {
   const [pin, setPin] = useState('');
@@ -366,6 +352,11 @@ export default function Admin() {
   const [scanning, setScanning] = useState(false);
   const [pricing, setPricing] = useState(null);
   const [scanResult, setScanResult] = useState(null);
+  const [priceRecalculating, setPriceRecalculating] = useState(false);
+  // Stores every non-condition param the last successful /api/pricing call
+  // used, so a condition change can re-call the real pricing engine with
+  // just that one field swapped, instead of approximating client-side.
+  const lastPricingParamsRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [savedSku, setSavedSku] = useState(null);
   const [savedRecordId, setSavedRecordId] = useState(null);
@@ -836,11 +827,22 @@ export default function Admin() {
       setForm(updatedForm);
       await fetchNextSku(correctedCat);
       if (!updatedForm.year && updatedForm.catalog_number) backfillYearFromDiscogs(updatedForm);
-      const pricingParams = new URLSearchParams({ artist: result.artist || '', title: result.title || '', year: result.year || '', year_era: result.year_era || '', country: result.country || '', catalog_number: result.catalog_number || result.catalogNumber || '', pressing: result.pressing || result.format_details || identification?.type || '', format: identification?.format || '', release_type: result.release_type || '', genre: result.genre || '', label: result.label || '', condition: result.condition || '', sealed: isSealed ? 'true' : 'false', vinyl_color: result.vinyl_color || '', variant: result.variant || '', variant_confidence: result.variant_confidence || '', label_details: result.label_details || '', pressing_evidence: result.pressing_evidence || '', cover_details: result.cover_details || '', identity_match: result.identity_match === false ? 'false' : 'true', identity_conflict_note: result.identity_conflict_note || '', promo_evidence_citation: result.promo_evidence_citation || '', deep: 'true' });
+      const pricingParamsObj = { artist: result.artist || '', title: result.title || '', year: result.year || '', year_era: result.year_era || '', country: result.country || '', catalog_number: result.catalog_number || result.catalogNumber || '', pressing: result.pressing || result.format_details || identification?.type || '', format: identification?.format || '', release_type: result.release_type || '', genre: result.genre || '', label: result.label || '', condition: result.condition || '', sealed: isSealed ? 'true' : 'false', vinyl_color: result.vinyl_color || '', variant: result.variant || '', variant_confidence: result.variant_confidence || '', label_details: result.label_details || '', pressing_evidence: result.pressing_evidence || '', cover_details: result.cover_details || '', identity_match: result.identity_match === false ? 'false' : 'true', identity_conflict_note: result.identity_conflict_note || '', promo_evidence_citation: result.promo_evidence_citation || '', deep: 'true' };
+      // Keep every field EXCEPT condition around so a later condition
+      // change can re-call the real pricing engine instead of
+      // approximating the price change client-side (see
+      // refetchPriceForCondition and its call sites below).
+      lastPricingParamsRef.current = pricingParamsObj;
+      const pricingParams = new URLSearchParams(pricingParamsObj);
       fetch(FYT_BASE + '/api/pricing?' + pricingParams.toString(), { headers: fytHeaders() }).then(r => r.json()).then(p => {
         setPricing(p);
-        const base = p?.recommended ? String(p.recommended).replace('$', '') : null;
-        if (base) { const recalced = recalcPriceForCondition(base, result.condition || 'VG+', identification, updatedForm); setDisplayPrice(recalced || base); }
+        // FIX (July 22 session): this used to run the result through a
+        // client-side recalcPriceForCondition() "for the current
+        // condition" — but result.condition is exactly the condition this
+        // very pricing call already used, so p.recommended is already the
+        // correct price for it. No recalculation needed at all here; that
+        // step was pure redundant (and, worse, subtly wrong) work.
+        if (p?.recommended) setDisplayPrice(String(p.recommended).replace('$', ''));
         // FIX (raised directly by user — MusicBrainz's "confirmed" fields
         // were display-only, never actually used): if Year is still empty
         // at this point (no printed date, no Discogs catalog match found
@@ -870,17 +872,41 @@ export default function Admin() {
     try { const r = await fetch('/api/next-sku?cat=' + encodeURIComponent(cat)); const d = await r.json(); setNextSku(d.sku); } catch {}
   }
 
+  // FIX (July 22 session): replaces recalcPriceForCondition, which
+  // approximated a condition-change price client-side using flat
+  // multipliers that had drifted from the real pricing engine's actual
+  // logic (EP-vs-single gating, sold-comp gating, a real 1.08x Spanish/
+  // regional multiplier vs. the old code's hard dollar floor). This just
+  // re-asks the real pricing engine with the new condition — the only way
+  // to guarantee the price shown always matches what pricing.js would
+  // actually produce.
+  async function refetchPriceForCondition(newCondition) {
+    const baseParams = lastPricingParamsRef.current;
+    if (!baseParams) return;
+    setPriceRecalculating(true);
+    try {
+      const params = new URLSearchParams({ ...baseParams, condition: newCondition });
+      const p = await fetch(FYT_BASE + '/api/pricing?' + params.toString(), { headers: fytHeaders() }).then(r => r.json());
+      setPricing(p);
+      if (p?.recommended) setDisplayPrice(String(p.recommended).replace('$', ''));
+    } catch {
+      // Fail soft — leave the last known price displayed rather than
+      // showing nothing or a stale/wrong value.
+    }
+    setPriceRecalculating(false);
+  }
+
   function handleFormChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
     if (e.target.name === 'condition') {
       setAdjustedCondition(e.target.value);
-      if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, e.target.value, identification, form); if (recalced) setDisplayPrice(recalced); }
+      refetchPriceForCondition(e.target.value);
     }
   }
 
   function handleConditionChange(c) {
     setAdjustedCondition(c); setForm(f => ({ ...f, condition: c }));
-    if (baseRecommended) { const recalced = recalcPriceForCondition(baseRecommended, c, identification, form); if (recalced) setDisplayPrice(recalced); }
+    refetchPriceForCondition(c);
   }
 
   // ─── Checkout Mode ────────────────────────────────────────────────────────
@@ -2250,14 +2276,14 @@ export default function Admin() {
                 {pricing.popsike?.median && <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}><div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>Popsike</div><div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.popsike.median}</div><div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.popsike.count} auctions</div></div>}
                 {pricing.fourEverMemories?.median && <div style={{ textAlign: 'center', background: '#0f1a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #1a3a1a' }}><div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>4EM Verified Sales</div><div style={{ fontSize: '15px', color: '#4ade80', fontWeight: '700' }}>${pricing.fourEverMemories.median}</div><div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.fourEverMemories.count} sold</div></div>}
                 {pricing.fourEverMemoriesActive?.median && <div style={{ textAlign: 'center', background: '#0a0a0a', borderRadius: '6px', padding: '8px 4px' }}><div style={{ fontSize: '10px', color: '#bbb', marginBottom: '2px' }}>4EM Current Listings</div><div style={{ fontSize: '15px', color: '#c9a84c', fontWeight: '700' }}>${pricing.fourEverMemoriesActive.median}</div><div style={{ fontSize: '10px', color: '#bbb' }}>{pricing.fourEverMemoriesActive.count} asking</div></div>}
-                {shownPrice && <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #2a4a2a' }}><div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div><div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>${shownPrice}</div><div style={{ fontSize: '10px', color: '#bbb' }}>{activeCondition}</div></div>}
+                {shownPrice && <div style={{ textAlign: 'center', background: '#0f2a0f', borderRadius: '6px', padding: '8px 4px', border: '1px solid #2a4a2a', opacity: priceRecalculating ? 0.5 : 1 }}><div style={{ fontSize: '10px', color: '#4ade80', marginBottom: '2px' }}>Suggested</div><div style={{ fontSize: '16px', color: '#4ade80', fontWeight: '700' }}>{priceRecalculating ? '…' : '$' + shownPrice}</div><div style={{ fontSize: '10px', color: '#bbb' }}>{activeCondition}</div></div>}
               </div>
               <div style={{ borderTop: '1px solid #1a3a1a', paddingTop: '12px', marginBottom: '4px' }}>
-                <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Adjust Condition — Price Updates Instantly</div>
+                <div style={{ fontSize: '10px', color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Adjust Condition{priceRecalculating ? ' — Recalculating…' : ''}</div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {CONDITIONS.map(c => <button key={c} className="cond-btn" onClick={() => handleConditionChange(c)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'), background: activeCondition === c ? '#1a1a0a' : '#0a0a0a', color: activeCondition === c ? '#c9a84c' : '#e8d5b0', fontWeight: activeCondition === c ? '700' : '400', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>{c}</button>)}
+                  {CONDITIONS.map(c => <button key={c} className="cond-btn" disabled={priceRecalculating} onClick={() => handleConditionChange(c)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid ' + (activeCondition === c ? '#c9a84c' : '#2a2a2a'), background: activeCondition === c ? '#1a1a0a' : '#0a0a0a', color: activeCondition === c ? '#c9a84c' : '#e8d5b0', fontWeight: activeCondition === c ? '700' : '400', fontSize: '12px', cursor: priceRecalculating ? 'default' : 'pointer', opacity: priceRecalculating ? 0.6 : 1, fontFamily: 'Georgia, serif' }}>{c}</button>)}
                 </div>
-                {adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition} — ${shownPrice}</div>}
+                {!priceRecalculating && adjustedCondition && adjustedCondition !== (scanResult?.condition || 'VG+') && <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '6px', fontStyle: 'italic' }}>✓ Price updated for {adjustedCondition} — ${shownPrice}</div>}
               </div>
               {pricing.ebay?.topListings?.length > 0 && (
                 <div style={{ marginBottom: '10px' }}>
