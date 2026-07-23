@@ -29,7 +29,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const FILES = ['scanFormats.js', 'captureGuide.js', 'yearBackfill.js'];
+const FILES = ['scanFormats.js', 'captureGuide.js', 'yearBackfill.js', 'discogsLookup.js'];
 const BASE_URL = 'https://raw.githubusercontent.com/Dalcaz1/findyourtunes/main/shared/';
 const OUT_DIR = path.join(__dirname, '..', 'shared');
 

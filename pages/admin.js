@@ -263,6 +263,7 @@ function ScanningOverlay() {
 // jewel-case aspect ratio guide instead of a plain square.
 import { getSlotsFor } from '../shared/scanFormats';
 import { backfillYearFromDiscogs as backfillYearFromDiscogsShared, backfillYearFromMusicBrainz } from '../shared/yearBackfill';
+import { lookupDiscogs } from '../shared/discogsLookup';
 
 // FIX (July 19 session — category mismatch in saved inventory / 4 Ever
 // Verified Sales matcher): the 'cat' field saved to the records table was
@@ -1149,20 +1150,16 @@ export default function Admin() {
   // resolve a bestReleaseId — same endpoint FYT's own DiscogsListingPanel
   // uses, called here via the trusted-admin header instead of a consumer
   // login session.
+  // FIX (July 22 session, direct user pushback — "did we not just end
+  // that mess?"): this used to duplicate the entire request nearly
+  // identically to findyourtunes' own copy. Now just supplies this app's
+  // genuine difference (absolute FYT_BASE URL, trusted-admin header) to
+  // the shared ../shared/discogsLookup.js function.
   async function findDiscogsReleaseId(artist, title, catalogNumber, format, barcode) {
-    const params = new URLSearchParams({
-      artist: artist || '', title: title || '',
-      catalog_number: catalogNumber || '', format: format || '',
-      barcode: barcode || '',
+    return lookupDiscogs({
+      baseUrl: FYT_BASE, headers: fytHeaders(),
+      artist, title, catalogNumber, format, barcode,
     });
-    try {
-      const res = await fetch(FYT_BASE + '/api/collection/discogs-lookup?' + params.toString(), { headers: fytHeaders() });
-      const data = await res.json();
-      if (!res.ok) return { error: data.error || 'Discogs lookup failed' };
-      return { results: data.results || [] };
-    } catch (err) {
-      return { error: 'Discogs lookup failed: ' + err.message };
-    }
   }
 
   // FIX (raised directly by user — "Discogs alone can retrieve thousands of
