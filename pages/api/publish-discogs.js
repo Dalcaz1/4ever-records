@@ -36,23 +36,43 @@ export default async function handler(req, res) {
         continue;
       }
 
-      // Map category to prefix
+      // FIX (July 22 session): same non-atomic read-then-write race
+      // condition as save-record.js — see the fuller comment there. This
+      // endpoint writes to the exact same sku_counter rows, so a
+      // concurrent Discogs publish and a regular scan-save could collide
+      // with each other, not just two scans. Same compare-and-swap fix.
       const category = item.category || '7" Vinyl';
       const prefix = SKU_PREFIXES[category] || '4EMR45';
+      let skuNum = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { data: counter, error: readErr } = await supabase
+          .from('sku_counter').select('value').eq('category', prefix).single();
+        if (readErr && readErr.code !== 'PGRST116') break;
+        const currentValue = counter?.value || 0;
+        const nextValue = currentValue + 1;
 
-      // Get and increment SKU counter
-      const { data: counter } = await supabase
-        .from('sku_counter')
-        .select('value')
-        .eq('category', prefix)
-        .single();
+        if (!counter) {
+          const { error: insertErr } = await supabase
+            .from('sku_counter').insert({ category: prefix, value: nextValue });
+          if (insertErr) continue;
+          skuNum = nextValue;
+          break;
+        }
 
-      const skuNum = (counter?.value || 0) + 1;
+        const { data: updated, error: updateErr } = await supabase
+          .from('sku_counter')
+          .update({ value: nextValue })
+          .eq('category', prefix)
+          .eq('value', currentValue)
+          .select('value');
+        if (updateErr) break;
+        if (updated && updated.length > 0) { skuNum = nextValue; break; }
+      }
+      if (skuNum === null) {
+        skipped.push(item.id);
+        continue;
+      }
       const sku = `${prefix}-D-${String(skuNum).padStart(4, '0')}`;
-
-      await supabase
-        .from('sku_counter')
-        .upsert({ category: prefix, value: skuNum }, { onConflict: 'category' });
 
       // Insert into records table
       const { error: insertError } = await supabase.from('records').insert({

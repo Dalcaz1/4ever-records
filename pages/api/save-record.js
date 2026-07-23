@@ -55,13 +55,74 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Artist, title, and price are required' });
     }
 
-    // Generate SKU
+    // FIX (July 22 session, direct user report — confirmed reproducible
+    // 5/5 times: two people scanning concurrently on separate devices).
+    // This used to read the counter's current value and write back value+1
+    // as two separate, non-atomic steps — if two saves in the same
+    // category landed close together, both could read the SAME starting
+    // value before either wrote back, and both items would be assigned
+    // the IDENTICAL SKU. That wouldn't stop a scan from completing, but
+    // it would cause exactly "misidentifies items" later: anyone looking
+    // up that SKU (checkout, reprinting a label, a pricing lookup) would
+    // see whichever record comes back first, for both physical items.
+    //
+    // No direct database/migration access in this environment to create a
+    // true atomic Postgres stored procedure (the textbook fix), so this
+    // uses genuine optimistic-concurrency control instead: attempt the
+    // update conditioned on the value still being exactly what was just
+    // read (.eq('value', currentValue)); Supabase/PostgREST reports how
+    // many rows that update actually touched. If another request already
+    // changed it in between, zero rows match and zero rows update — that's
+    // detected and the whole read-compute-write cycle retries with a fresh
+    // read, rather than silently overwriting. Bounded at 8 attempts, which
+    // will always be enough for two people's saves landing close together;
+    // if it's still colliding after 8 attempts something more seriously
+    // wrong would be going on, worth its own investigation rather than
+    // retrying forever.
     const prefix = SKU_PREFIXES[cat] || '4EMR';
-    const { data: counter } = await supabase
-      .from('sku_counter').select('value').eq('category', prefix).single();
-    const skuNum = (counter?.value || 0) + 1;
+    let skuNum = null;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { data: counter, error: readErr } = await supabase
+        .from('sku_counter').select('value').eq('category', prefix).single();
+      if (readErr && readErr.code !== 'PGRST116') { // PGRST116 = no row yet, treat as 0
+        return res.status(500).json({ error: 'Failed to read SKU counter: ' + readErr.message });
+      }
+      const currentValue = counter?.value || 0;
+      const nextValue = currentValue + 1;
+
+      if (!counter) {
+        // No row for this category yet — insert, but guard against two
+        // concurrent first-ever saves in this category both trying to
+        // insert at once (unique constraint on category would reject the
+        // loser, which is treated as "someone beat us, retry" below).
+        const { error: insertErr } = await supabase
+          .from('sku_counter').insert({ category: prefix, value: nextValue });
+        if (insertErr) continue; // someone else inserted first — retry with a fresh read
+        skuNum = nextValue;
+        break;
+      }
+
+      const { data: updated, error: updateErr } = await supabase
+        .from('sku_counter')
+        .update({ value: nextValue })
+        .eq('category', prefix)
+        .eq('value', currentValue) // the actual compare-and-swap condition
+        .select('value');
+      if (updateErr) {
+        return res.status(500).json({ error: 'Failed to update SKU counter: ' + updateErr.message });
+      }
+      if (updated && updated.length > 0) {
+        skuNum = nextValue;
+        break; // won the race — this attempt's write actually landed
+      }
+      // Zero rows updated means another concurrent save already changed
+      // the value between our read and this write — loop and retry with
+      // a fresh read rather than silently proceeding with a stale number.
+    }
+    if (skuNum === null) {
+      return res.status(500).json({ error: 'Could not safely assign a SKU after several attempts — please try saving again.' });
+    }
     const sku = `${prefix}-${String(skuNum).padStart(4, '0')}`;
-    await supabase.from('sku_counter').upsert({ category: prefix, value: skuNum }, { onConflict: 'category' });
 
     // Upload all photos
     const photoUrls = {};
