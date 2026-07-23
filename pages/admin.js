@@ -852,10 +852,10 @@ export default function Admin() {
       setScanResult(result);
       const enrichedNotes = [result.notes || '', result.year_era ? 'Estimated Era: ' + result.year_era : '', result.pressing_evidence || '', result.condition_notes ? 'Condition Notes: ' + result.condition_notes : '', result.variant ? 'Variant: ' + result.variant : '', result.description ? 'Description: ' + result.description : ''].filter(Boolean).join('\n\n');
       const correctedCat = releaseTypeToFormatLabel(result.release_type) || identification?.format || '';
-      const updatedForm = { ...form, artist: result.artist || form.artist, title: result.title || form.title, year: result.year || form.year, label: result.label || form.label, catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number, country: result.country || form.country, pressing: result.pressing || result.format_details || form.pressing, genre: result.genre || form.genre, condition: result.condition || form.condition, notes: enrichedNotes || form.notes, cat: correctedCat };
+      const updatedForm = { ...form, artist: result.artist || form.artist, title: result.title || form.title, year: result.year || form.year, label: result.label || form.label, catalog_number: result.catalog_number || result.catalogNumber || form.catalog_number, barcode: result.barcode || form.barcode || '', country: result.country || form.country, pressing: result.pressing || result.format_details || form.pressing, genre: result.genre || form.genre, condition: result.condition || form.condition, notes: enrichedNotes || form.notes, cat: correctedCat };
       setForm(updatedForm);
       await fetchNextSku(correctedCat);
-      if (!updatedForm.year && updatedForm.catalog_number) backfillYearFromDiscogs(updatedForm);
+      if (!updatedForm.year && (updatedForm.catalog_number || updatedForm.barcode)) backfillYearFromDiscogs(updatedForm);
       const pricingParamsObj = { artist: result.artist || '', title: result.title || '', year: result.year || '', year_era: result.year_era || '', country: result.country || '', catalog_number: result.catalog_number || result.catalogNumber || '', pressing: result.pressing || result.format_details || identification?.type || '', format: identification?.format || '', release_type: result.release_type || '', genre: result.genre || '', label: result.label || '', condition: result.condition || '', sealed: isSealed ? 'true' : 'false', vinyl_color: result.vinyl_color || '', variant: result.variant || '', variant_confidence: result.variant_confidence || '', label_details: result.label_details || '', pressing_evidence: result.pressing_evidence || '', cover_details: result.cover_details || '', identity_match: result.identity_match === false ? 'false' : 'true', identity_conflict_note: result.identity_conflict_note || '', promo_evidence_citation: result.promo_evidence_citation || '', deep: 'true' };
       // Keep every field EXCEPT condition around so a later condition
       // change can re-call the real pricing engine instead of
@@ -1149,10 +1149,11 @@ export default function Admin() {
   // resolve a bestReleaseId — same endpoint FYT's own DiscogsListingPanel
   // uses, called here via the trusted-admin header instead of a consumer
   // login session.
-  async function findDiscogsReleaseId(artist, title, catalogNumber, format) {
+  async function findDiscogsReleaseId(artist, title, catalogNumber, format, barcode) {
     const params = new URLSearchParams({
       artist: artist || '', title: title || '',
       catalog_number: catalogNumber || '', format: format || '',
+      barcode: barcode || '',
     });
     try {
       const res = await fetch(FYT_BASE + '/api/collection/discogs-lookup?' + params.toString(), { headers: fytHeaders() });
@@ -1183,10 +1184,18 @@ export default function Admin() {
   // absolute FYT_BASE URL here, vs. a Bearer token + relative URL there) —
   // and it's also still used standalone by the edit-modal Discogs picker
   // elsewhere in this file, unrelated to year backfill.
+  //
+  // FIX (July 22 session, direct user report — a real, confirmed catalog
+  // number misread: ST-17180 read as ST-17085, which drove a wrong match):
+  // now also passes barcode through as an additional, more reliable
+  // verification signal — see shared/yearBackfill.js and scan.js for the
+  // full story on why a barcode is trusted at least as much as a catalog
+  // number, and why it can trigger a lookup even without one.
   async function backfillYearFromDiscogs(updatedForm) {
     const result = await backfillYearFromDiscogsShared({
       artist: updatedForm.artist, title: updatedForm.title,
       catalogNumber: updatedForm.catalog_number, format: identification?.format,
+      barcode: updatedForm.barcode,
       lookupDiscogs: findDiscogsReleaseId,
     });
     if (!result) return;
