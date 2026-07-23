@@ -8,13 +8,24 @@
 // physical labels for identification: point a camera at it. No dedicated
 // barcode-scanner hardware required.
 //
-// Grid geometry derived and verified mathematically against Avery's
-// published margins (Top/Bottom 0.5", Left/Right 0.25") — not guessed:
+// FIX (July 22 session, direct user report — print running off the label,
+// worst around the center columns): the previous geometry here (0.25" left
+// margin, 2.0" horizontal pitch / 0.25" gap) was NOT actually verified
+// against Avery's real spec despite a comment here previously claiming it
+// was — it was a rounded approximation. Corrected against glabels (the
+// open-source label-geometry database many print tools, including several
+// independent Avery-template generators, pull their Avery numbers from
+// directly): actual first-label left margin is 0.281", horizontal pitch is
+// 2.062" (a 0.312" gap between columns, not 0.25"). That's a real, small,
+// per-column error that compounds across 4 columns — by the 3rd/4th column
+// content could drift into the neighboring physical label, matching
+// exactly the reported symptom. Vertical geometry (0.5" top margin, 0.5"
+// pitch, 0 gap) was already correct and is unchanged.
 //   - Vertical: 20 rows x 0.5" = 10.0" exactly fills the 11" - 1.0" margin
 //     usable height, so labels are edge-to-edge vertically (no gutter).
-//   - Horizontal: 4 columns x 2.0" pitch = 8.0" exactly fills the
-//     8.5" - 0.5" margin usable width, meaning a 0.25" gutter (2.0" pitch
-//     - 1.75" label width) sits between columns.
+//   - Horizontal: 0.281" left margin + 3 x 2.062" pitch + 1.75" last label
+//     width = 8.217", leaving ~0.283" on the right — matches glabels'
+//     stated 0.281" right margin (rounding).
 
 import PDFDocument from 'pdfkit';
 
@@ -24,9 +35,9 @@ const LABEL_W = 1.75 * 72; // 126pt
 const LABEL_H = 0.5 * 72; // 36pt
 const COLS = 4;
 const ROWS = 20;
-const LEFT_MARGIN = 0.25 * 72; // 18pt
+const LEFT_MARGIN = 0.281 * 72; // 20.23pt
 const TOP_MARGIN = 0.5 * 72; // 36pt
-const H_PITCH = 2.0 * 72; // 144pt (label + 0.25" gutter)
+const H_PITCH = 2.062 * 72; // 148.46pt (label + 0.312" gutter)
 const V_PITCH = 0.5 * 72; // 36pt (no gutter)
 const PER_PAGE = COLS * ROWS; // 80
 

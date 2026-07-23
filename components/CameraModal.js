@@ -136,6 +136,18 @@ const GUIDE_SETTINGS = {
     outerVW: 82, innerRatio: 0.363,
     instruction: 'Hold record 12–14 inches away. Align the label inside the inner circle.',
   },
+  // FIX (July 22 session): added alongside the Picture Disc slot-layout
+  // fix in admin.js. The crop itself was already fine reusing
+  // 'vinyl-circle' — getCropFromGuide only ever measures the OUTER circle
+  // (the inner one is a pure visual overlay with its own div, not wired
+  // to the crop math at all) — but 'align the label inside the inner
+  // circle' is actively wrong instruction for a picture disc: there is no
+  // small label, the entire surface out to the edge IS the image. A
+  // single-circle guide with accurate instructions.
+  'picture-disc-circle': {
+    outerVW: 82,
+    instruction: 'Hold record 12–14 inches away. The full printed surface is the image — fill the guide edge to edge.',
+  },
   '7-square': {
     vw: 82, aspect: 1,
     instruction: 'Hold item 10–12 inches away and fill the guide completely.',
@@ -143,6 +155,10 @@ const GUIDE_SETTINGS = {
   '7-circle': {
     outerVW: 82, innerRatio: 0.58,
     instruction: 'Hold record 10–12 inches away. Align the label inside the inner circle.',
+  },
+  '7-picture-disc-circle': {
+    outerVW: 82,
+    instruction: 'Hold record 10–12 inches away. The full printed surface is the image — fill the guide edge to edge.',
   },
   'cd-circle': {
     outerVW: 72,
@@ -173,6 +189,7 @@ function clampGuideSize(size) {
 function getSettings(frame, is7inch) {
   if (frame === 'square' && is7inch) return GUIDE_SETTINGS['7-square'];
   if (frame === 'vinyl-circle' && is7inch) return GUIDE_SETTINGS['7-circle'];
+  if (frame === 'picture-disc-circle' && is7inch) return GUIDE_SETTINGS['7-picture-disc-circle'];
   return GUIDE_SETTINGS[frame] || GUIDE_SETTINGS['square'];
 }
 
@@ -196,7 +213,7 @@ export default function CameraModal({ label, selectedFormat, onClose, onCapture,
   const slotLabel = typeof label === 'string' ? label : label?.label || '';
   const frame = typeof label === 'object' ? label?.frame || 'square' : 'square';
   const is7inch = String(selectedFormat || '').includes('7');
-  const isCircle = frame === 'vinyl-circle' || frame === 'cd-circle';
+  const isCircle = frame === 'vinyl-circle' || frame === 'cd-circle' || frame === 'picture-disc-circle';
   const isDual = isDualCircle(frame);
   const settings = getSettings(frame, is7inch);
 

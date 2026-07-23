@@ -230,12 +230,27 @@ const FYT_FORMATS = [
     { name: 'Picture Sleeve', photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
     { name: 'Generic Sleeve', photos: [{ label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
     { name: 'Sleeve Only', photos: [{ label: 'Front Sleeve', frame: 'square' }, { label: 'Back Sleeve', frame: 'square' }] },
+    // FIX (July 22 session, direct user report — confirmed on 12" and
+    // predicted to also affect 7"): identify.js explicitly instructs the
+    // AI to return type "Picture Disc" or "Picture Disc in Sleeve" for
+    // this format, but neither name existed here at all. getSlotsFor's
+    // fewest-photos fallback (July 19 fix) silently caught both and handed
+    // back the single-photo Sealed Item layout instead — meaning a picture
+    // disc, where the artwork IS the vinyl surface on both sides, only
+    // ever got one photo of one side. Both sides needed, always — the
+    // whole point of a picture disc is the printed image on each side.
+    { name: 'Picture Disc', photos: [{ label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
+    { name: 'Picture Disc in Sleeve', photos: [{ label: 'Sleeve', frame: 'square' }, { label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
     { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
   ]},
   { label: '12" Vinyl', types: [
     { name: 'Picture Cover', photos: [{ label: 'Front Cover', frame: 'square' }, { label: 'Back Cover', frame: 'square' }, { label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
     { name: 'Generic Cover', photos: [{ label: 'A Side Label', frame: 'vinyl-circle' }, { label: 'B Side Label', frame: 'vinyl-circle' }] },
     { name: 'Cover Only', photos: [{ label: 'Front Cover', frame: 'square' }, { label: 'Back Cover', frame: 'square' }] },
+    // FIX (July 22 session — this is the exact case the user tested and
+    // confirmed): same gap as 7" Vinyl above, same fix.
+    { name: 'Picture Disc', photos: [{ label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
+    { name: 'Picture Disc in Sleeve', photos: [{ label: 'Sleeve', frame: 'square' }, { label: 'A Side (Picture Disc)', frame: 'picture-disc-circle' }, { label: 'B Side (Picture Disc)', frame: 'picture-disc-circle' }] },
     { name: 'Sealed Item', photos: [{ label: 'Front', frame: 'square' }] },
   ]},
   { label: 'CD', types: [
@@ -402,6 +417,13 @@ export default function Admin() {
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  // FIX (July 22 session): supports the new Delete Item button in the edit
+  // modal. Two-step in-app confirm (not a browser confirm() dialog, to
+  // match this app's existing custom-UI conventions and be reliable inside
+  // the installed PWA) rather than deleting on a single tap, since this is
+  // destructive and, unlike the Active/Inactive toggle, not reversible.
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const editPhotoRef = useRef(null);
 
@@ -1379,6 +1401,7 @@ export default function Admin() {
     setShowCostEntryEdit(false);
     setEditCostCents('');
     setManageDiscogsResult(null); setManageDiscogsCandidates([]); setShowManageDiscogsPicker(false);
+    setDeleteConfirming(false);
   }
 
   async function handleEditSave() {
@@ -1427,6 +1450,37 @@ export default function Admin() {
       } else setEditError(data.error || 'Failed to update.');
     } catch { setEditError('Failed to update. Please try again.'); }
     setEditSaving(false);
+  }
+
+  // FIX (July 22 session, direct user report — "no way of deleting an item
+  // in the event that I simply need it taken out"): the backend endpoint
+  // for this already existed and worked, it just had no button anywhere
+  // calling it. Deliberately separate from the Active/Inactive toggle,
+  // which means "sold" and stamps sold_price/sold_at — this is for an item
+  // that shouldn't be in inventory at all (a mis-scan, a duplicate), and
+  // the endpoint itself now refuses to delete anything with a real
+  // recorded sale, to protect sales history either way.
+  async function handleDeleteItem() {
+    if (!editItem) return;
+    setDeleting(true); setEditError('');
+    try {
+      const res = await fetch('/api/delete-record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editItem.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditItem(null); setDeleteConfirming(false);
+        loadManageItems();
+      } else {
+        setEditError(data.error || 'Failed to delete item.');
+        setDeleteConfirming(false);
+      }
+    } catch {
+      setEditError('Failed to delete item. Please try again.');
+      setDeleteConfirming(false);
+    }
+    setDeleting(false);
   }
 
   const inp = { width: '100%', padding: '10px 12px', border: '1px solid #2a2a2a', borderRadius: '8px', fontFamily: 'Georgia, serif', fontSize: '13px', background: '#0a0a0a', color: '#e8d5b0', marginBottom: '10px' };
@@ -1925,6 +1979,32 @@ export default function Admin() {
                   style={{ padding: '8px 16px', background: editForm.active ? '#0a1a0a' : '#2a1a1a', border: '1px solid ' + (editForm.active ? '#1a3a1a' : '#7f1d1d'), color: editForm.active ? '#4ade80' : '#f87171', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                   {editForm.active ? '✅ Active — Listed for Sale' : '❌ Inactive — Mark as Sold'}
                 </button>
+              </div>
+
+              <div style={{ marginBottom: '20px', paddingTop: '16px', borderTop: '1px solid #2a2a2a' }}>
+                <div style={{ fontSize: '10px', color: '#f87171', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Danger Zone</div>
+                {!deleteConfirming ? (
+                  <button onClick={() => setDeleteConfirming(true)}
+                    style={{ width: '100%', padding: '10px', background: 'transparent', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    🗑️ Delete This Item
+                  </button>
+                ) : (
+                  <div style={{ background: '#2a1414', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '12px' }}>
+                    <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '10px', lineHeight: 1.5 }}>
+                      Permanently delete this item? This cannot be undone. (If it actually sold, use the Active toggle above instead — this is only for a mis-scan or duplicate that shouldn't be in inventory.)
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setDeleteConfirming(false)} disabled={deleting}
+                        style={{ flex: 1, padding: '8px', background: 'transparent', color: '#bbb', border: '1px solid #2a2a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                        Cancel
+                      </button>
+                      <button onClick={handleDeleteItem} disabled={deleting}
+                        style={{ flex: 1, padding: '8px', background: '#7f1d1d', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: deleting ? 'default' : 'pointer', fontFamily: 'Georgia, serif', opacity: deleting ? 0.6 : 1 }}>
+                        {deleting ? 'Deleting…' : 'Yes, Delete It'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: '20px', paddingTop: '16px', borderTop: '1px solid #2a2a2a' }}>
