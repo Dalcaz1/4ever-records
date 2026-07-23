@@ -95,6 +95,33 @@ export default async function handler(req, res) {
       }
     }
 
+    // FIX (July 22 session, direct user report — a real incident: ~15-20
+    // unrelated records got permanently stamped as "sold" for $5 each in
+    // a 2-minute window, from what was almost certainly an accidental tap
+    // on the Active/Inactive toggle while correcting a placeholder price
+    // in the same save). Previously, toggling an item back to Active left
+    // sold_price/sold_at/etc permanently lingering in the row even though
+    // active=true — meaning there was no real way to fully undo a wrong
+    // "mark sold," only to hide the symptom by reactivating it while
+    // leaving corrupted sale data sitting in the database forever. Now a
+    // genuine false->true transition clears every sold-related field, and
+    // restores qty to 1 — a real, complete undo, and the actual recovery
+    // path for this exact incident's affected records.
+    if (updates.active === true) {
+      const { data: current } = await supabase
+        .from('records').select('active, sold_at').eq('id', id).single();
+      if (current && current.active === false && current.sold_at) {
+        updates.sold_price = null;
+        updates.sold_at = null;
+        updates.sold_payment_method = null;
+        updates.sold_tax_amount = null;
+        updates.sold_discount_amount = null;
+        updates.sold_square_order_id = null;
+        updates.sold_square_payment_id = null;
+        updates.qty = 1;
+      }
+    }
+
     // Upload photo if provided
     if (photoFile && photoFile.size > 0) {
       const photoBuffer = await fs.readFile(photoFile.filepath);

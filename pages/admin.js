@@ -422,6 +422,7 @@ export default function Admin() {
   // the installed PWA) rather than deleting on a single tap, since this is
   // destructive and, unlike the Active/Inactive toggle, not reversible.
   const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [confirmingMarkSold, setConfirmingMarkSold] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editPhotoFile, setEditPhotoFile] = useState(null);
   const editPhotoRef = useRef(null);
@@ -1431,6 +1432,7 @@ export default function Admin() {
     setEditCostCents('');
     setManageDiscogsResult(null); setManageDiscogsCandidates([]); setShowManageDiscogsPicker(false);
     setDeleteConfirming(false);
+    setConfirmingMarkSold(false);
   }
 
   async function handleEditSave() {
@@ -2021,11 +2023,53 @@ export default function Admin() {
                 <textarea value={editForm.notes || ''} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={2} style={{ ...inp, resize: 'none', marginBottom: 0 }} />
               </div>
 
-              <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <button onClick={() => setEditForm(f => ({ ...f, active: !f.active }))}
-                  style={{ padding: '8px 16px', background: editForm.active ? '#0a1a0a' : '#2a1a1a', border: '1px solid ' + (editForm.active ? '#1a3a1a' : '#7f1d1d'), color: editForm.active ? '#4ade80' : '#f87171', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                  {editForm.active ? '✅ Active — Listed for Sale' : '❌ Inactive — Mark as Sold'}
-                </button>
+              <div style={{ marginBottom: '20px' }}>
+                {!confirmingMarkSold ? (
+                  <button onClick={() => {
+                    // FIX (July 22 session, direct user report — a real
+                    // incident: ~15-20 unrelated records got permanently
+                    // stamped as "sold" for $5 each, in a tight 2-minute
+                    // window, with no actual sale involved. Traced
+                    // precisely: editForm.price and editForm.active submit
+                    // together in one save — someone correcting a rough
+                    // placeholder price ($5) also had this toggle in the
+                    // Inactive position, almost certainly from an
+                    // accidental tap while focused on the price field, not
+                    // a deliberate action. update-record.js then (working
+                    // exactly as designed) treated that true->false
+                    // transition as a real sale and permanently stamped
+                    // sold_price/sold_at using whatever was in the price
+                    // box at that moment. A single combined toggle that
+                    // can silently create a permanent, hard-to-reverse
+                    // "sold" record from one accidental tap is a real
+                    // safety gap on its own, independent of what caused
+                    // this specific incident. Toggling back TO active
+                    // needs no confirmation — that's the safe/undo
+                    // direction. Only true->false, the direction that
+                    // stamps a permanent record, gets a real confirm step.
+                    if (editForm.active) setConfirmingMarkSold(true);
+                    else setEditForm(f => ({ ...f, active: true }));
+                  }}
+                    style={{ padding: '8px 16px', background: editForm.active ? '#0a1a0a' : '#2a1a1a', border: '1px solid ' + (editForm.active ? '#1a3a1a' : '#7f1d1d'), color: editForm.active ? '#4ade80' : '#f87171', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    {editForm.active ? '✅ Active — Listed for Sale' : '❌ Inactive — Marked as Sold'}
+                  </button>
+                ) : (
+                  <div style={{ background: '#2a1414', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '12px' }}>
+                    <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '10px', lineHeight: 1.5 }}>
+                      Mark this sold for <strong>${parseFloat(editForm.price || 0).toFixed(2)}</strong> (whatever's currently in the Price field above) dated today? This is meant for a real completed sale — double-check the price field is correct first, not a placeholder.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setConfirmingMarkSold(false)}
+                        style={{ flex: 1, padding: '8px', background: 'transparent', color: '#bbb', border: '1px solid #2a2a2a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                        Cancel
+                      </button>
+                      <button onClick={() => { setEditForm(f => ({ ...f, active: false })); setConfirmingMarkSold(false); }}
+                        style={{ flex: 1, padding: '8px', background: '#7f1d1d', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                        Yes, Mark Sold
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: '20px', paddingTop: '16px', borderTop: '1px solid #2a2a2a' }}>
