@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       ? (Array.isArray(rawFiles.photo_cover) ? rawFiles.photo_cover[0] : rawFiles.photo_cover)
       : null;
 
-    const { id, artist, title, year, label, genre, condition, price, qty, notes, active, catalog_number, identity_match, identity_conflict_note, cost } = fields;
+    const { id, artist, title, year, label, genre, condition, price, qty, notes, active, catalog_number, identity_match, identity_conflict_note, cost, category } = fields;
 
     if (!id || id === 'undefined' || id === 'null') {
       console.error('update-record: missing/invalid id in request', { id, fieldKeys: Object.keys(fields) });
@@ -58,6 +58,22 @@ export default async function handler(req, res) {
     if (identity_match !== undefined) updates.identity_match = identity_match === 'false' ? false : (identity_match === 'true' ? true : null);
     if (identity_conflict_note !== undefined) updates.identity_conflict_note = identity_conflict_note || null;
     if (cost !== undefined) updates.cost = cost ? parseFloat(cost) : null;
+    // FIX (July 22 session, direct user report — "sealed 12" items are
+    // directly mis reading as either a CD or a 45... [and] once an item
+    // has been placed in inventory... there is no way to properly edit the
+    // item"): category/format was previously not correctable at all after
+    // the initial scan, so a genuine misidentification (the exact case
+    // reported) had no fix path short of delete-and-rescan. Restricted to
+    // the known valid category strings — the same ones SKU_PREFIXES and
+    // FYT_FORMATS use — rather than accepting any string, since an
+    // unrecognized category would have no SKU prefix and no photo-slot
+    // definition anywhere else in the app. Deliberately does NOT
+    // regenerate the SKU: the physical label may already be printed and
+    // attached to the item, so changing the SKU out from under it would
+    // make the printed label and the database disagree. This corrects the
+    // category/pricing-comp classification only.
+    const VALID_CATEGORIES = ['7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'];
+    if (category && VALID_CATEGORIES.includes(category)) updates.category = category;
 
     // FIX (July 19 session — real sold-price/date tracking): most actual
     // sales for this store happen at live shows via a manual "mark

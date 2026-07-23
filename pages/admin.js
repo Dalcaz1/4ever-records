@@ -104,6 +104,19 @@ function Stage1Camera({ onCapture }) {
   // front; handleStage1Capture forces identification.type to 'Sealed Item'
   // when set, regardless of what the AI itself concludes.
   const [sealedOverride, setSealedOverride] = useState(false);
+  // FIX (July 22 session, direct user report — sealed 12" items directly
+  // misread as CD or 45): considered building AI-based physical-size
+  // detection (a reference grid/card in-frame that the model measures
+  // against) but that's a genuinely hard computer-vision task — precise
+  // scale estimation from a single 2D photo, converting pixel proportions
+  // to real-world inches — that current multimodal models are not
+  // reliably good at. Not confident enough in that approach to ship it as
+  // a fix. The person holding the item knows its exact physical size
+  // instantly and with total certainty, no inference needed — so this
+  // gives them a direct way to say so, the same principle as the sealed
+  // toggle above it. Optional: leaving it unset falls back to the AI's own
+  // read exactly as before.
+  const [formatOverride, setFormatOverride] = useState('');
   useEffect(() => {
     async function start() {
       try {
@@ -150,7 +163,7 @@ function Stage1Camera({ onCapture }) {
     canvas.toBlob(blob => {
       if (!blob) return;
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      onCapture(new File([blob], 'identify.jpg', { type: 'image/jpeg' }), sealedOverride);
+      onCapture(new File([blob], 'identify.jpg', { type: 'image/jpeg' }), sealedOverride, formatOverride);
     }, 'image/jpeg', 0.88);
   }
   return (
@@ -190,6 +203,17 @@ function Stage1Camera({ onCapture }) {
           <span style={{ fontSize: '16px' }}>{sealedOverride ? '✓' : '📦'}</span>
           {sealedOverride ? 'Marked as Sealed (Unopened)' : 'This item is sealed / unopened'}
         </button>
+        <div style={{ width: '100%', maxWidth: '340px' }}>
+          <div style={{ fontSize: '10px', color: '#888', textAlign: 'center', marginBottom: '4px' }}>Know the size already? Tell us — skips guesswork:</div>
+          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {['7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'].map(f => (
+              <button key={f} type="button" onClick={() => setFormatOverride(cur => cur === f ? '' : f)}
+                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid ' + (formatOverride === f ? '#c9a84c' : '#2a2a2a'), background: formatOverride === f ? '#1a1a0a' : '#111', color: formatOverride === f ? '#c9a84c' : '#999', fontSize: '11px', fontWeight: formatOverride === f ? '700' : '400', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                {formatOverride === f ? '✓ ' : ''}{f}
+              </button>
+            ))}
+          </div>
+        </div>
         <button type="button" onClick={capture} disabled={!camReady} style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid #c9a84c', background: '#1a1a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: camReady ? 'pointer' : 'not-allowed', fontSize: '28px', opacity: camReady ? 1 : 0.4 }}>📷</button>
         {!camError && !camReady && <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic' }}>Starting camera…</div>}
       </div>
@@ -684,7 +708,7 @@ export default function Admin() {
     clearSession();
   }
 
-  async function handleStage1Capture(file, sealedOverride) {
+  async function handleStage1Capture(file, sealedOverride, formatOverride) {
     setEntryStage('identifying'); setIdentifyError('');
     try {
       const base64 = await fileToBase64(file);
@@ -700,6 +724,13 @@ export default function Admin() {
       // the person holding the physical item knows better than a read of
       // one photo, and this only ever fires when they explicitly said so.
       if (sealedOverride) data.type = 'Sealed Item';
+      // FIX (July 22 session — sealed 12" items directly misread as CD or
+      // 45): same principle, for physical size/format. The operator knows
+      // this with total certainty just by holding the item — force it and
+      // clear any format_alternatives ambiguity, since a direct human
+      // declaration resolves that ambiguity outright rather than needing
+      // the disambiguation prompt to ask about it.
+      if (formatOverride) { data.format = formatOverride; data.format_alternatives = []; }
 
       // FIX (NO GUESSING requirement, flagged critical July 7, built July
       // 19): previously a low-confidence guess — e.g. a Sun label scan
@@ -1395,6 +1426,7 @@ export default function Admin() {
     setEditForm({
       price: item.price, cost: item.cost || '', condition: item.condition, notes: item.notes || '', active: item.active !== false,
       artist: item.artist || '', title: item.title || '', year: item.year || '', label: item.label || '', catalog_number: item.catalog_number || '',
+      category: item.category || '',
     });
     setEditPhotoFile(null);
     setEditError('');
@@ -1419,6 +1451,7 @@ export default function Admin() {
       formData.append('year', editForm.year || '');
       formData.append('label', editForm.label || '');
       formData.append('catalog_number', editForm.catalog_number || '');
+      formData.append('category', editForm.category || '');
       // Correcting the identity clears a previously-flagged conflict —
       // otherwise the warning would keep showing on an item that's now fixed.
       const identityWasCorrected = editItem.identity_match === false &&
@@ -1920,6 +1953,23 @@ export default function Admin() {
                     <input value={editForm.year || ''} onChange={e => setEditForm(f => ({ ...f, year: e.target.value }))}
                       placeholder="Year" style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', width: '70px', flexShrink: 0 }} />
                   </div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+                    <label style={{ fontSize: '10px', color: '#888', flexShrink: 0 }}>Format:</label>
+                    <select value={editForm.category || ''} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                      style={{ ...inp, marginBottom: 0, fontSize: '11px', padding: '6px 8px', flex: 1 }}>
+                      <option value="">— unset —</option>
+                      <option value='7" Vinyl'>7" Vinyl</option>
+                      <option value='12" Vinyl'>12" Vinyl</option>
+                      <option value="CD">CD</option>
+                      <option value="Cassette">Cassette</option>
+                      <option value="8-Track">8-Track</option>
+                    </select>
+                  </div>
+                  {editForm.category && editItem.category && editForm.category !== editItem.category && (
+                    <div style={{ fontSize: '10px', color: '#fbbf24', marginTop: '4px', fontStyle: 'italic' }}>
+                      Changing format corrects the listed category/SKU prefix series only — the SKU itself ({editItem.sku}) won't change, since it may already be printed on the item.
+                    </div>
+                  )}
                   <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>{editItem.sku}</div>
                 </div>
                 <button onClick={() => setEditItem(null)} style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '24px', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}>×</button>
