@@ -91,6 +91,19 @@ function Stage1Camera({ onCapture }) {
   // to /api/identify. camReady gates the button until the video is
   // confirmed actually playing with real dimensions.
   const [camReady, setCamReady] = useState(false);
+  // FIX (July 22 session, direct user report): identification.type — the
+  // thing that decides whether an item is treated as sealed at all — was
+  // previously determined entirely by the AI's read of this single first
+  // photo, with no way for the person actually holding the item to say
+  // "no, this is sealed" themselves. That's a real problem specifically
+  // because it's one-directional: if the AI misses shrink wrap (glare, a
+  // resealed item, an angle that doesn't show the edge), the app then asks
+  // for label/back-cover photos that a genuinely sealed item can't provide
+  // without breaking the seal — defeating the entire point of grading it
+  // sealed in the first place. This toggle lets the operator declare it up
+  // front; handleStage1Capture forces identification.type to 'Sealed Item'
+  // when set, regardless of what the AI itself concludes.
+  const [sealedOverride, setSealedOverride] = useState(false);
   useEffect(() => {
     async function start() {
       try {
@@ -137,7 +150,7 @@ function Stage1Camera({ onCapture }) {
     canvas.toBlob(blob => {
       if (!blob) return;
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      onCapture(new File([blob], 'identify.jpg', { type: 'image/jpeg' }));
+      onCapture(new File([blob], 'identify.jpg', { type: 'image/jpeg' }), sealedOverride);
     }, 'image/jpeg', 0.88);
   }
   return (
@@ -172,6 +185,11 @@ function Stage1Camera({ onCapture }) {
             </div>
           ))}
         </div>
+        <button type="button" onClick={() => setSealedOverride(s => !s)}
+          style={{ width: '100%', maxWidth: '340px', padding: '10px 14px', borderRadius: '8px', border: '1px solid ' + (sealedOverride ? '#c9a84c' : '#2a2a2a'), background: sealedOverride ? '#1a1a0a' : '#111', color: sealedOverride ? '#c9a84c' : '#bbb', fontSize: '13px', fontWeight: sealedOverride ? '700' : '400', cursor: 'pointer', fontFamily: 'Georgia, serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>{sealedOverride ? '✓' : '📦'}</span>
+          {sealedOverride ? 'Marked as Sealed (Unopened)' : 'This item is sealed / unopened'}
+        </button>
         <button type="button" onClick={capture} disabled={!camReady} style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid #c9a84c', background: '#1a1a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: camReady ? 'pointer' : 'not-allowed', fontSize: '28px', opacity: camReady ? 1 : 0.4 }}>📷</button>
         {!camError && !camReady && <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic' }}>Starting camera…</div>}
       </div>
@@ -644,13 +662,22 @@ export default function Admin() {
     clearSession();
   }
 
-  async function handleStage1Capture(file) {
+  async function handleStage1Capture(file, sealedOverride) {
     setEntryStage('identifying'); setIdentifyError('');
     try {
       const base64 = await fileToBase64(file);
       const res = await fetch(FYT_BASE + '/api/identify', { method: 'POST', headers: fytHeaders(), body: JSON.stringify({ image: base64 }) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Identification failed');
+
+      // FIX (July 22 session, direct user report): apply the operator's
+      // own sealed declaration before any downstream branching, so it
+      // survives every path this data object can take from here — direct
+      // commit, low-confidence retake, or format disambiguation — not just
+      // the happy path. The AI's own type guess is overridden outright:
+      // the person holding the physical item knows better than a read of
+      // one photo, and this only ever fires when they explicitly said so.
+      if (sealedOverride) data.type = 'Sealed Item';
 
       // FIX (NO GUESSING requirement, flagged critical July 7, built July
       // 19): previously a low-confidence guess — e.g. a Sun label scan
