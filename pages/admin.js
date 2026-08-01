@@ -2625,6 +2625,16 @@ export default function Admin() {
                     <div style={{ fontSize: '9.5px', color: '#5bc298', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing. Independent of 45cat/MusicBrainz — kept as a backup signal in case either goes down.</div>
                   </div>
                 )}
+                {pricing.itunesIdentification && (
+                  <div style={{ background: 'rgba(251,113,133,0.06)', border: '1px solid rgba(251,113,133,0.3)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#fb7185', marginBottom: '3px' }}>🎧 iTunes Corroboration</div>
+                    <div style={{ fontSize: '11px', color: '#fecdd3', marginBottom: '6px' }}>{pricing.itunesIdentification.status}</div>
+                    {pricing.itunesIdentification.itemUrl && (
+                      <a href={pricing.itunesIdentification.itemUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10.5px', color: '#fb7185', display: 'inline-block', marginTop: '6px' }}>View on iTunes →</a>
+                    )}
+                    <div style={{ fontSize: '9.5px', color: '#c4818c', marginTop: '6px', fontStyle: 'italic' }}>For manual review only — never auto-applied to identification or pricing. Artist/title/year only — no pressing or catalog detail.</div>
+                  </div>
+                )}
                 {pricing.floorApplied && (
                   <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '8px', padding: '10px 12px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: '#fbbf24', marginBottom: '3px' }}>⚠ Protected Floor Applied</div>
