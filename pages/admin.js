@@ -412,6 +412,23 @@ export default function Admin() {
   const [manageActiveFilter, setManageActiveFilter] = useState('active');
   const [manageLoading, setManageLoading] = useState(false);
   const [manageSearch, setManageSearch] = useState('');
+  const [manageSortBy, setManageSortBy] = useState('created_at');
+  const [manageSortDir, setManageSortDir] = useState('desc');
+  const MANAGE_SORT_OPTIONS = [
+    { by: 'created_at',     dir: 'desc', label: 'Recently Added' },
+    { by: 'artist',         dir: 'asc',  label: 'Artist (A–Z)' },
+    { by: 'artist',         dir: 'desc', label: 'Artist (Z–A)' },
+    { by: 'title',          dir: 'asc',  label: 'Title (A–Z)' },
+    { by: 'title',          dir: 'desc', label: 'Title (Z–A)' },
+    { by: 'category',       dir: 'asc',  label: 'Item Type (A–Z)' },
+    { by: 'catalog_number', dir: 'asc',  label: 'Catalog # (A–Z)' },
+    { by: 'catalog_number', dir: 'desc', label: 'Catalog # (Z–A)' },
+    { by: 'price',          dir: 'desc', label: 'Price (High–Low)' },
+    { by: 'price',          dir: 'asc',  label: 'Price (Low–High)' },
+    { by: 'year',           dir: 'desc', label: 'Year (Newest)' },
+    { by: 'year',           dir: 'asc',  label: 'Year (Oldest)' },
+    { by: 'condition',      dir: 'asc',  label: 'Condition' },
+  ];
   const [editItem, setEditItem] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
@@ -1410,7 +1427,8 @@ export default function Admin() {
     try {
       const q = manageSearch ? '&search=' + encodeURIComponent(manageSearch) : '';
       const activeParam = manageActiveFilter === 'active' ? 'true' : manageActiveFilter === 'sold' ? 'false' : 'all';
-      const res = await fetch('/api/records?active=' + activeParam + '&limit=100' + q, {
+      const sortParams = '&sortBy=' + encodeURIComponent(manageSortBy) + '&sortDir=' + encodeURIComponent(manageSortDir);
+      const res = await fetch('/api/records?active=' + activeParam + '&limit=100' + q + sortParams, {
         headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' },
       });
       const data = await res.json();
@@ -1744,7 +1762,8 @@ export default function Admin() {
                     <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#111', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: '12px', color: '#e8d5b0', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist} — {item.title}</div>
-                        <div style={{ fontSize: '10px', color: '#555' }}>{item.sku} · {item.condition}</div>
+                        <div style={{ fontSize: '10px', color: '#c9a84c', fontFamily: 'monospace' }}>{item.sku}</div>
+                        <div style={{ fontSize: '10px', color: '#999' }}>{item.condition}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                         <span style={{ fontSize: '13px', color: '#c9a84c', fontWeight: '700' }}>${Number(item.price).toFixed(2)}</span>
@@ -1969,7 +1988,7 @@ export default function Admin() {
                       Changing format corrects the listed category/SKU prefix series only — the SKU itself ({editItem.sku}) won't change, since it may already be printed on the item.
                     </div>
                   )}
-                  <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>{editItem.sku}</div>
+                  <div style={{ fontSize: '12px', color: '#c9a84c', fontFamily: 'monospace', fontWeight: '700', marginTop: '4px' }}>{editItem.sku}</div>
                 </div>
                 <button onClick={() => setEditItem(null)} style={{ background: 'transparent', border: 'none', color: '#e8d5b0', fontSize: '24px', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}>×</button>
               </div>
@@ -2051,7 +2070,7 @@ export default function Admin() {
                     else setEditForm(f => ({ ...f, active: true }));
                   }}
                     style={{ padding: '8px 16px', background: editForm.active ? '#0a1a0a' : '#2a1a1a', border: '1px solid ' + (editForm.active ? '#1a3a1a' : '#7f1d1d'), color: editForm.active ? '#4ade80' : '#f87171', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                    {editForm.active ? '✅ Active — Listed for Sale' : '❌ Inactive — Marked as Sold'}
+                    {editForm.active ? '✅ For Sale — Active in Store' : '💰 Sold at the Store'}
                   </button>
                 ) : (
                   <div style={{ background: '#2a1414', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '12px' }}>
@@ -2176,6 +2195,22 @@ export default function Admin() {
                 {opt.label}
               </button>
             ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <span style={{ fontSize: '11px', color: '#999', whiteSpace: 'nowrap' }}>Sort by</span>
+            <select
+              value={manageSortBy + '|' + manageSortDir}
+              onChange={e => {
+                const [by, dir] = e.target.value.split('|');
+                setManageSortBy(by); setManageSortDir(dir);
+                setTimeout(loadManageItems, 0);
+              }}
+              style={{ flex: 1, padding: '9px 10px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#0a0a0a', color: '#e8d5b0', fontSize: '12px', fontFamily: 'Georgia, serif' }}>
+              {MANAGE_SORT_OPTIONS.map(opt => (
+                <option key={opt.by + '|' + opt.dir} value={opt.by + '|' + opt.dir}>{opt.label}</option>
+              ))}
+            </select>
           </div>
 
           {labelModeActive && (() => {
@@ -2316,7 +2351,11 @@ export default function Admin() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#e8d5b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.artist}</div>
                   <div style={{ fontSize: '12px', color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
-                  <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{item.sku} · {item.condition} · ${item.price}</div>
+                  <div style={{ fontSize: '11px', marginTop: '2px', display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#c9a84c', fontFamily: 'monospace', fontWeight: '700' }}>{item.sku}</span>
+                    {item.catalog_number && <span style={{ color: '#999' }}>Cat# {item.catalog_number}</span>}
+                    <span style={{ color: '#999' }}>{item.condition} · ${item.price}</span>
+                  </div>
                   <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Draft on Discogs' : 'Not on Discogs'}</div>
                 </div>
                 <div style={{ color: '#c9a84c', fontSize: '16px', flexShrink: 0 }}>›</div>

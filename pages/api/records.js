@@ -8,10 +8,13 @@ export default async function handler(req, res) {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    const validSortFields = ['created_at', 'price', 'artist', 'title', 'year', 'condition', 'category'];
+    const validSortFields = ['created_at', 'price', 'artist', 'title', 'year', 'condition', 'category', 'catalog_number', 'sku'];
     const validSortDirs = ['asc', 'desc'];
     const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'created_at';
     const safeSortDir = validSortDirs.includes(sortDir) ? sortDir : 'desc';
+    // Items with no catalog number shouldn't crowd the top/bottom of a
+    // catalog-number sort — push blanks to the end regardless of direction.
+    const sortNullsLast = safeSortBy === 'catalog_number';
 
     // FIX (July 22 session, direct user report — real sold items with real
     // SKUs, sold_at, and sold_price on file were completely invisible to
@@ -44,7 +47,7 @@ export default async function handler(req, res) {
     let query = supabase
       .from('records')
       .select('*', { count: 'exact' })
-      .order(safeSortBy, { ascending: safeSortDir === 'asc' });
+      .order(safeSortBy, { ascending: safeSortDir === 'asc', nullsFirst: sortNullsLast ? false : undefined });
 
     if (active === 'all' && wantsNonDefault) {
       // no active filter at all — both active and sold/inactive
@@ -56,7 +59,7 @@ export default async function handler(req, res) {
 
     if (category) query = query.eq('category', category);
     if (genre) query = query.eq('genre', genre);
-    if (search) query = query.or('artist.ilike.%' + search + '%,title.ilike.%' + search + '%,label.ilike.%' + search + '%,genre.ilike.%' + search + '%');
+    if (search) query = query.or('artist.ilike.%' + search + '%,title.ilike.%' + search + '%,label.ilike.%' + search + '%,genre.ilike.%' + search + '%,catalog_number.ilike.%' + search + '%,sku.ilike.%' + search + '%');
     query = query.range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
     const { data, error, count } = await query;
