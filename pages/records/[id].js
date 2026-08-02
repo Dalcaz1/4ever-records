@@ -44,7 +44,7 @@ export async function getStaticPaths() {
     .order('created_at', { ascending: false })
     .limit(200);
   return {
-    paths: (data || []).map(r => ({ params: { id: r.id } })),
+    paths: (data || []).map(r => ({ params: { id: String(r.id) } })),
     fallback: 'blocking',
   };
 }
