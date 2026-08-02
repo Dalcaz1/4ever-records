@@ -680,6 +680,30 @@ export default function Admin() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState('');
 
+  // FIX (Aug 1 follow-up, direct user report — Active tab and Sold tab
+  // showed the exact same list, and the new sort dropdown didn't visibly
+  // change anything): the Active/Sold/All buttons and the sort dropdown
+  // both used `setState(...); setTimeout(loadManageItems, 0);` — but the
+  // `loadManageItems` reference in that same click handler was already
+  // closed over the PREVIOUS render's state, since setState doesn't
+  // update the value synchronously. The fetch always ran one click
+  // behind the button the user actually pressed. A useEffect keyed on
+  // the real state values is the correct fix — it always re-fetches with
+  // the state that's actually current, no timing games required.
+  //
+  // FIX (immediate follow-up, same day — this useEffect was originally
+  // placed AFTER the `if (!authed) return <PinLock .../>` early return
+  // below, which broke the PIN unlock itself: on the locked screen React
+  // never calls this hook, so the moment you enter the PIN and the
+  // component re-renders past that point, React sees a different number
+  // of hooks than the previous render and throws. Every hook in this
+  // component must be declared before that early return, no exceptions —
+  // moved up here to match.
+  useEffect(() => {
+    if (mode === 'manage') loadManageItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, manageActiveFilter, manageSortBy, manageSortDir]);
+
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
 
@@ -1453,21 +1477,6 @@ export default function Admin() {
     }
     setManageLoading(false);
   }
-
-  // FIX (Aug 1 follow-up, direct user report — Active tab and Sold tab
-  // showed the exact same list, and the new sort dropdown didn't visibly
-  // change anything): the Active/Sold/All buttons and the sort dropdown
-  // both used `setState(...); setTimeout(loadManageItems, 0);` — but the
-  // `loadManageItems` reference in that same click handler was already
-  // closed over the PREVIOUS render's state, since setState doesn't
-  // update the value synchronously. The fetch always ran one click
-  // behind the button the user actually pressed. A useEffect keyed on
-  // the real state values is the correct fix — it always re-fetches with
-  // the state that's actually current, no timing games required.
-  useEffect(() => {
-    if (mode === 'manage') loadManageItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, manageActiveFilter, manageSortBy, manageSortDir]);
 
   function openEditItem(item) {
     setEditItem(item);
