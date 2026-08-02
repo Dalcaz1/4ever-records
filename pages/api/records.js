@@ -38,8 +38,18 @@ export default async function handler(req, res) {
     // all up to this point.
     const wantsNonDefault = active === 'false' || active === 'all';
     if (wantsNonDefault) {
-      const adminSecret = req.headers['x-4ever-admin'];
-      if (!adminSecret || adminSecret !== process.env.ADMIN_SHARED_SECRET) {
+    // FIX (Aug 1 follow-up, direct user report — Sold/All views in Manage
+    // Inventory always 401'd, silently masked until the stale-closure bug
+    // above was fixed): this checked the request's x-4ever-admin header
+    // against ADMIN_SHARED_SECRET, but every single caller in this app
+    // (admin.js, discogs-connections.js, discogs-status.js) actually sends
+    // NEXT_PUBLIC_ADMIN_SHARED_SECRET — a different Vercel env var that
+    // was never guaranteed to hold the same value. Checking against the
+    // one variable that's actually sent removes the two-secrets-that-must-
+    // manually-match footgun entirely, rather than relying on someone
+    // remembering to keep both in sync in Vercel forever.
+    const adminSecret = req.headers['x-4ever-admin'];
+    if (!adminSecret || adminSecret !== process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET) {
         return res.status(401).json({ error: 'Viewing inactive/sold records requires admin authentication' });
       }
     }
