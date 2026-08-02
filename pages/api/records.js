@@ -88,7 +88,13 @@ export default async function handler(req, res) {
       query = query.eq('active', true); // the safe, public-facing default
     }
 
-    if (category) query = query.eq('category', category);
+    // Supports a comma-separated list ("7\" Vinyl,CD") for Manage
+    // Inventory's new Item Type filter chips (multi-select), as well as
+    // the single-value use browse.js/index.js already make of this param.
+    if (category) {
+      const categories = String(category).split(',').map(c => c.trim()).filter(Boolean);
+      query = categories.length > 1 ? query.in('category', categories) : query.eq('category', categories[0]);
+    }
     if (genre) query = query.eq('genre', genre);
     if (search) query = query.or('artist.ilike.%' + search + '%,title.ilike.%' + search + '%,label.ilike.%' + search + '%,genre.ilike.%' + search + '%,catalog_number.ilike.%' + search + '%,sku.ilike.%' + search + '%');
     query = query.range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);

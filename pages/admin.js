@@ -410,6 +410,11 @@ export default function Admin() {
   // integrity mystery when they were actually just correctly-recorded
   // past sales this UI had no way to show): 'active' | 'sold' | 'all'.
   const [manageActiveFilter, setManageActiveFilter] = useState('active');
+  const [manageTypeFilter, setManageTypeFilter] = useState([]); // [] = all types
+  const MANAGE_TYPE_OPTIONS = ['7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'];
+  function toggleManageTypeFilter(type) {
+    setManageTypeFilter(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+  }
   const [manageLoading, setManageLoading] = useState(false);
   const [manageError, setManageError] = useState('');
   const [manageSearch, setManageSearch] = useState('');
@@ -703,10 +708,11 @@ export default function Admin() {
   // component must be declared before that early return, no exceptions —
   // moved up here to match.
   const manageSortKeysStr = manageSortKeys.map(k => k.field + ':' + k.dir).join(',');
+  const manageTypeFilterStr = manageTypeFilter.join(',');
   useEffect(() => {
     if (mode === 'manage') loadManageItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, manageActiveFilter, manageSortKeysStr]);
+  }, [mode, manageActiveFilter, manageSortKeysStr, manageTypeFilterStr]);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
@@ -1459,7 +1465,8 @@ export default function Admin() {
       const activeParam = manageActiveFilter === 'active' ? 'true' : manageActiveFilter === 'sold' ? 'false' : 'all';
       const sortKeysValue = manageSortKeys.map(k => k.field + ':' + k.dir).join(',');
       const sortParams = sortKeysValue ? '&sortKeys=' + encodeURIComponent(sortKeysValue) : '';
-      const res = await fetch('/api/records?active=' + activeParam + '&limit=100' + q + sortParams, {
+      const typeParams = manageTypeFilter.length > 0 ? '&category=' + encodeURIComponent(manageTypeFilter.join(',')) : '';
+      const res = await fetch('/api/records?active=' + activeParam + '&limit=100' + q + sortParams + typeParams, {
         headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' },
       });
       const data = await res.json();
@@ -2271,6 +2278,26 @@ export default function Admin() {
                 {opt.label}
               </button>
             ))}
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '11px', color: '#999', marginBottom: '6px' }}>
+              Item Type {manageTypeFilter.length === 0 && '(none checked = all types)'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {MANAGE_TYPE_OPTIONS.map(type => {
+                const active = manageTypeFilter.includes(type);
+                return (
+                  <button key={type} onClick={() => toggleManageTypeFilter(type)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', border: '1px solid ' + (active ? '#c9a84c' : '#2a2a2a'), background: active ? '#1a1a0a' : '#0a0a0a', color: active ? '#c9a84c' : '#999', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    <span style={{ width: '13px', height: '13px', borderRadius: '3px', border: '1px solid ' + (active ? '#c9a84c' : '#555'), background: active ? '#c9a84c' : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#0d0d0d', flexShrink: 0 }}>
+                      {active ? '✓' : ''}
+                    </span>
+                    {type}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
