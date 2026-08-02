@@ -1,6 +1,7 @@
 export const getServerSideProps = async () => ({ props: {} });
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 
 const CATEGORIES = ['All', '7" Vinyl', '12" Vinyl', 'CD', 'Cassette', '8-Track'];
 const GENRES = ['All', 'Rock', 'Jazz', 'Blues', 'Country', 'Spanish', 'Classical', "Children's", 'Holiday', 'Pop', 'Religious', 'Comedy', 'Soundtracks'];
@@ -785,9 +786,10 @@ export default function Browse() {
             records.map((record, i) => {
               const cond = COND_COLORS[record.condition] || COND_COLORS['VG'];
               return (
-                <div key={record.id} className="row-item"
-                  onClick={() => setSelectedRecord(record)}
-                  style={{ display: 'grid', gridTemplateColumns: '56px 1fr 140px 100px 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                <Link key={record.id} href={`/records/${record.id}`} legacyBehavior>
+                <a className="row-item"
+                  onClick={(e) => { e.preventDefault(); setSelectedRecord(record); }}
+                  style={{ display: 'grid', gridTemplateColumns: '56px 1fr 140px 100px 80px 80px', gap: '12px', padding: '10px 16px', alignItems: 'center', borderBottom: i < records.length - 1 ? '1px solid #1a1a1a' : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ width: '44px', height: '44px', borderRadius: '6px', overflow: 'hidden', background: '#0a0a0a', flexShrink: 0 }}>
                     {record.photo_cover ? (
                       <img src={record.photo_cover} alt={record.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -815,7 +817,8 @@ export default function Browse() {
                   <div style={{ textAlign: 'right', fontFamily: "'Playfair Display', Georgia, serif", fontSize: '15px', fontWeight: '700', color: '#c9a84c' }}>
                     ${parseFloat(record.price).toFixed(2)}
                   </div>
-                </div>
+                </a>
+                </Link>
               );
             })
           )}
