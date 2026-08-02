@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  const { limit = 8, offset = 0, category, genre, search, sortBy = 'created_at', sortDir = 'desc', active } = req.query;
+  const { limit = 8, offset = 0, category, genre, search, sortBy = 'created_at', sortDir = 'desc', sortKeys, active } = req.query;
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -10,11 +10,26 @@ export default async function handler(req, res) {
 
     const validSortFields = ['created_at', 'price', 'artist', 'title', 'year', 'condition', 'category', 'catalog_number', 'sku'];
     const validSortDirs = ['asc', 'desc'];
-    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'created_at';
-    const safeSortDir = validSortDirs.includes(sortDir) ? sortDir : 'desc';
-    // Items with no catalog number shouldn't crowd the top/bottom of a
-    // catalog-number sort — push blanks to the end regardless of direction.
-    const sortNullsLast = safeSortBy === 'catalog_number';
+
+    // sortKeys is new — a comma-separated list of "field:dir" pairs, e.g.
+    // "category:asc,catalog_number:asc,artist:asc", used by Manage
+    // Inventory's checkbox-based multi-sort so more than one field can be
+    // applied at once (sort by Item Type, then Catalog #, then Artist,
+    // all in the order the user checked them). Falls back to the single
+    // sortBy/sortDir pair used everywhere else (browse.js, index.js) when
+    // not provided, so nothing else changes.
+    let sortPairs;
+    if (sortKeys) {
+      sortPairs = String(sortKeys).split(',').map(pair => {
+        const [field, dir] = pair.split(':');
+        return { field, dir };
+      }).filter(({ field, dir }) => validSortFields.includes(field) && validSortDirs.includes(dir));
+    }
+    if (!sortPairs || sortPairs.length === 0) {
+      const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'created_at';
+      const safeSortDir = validSortDirs.includes(sortDir) ? sortDir : 'desc';
+      sortPairs = [{ field: safeSortBy, dir: safeSortDir }];
+    }
 
     // FIX (July 22 session, direct user report — real sold items with real
     // SKUs, sold_at, and sold_price on file were completely invisible to
@@ -56,8 +71,14 @@ export default async function handler(req, res) {
 
     let query = supabase
       .from('records')
-      .select('*', { count: 'exact' })
-      .order(safeSortBy, { ascending: safeSortDir === 'asc', nullsFirst: sortNullsLast ? false : undefined });
+      .select('*', { count: 'exact' });
+
+    // Items with no catalog number shouldn't crowd the top of a catalog-
+    // number sort — push blanks to the end regardless of direction.
+    for (const { field, dir } of sortPairs) {
+      const nullsLast = field === 'catalog_number';
+      query = query.order(field, { ascending: dir === 'asc', nullsFirst: nullsLast ? false : undefined });
+    }
 
     if (active === 'all' && wantsNonDefault) {
       // no active filter at all — both active and sold/inactive

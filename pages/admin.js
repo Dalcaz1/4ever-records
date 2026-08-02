@@ -413,23 +413,26 @@ export default function Admin() {
   const [manageLoading, setManageLoading] = useState(false);
   const [manageError, setManageError] = useState('');
   const [manageSearch, setManageSearch] = useState('');
-  const [manageSortBy, setManageSortBy] = useState('created_at');
-  const [manageSortDir, setManageSortDir] = useState('desc');
-  const MANAGE_SORT_OPTIONS = [
-    { by: 'created_at',     dir: 'desc', label: 'Recently Added' },
-    { by: 'artist',         dir: 'asc',  label: 'Artist (A–Z)' },
-    { by: 'artist',         dir: 'desc', label: 'Artist (Z–A)' },
-    { by: 'title',          dir: 'asc',  label: 'Title (A–Z)' },
-    { by: 'title',          dir: 'desc', label: 'Title (Z–A)' },
-    { by: 'category',       dir: 'asc',  label: 'Item Type (A–Z)' },
-    { by: 'catalog_number', dir: 'asc',  label: 'Catalog # (A–Z)' },
-    { by: 'catalog_number', dir: 'desc', label: 'Catalog # (Z–A)' },
-    { by: 'price',          dir: 'desc', label: 'Price (High–Low)' },
-    { by: 'price',          dir: 'asc',  label: 'Price (Low–High)' },
-    { by: 'year',           dir: 'desc', label: 'Year (Newest)' },
-    { by: 'year',           dir: 'asc',  label: 'Year (Oldest)' },
-    { by: 'condition',      dir: 'asc',  label: 'Condition' },
+  const [quickToggleConfirmId, setQuickToggleConfirmId] = useState(null);
+  const [quickTogglingId, setQuickTogglingId] = useState(null);
+  const [manageSortKeys, setManageSortKeys] = useState([]); // [{ field, dir }], applied in the order checked; empty = Recently Added
+  const MANAGE_SORT_FIELDS = [
+    { field: 'category',       label: 'Item Type',  ascLabel: 'A–Z',       descLabel: 'Z–A' },
+    { field: 'catalog_number', label: 'Catalog #',  ascLabel: 'A–Z',       descLabel: 'Z–A' },
+    { field: 'artist',         label: 'Artist',     ascLabel: 'A–Z',       descLabel: 'Z–A' },
+    { field: 'title',          label: 'Title',      ascLabel: 'A–Z',       descLabel: 'Z–A' },
+    { field: 'price',          label: 'Price',      ascLabel: 'Low–High',  descLabel: 'High–Low' },
+    { field: 'year',           label: 'Year',       ascLabel: 'Oldest',    descLabel: 'Newest' },
+    { field: 'condition',      label: 'Condition',  ascLabel: 'A–Z',       descLabel: 'Z–A' },
   ];
+  function toggleManageSortField(field) {
+    setManageSortKeys(prev => prev.some(k => k.field === field)
+      ? prev.filter(k => k.field !== field)
+      : [...prev, { field, dir: 'asc' }]);
+  }
+  function flipManageSortDir(field) {
+    setManageSortKeys(prev => prev.map(k => k.field === field ? { ...k, dir: k.dir === 'asc' ? 'desc' : 'asc' } : k));
+  }
   const [editItem, setEditItem] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
@@ -699,10 +702,11 @@ export default function Admin() {
   // of hooks than the previous render and throws. Every hook in this
   // component must be declared before that early return, no exceptions —
   // moved up here to match.
+  const manageSortKeysStr = manageSortKeys.map(k => k.field + ':' + k.dir).join(',');
   useEffect(() => {
     if (mode === 'manage') loadManageItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, manageActiveFilter, manageSortBy, manageSortDir]);
+  }, [mode, manageActiveFilter, manageSortKeysStr]);
 
   if (!authed) return <PinLock onUnlock={() => setAuthed(true)} />;
   if (scanning) return <ScanningOverlay />;
@@ -1453,7 +1457,8 @@ export default function Admin() {
     try {
       const q = manageSearch ? '&search=' + encodeURIComponent(manageSearch) : '';
       const activeParam = manageActiveFilter === 'active' ? 'true' : manageActiveFilter === 'sold' ? 'false' : 'all';
-      const sortParams = '&sortBy=' + encodeURIComponent(manageSortBy) + '&sortDir=' + encodeURIComponent(manageSortDir);
+      const sortKeysValue = manageSortKeys.map(k => k.field + ':' + k.dir).join(',');
+      const sortParams = sortKeysValue ? '&sortKeys=' + encodeURIComponent(sortKeysValue) : '';
       const res = await fetch('/api/records?active=' + activeParam + '&limit=100' + q + sortParams, {
         headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' },
       });
@@ -1476,6 +1481,37 @@ export default function Admin() {
       setManageError(err.message || 'Failed to load inventory');
     }
     setManageLoading(false);
+  }
+
+  // Deliberately re-sends the item's own current price/condition, not just
+  // { id, active } — update-record.js unconditionally sets
+  // `price: parseFloat(price)` with no undefined-guard, so a truly minimal
+  // payload would silently null out the price on every quick toggle.
+  async function performQuickToggle(item, nextActive) {
+    setQuickTogglingId(item.id);
+    try {
+      const formData = new FormData();
+      formData.append('id', item.id);
+      formData.append('price', item.price);
+      formData.append('condition', item.condition || '');
+      formData.append('active', nextActive ? 'true' : 'false');
+      const res = await fetch('/api/update-record', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update item status');
+      setManageItems(prev => {
+        const updated = prev.map(it => it.id === item.id ? { ...it, active: nextActive } : it);
+        // Keep the currently-viewed tab honest: if we just sold something
+        // while looking at Active (or reactivated something while looking
+        // at Sold), it no longer belongs in this filtered list.
+        if (manageActiveFilter === 'active' && !nextActive) return updated.filter(it => it.id !== item.id);
+        if (manageActiveFilter === 'sold' && nextActive) return updated.filter(it => it.id !== item.id);
+        return updated;
+      });
+    } catch (err) {
+      setManageError(err.message || 'Failed to update item status');
+    }
+    setQuickTogglingId(null);
+    setQuickToggleConfirmId(null);
   }
 
   function openEditItem(item) {
@@ -2238,19 +2274,32 @@ export default function Admin() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <span style={{ fontSize: '11px', color: '#999', whiteSpace: 'nowrap' }}>Sort by</span>
-            <select
-              value={manageSortBy + '|' + manageSortDir}
-              onChange={e => {
-                const [by, dir] = e.target.value.split('|');
-                setManageSortBy(by); setManageSortDir(dir);
-              }}
-              style={{ flex: 1, padding: '9px 10px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#0a0a0a', color: '#e8d5b0', fontSize: '12px', fontFamily: 'Georgia, serif' }}>
-              {MANAGE_SORT_OPTIONS.map(opt => (
-                <option key={opt.by + '|' + opt.dir} value={opt.by + '|' + opt.dir}>{opt.label}</option>
-              ))}
-            </select>
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '11px', color: '#999', marginBottom: '6px' }}>
+              Sort by {manageSortKeys.length === 0 && '(none checked = Recently Added)'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {MANAGE_SORT_FIELDS.map(f => {
+                const active = manageSortKeys.find(k => k.field === f.field);
+                const priority = active ? manageSortKeys.findIndex(k => k.field === f.field) + 1 : null;
+                return (
+                  <button key={f.field} onClick={() => toggleManageSortField(f.field)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', border: '1px solid ' + (active ? '#c9a84c' : '#2a2a2a'), background: active ? '#1a1a0a' : '#0a0a0a', color: active ? '#c9a84c' : '#999', fontSize: '11px', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                    <span style={{ width: '13px', height: '13px', borderRadius: '3px', border: '1px solid ' + (active ? '#c9a84c' : '#555'), background: active ? '#c9a84c' : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#0d0d0d', flexShrink: 0 }}>
+                      {active ? '✓' : ''}
+                    </span>
+                    {priority && <span style={{ fontWeight: '700' }}>{priority}.</span>}
+                    {f.label}
+                    {active && (
+                      <span onClick={(e) => { e.stopPropagation(); flipManageSortDir(f.field); }}
+                        style={{ marginLeft: '2px', padding: '2px 6px', borderRadius: '5px', background: '#0d0d0d', border: '1px solid #3a3010', fontSize: '10px' }}>
+                        {active.dir === 'asc' ? f.ascLabel : f.descLabel} ⇅
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {labelModeActive && (() => {
@@ -2381,7 +2430,11 @@ export default function Admin() {
             <div style={{ textAlign: 'center', color: '#555', padding: '40px', fontStyle: 'italic' }}>No items found</div>
           )}
 
-          {!manageLoading && manageItems.map(item => (
+          {!manageLoading && manageItems.map(item => {
+            const isActive = item.active !== false;
+            const confirming = quickToggleConfirmId === item.id;
+            const toggling = quickTogglingId === item.id;
+            return (
             <div key={item.id}
               style={{ width: '100%', background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '12px 14px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'Georgia, serif' }}>
               {labelModeActive && (
@@ -2404,10 +2457,51 @@ export default function Admin() {
                   </div>
                   <div style={{ fontSize: '10px', marginTop: '3px', color: item.discogs_listing_url ? '#4ade80' : '#555', fontStyle: item.discogs_listing_url ? 'normal' : 'italic' }}>{item.discogs_listing_url ? '📦 Draft on Discogs' : 'Not on Discogs'}</div>
                 </div>
-                <div style={{ color: '#c9a84c', fontSize: '16px', flexShrink: 0 }}>›</div>
               </button>
+
+              {/* Quick status toggle — separate control from the row-open
+                  button above (not nested inside it) so tapping it never
+                  opens the full edit modal. Reactivating (Sold → Active)
+                  applies immediately, same "safe/undo direction" logic
+                  already used in the edit modal. Marking sold (Active →
+                  Sold) requires one inline tap-to-confirm, mirroring the
+                  same safety the edit modal has always had, after this
+                  exact app's real July 22 incident (~15-20 records
+                  accidentally marked sold at $5 in one sitting). */}
+              {confirming ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+                  <div style={{ fontSize: '9px', color: '#fca5a5', textAlign: 'center' }}>Sold at ${item.price}?</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button onClick={() => setQuickToggleConfirmId(null)}
+                      style={{ padding: '5px 8px', fontSize: '10px', background: 'transparent', border: '1px solid #444', borderRadius: '6px', color: '#bbb', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                      Cancel
+                    </button>
+                    <button onClick={() => performQuickToggle(item, false)} disabled={toggling}
+                      style={{ padding: '5px 8px', fontSize: '10px', background: '#7f1d1d', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
+                      {toggling ? '…' : 'Confirm'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => isActive ? setQuickToggleConfirmId(item.id) : performQuickToggle(item, true)}
+                  disabled={toggling}
+                  title={isActive ? 'Tap to mark Sold at the Store' : 'Tap to reactivate — For Sale'}
+                  style={{
+                    flexShrink: 0, padding: '6px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '700',
+                    cursor: toggling ? 'default' : 'pointer', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap',
+                    background: isActive ? '#0a1a0a' : '#2a1a0a',
+                    border: '1px solid ' + (isActive ? '#1a3a1a' : '#7a5a2a'),
+                    color: isActive ? '#4ade80' : '#e8b86a',
+                  }}>
+                  {toggling ? '…' : isActive ? '✅ Active' : '💰 Sold'}
+                </button>
+              )}
+
+              <button onClick={() => openEditItem(item)} style={{ background: 'transparent', border: 'none', color: '#c9a84c', fontSize: '16px', flexShrink: 0, cursor: 'pointer', padding: '0 0 0 2px' }}>›</button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
