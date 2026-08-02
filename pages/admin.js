@@ -411,6 +411,7 @@ export default function Admin() {
   // past sales this UI had no way to show): 'active' | 'sold' | 'all'.
   const [manageActiveFilter, setManageActiveFilter] = useState('active');
   const [manageLoading, setManageLoading] = useState(false);
+  const [manageError, setManageError] = useState('');
   const [manageSearch, setManageSearch] = useState('');
   const [manageSortBy, setManageSortBy] = useState('created_at');
   const [manageSortDir, setManageSortDir] = useState('desc');
@@ -1424,6 +1425,7 @@ export default function Admin() {
 
   async function loadManageItems() {
     setManageLoading(true);
+    setManageError('');
     try {
       const q = manageSearch ? '&search=' + encodeURIComponent(manageSearch) : '';
       const activeParam = manageActiveFilter === 'active' ? 'true' : manageActiveFilter === 'sold' ? 'false' : 'all';
@@ -1432,10 +1434,40 @@ export default function Admin() {
         headers: { 'x-4ever-admin': process.env.NEXT_PUBLIC_ADMIN_SHARED_SECRET || '' },
       });
       const data = await res.json();
-      setManageItems(data.records || data || []);
-    } catch { setManageItems([]); }
+      // FIX (Aug 1 follow-up, direct user report — Active and Sold tabs
+      // were showing identical items, and navigating between Manage
+      // Inventory screens sometimes crashed with a full client-side
+      // exception): this used to fall through to `data` itself on any
+      // failed/malformed response — an error object, not an array — which
+      // then crashed the very next `.map()` in the render. Now always
+      // lands on a real array, and surfaces the failure instead of hiding it.
+      if (!res.ok || !Array.isArray(data.records)) {
+        setManageItems([]);
+        setManageError(data?.error || 'Failed to load inventory (HTTP ' + res.status + ')');
+      } else {
+        setManageItems(data.records);
+      }
+    } catch (err) {
+      setManageItems([]);
+      setManageError(err.message || 'Failed to load inventory');
+    }
     setManageLoading(false);
   }
+
+  // FIX (Aug 1 follow-up, direct user report — Active tab and Sold tab
+  // showed the exact same list, and the new sort dropdown didn't visibly
+  // change anything): the Active/Sold/All buttons and the sort dropdown
+  // both used `setState(...); setTimeout(loadManageItems, 0);` — but the
+  // `loadManageItems` reference in that same click handler was already
+  // closed over the PREVIOUS render's state, since setState doesn't
+  // update the value synchronously. The fetch always ran one click
+  // behind the button the user actually pressed. A useEffect keyed on
+  // the real state values is the correct fix — it always re-fetches with
+  // the state that's actually current, no timing games required.
+  useEffect(() => {
+    if (mode === 'manage') loadManageItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, manageActiveFilter, manageSortBy, manageSortDir]);
 
   function openEditItem(item) {
     setEditItem(item);
@@ -1633,7 +1665,7 @@ export default function Admin() {
                 <div style={{ fontSize: '11px', fontWeight: '400', marginTop: '3px', opacity: 0.7 }}>Scan and price a new item</div>
               </div>
             </button>
-            <button onClick={() => { setMode('manage'); loadManageItems(); }}
+            <button onClick={() => setMode('manage')}
               style={{ width: '100%', padding: '22px 20px', background: '#111', color: '#e8d5b0', border: '1px solid #2a2a2a', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '16px' }}>
               <span style={{ fontSize: '28px' }}>📋</span>
               <div>
@@ -2190,7 +2222,7 @@ export default function Admin() {
 
           <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
             {[{ v: 'active', label: '✅ Active' }, { v: 'sold', label: '💰 Sold' }, { v: 'all', label: 'All' }].map(opt => (
-              <button key={opt.v} onClick={() => { setManageActiveFilter(opt.v); setTimeout(loadManageItems, 0); }}
+              <button key={opt.v} onClick={() => setManageActiveFilter(opt.v)}
                 style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid ' + (manageActiveFilter === opt.v ? '#c9a84c' : '#2a2a2a'), background: manageActiveFilter === opt.v ? '#1a1a0a' : '#0a0a0a', color: manageActiveFilter === opt.v ? '#c9a84c' : '#999', fontSize: '12px', fontWeight: manageActiveFilter === opt.v ? '700' : '400', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
                 {opt.label}
               </button>
@@ -2204,7 +2236,6 @@ export default function Admin() {
               onChange={e => {
                 const [by, dir] = e.target.value.split('|');
                 setManageSortBy(by); setManageSortDir(dir);
-                setTimeout(loadManageItems, 0);
               }}
               style={{ flex: 1, padding: '9px 10px', borderRadius: '8px', border: '1px solid #2a2a2a', background: '#0a0a0a', color: '#e8d5b0', fontSize: '12px', fontFamily: 'Georgia, serif' }}>
               {MANAGE_SORT_OPTIONS.map(opt => (
@@ -2328,6 +2359,12 @@ export default function Admin() {
               </>
             );
           })()}
+
+          {manageError && !manageLoading && (
+            <div style={{ background: '#2a1a1a', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px', color: '#f87171', fontSize: '13px' }}>
+              ⚠️ {manageError}
+            </div>
+          )}
 
           {manageLoading && <div style={{ textAlign: 'center', color: '#bbb', padding: '40px', fontStyle: 'italic' }}>Loading...</div>}
 
