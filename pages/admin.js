@@ -413,10 +413,10 @@ export default function Admin() {
   const [manageLoading, setManageLoading] = useState(false);
   const [manageError, setManageError] = useState('');
   const [manageSearch, setManageSearch] = useState('');
-  const [quickToggleConfirmId, setQuickToggleConfirmId] = useState(null);
   const [quickTogglingId, setQuickTogglingId] = useState(null);
   const [manageSortKeys, setManageSortKeys] = useState([]); // [{ field, dir }], applied in the order checked; empty = Recently Added
   const MANAGE_SORT_FIELDS = [
+    { field: 'sku',            label: 'EMR #',      ascLabel: 'A–Z',       descLabel: 'Z–A' },
     { field: 'category',       label: 'Item Type',  ascLabel: 'A–Z',       descLabel: 'Z–A' },
     { field: 'catalog_number', label: 'Catalog #',  ascLabel: 'A–Z',       descLabel: 'Z–A' },
     { field: 'artist',         label: 'Artist',     ascLabel: 'A–Z',       descLabel: 'Z–A' },
@@ -1511,7 +1511,6 @@ export default function Admin() {
       setManageError(err.message || 'Failed to update item status');
     }
     setQuickTogglingId(null);
-    setQuickToggleConfirmId(null);
   }
 
   function openEditItem(item) {
@@ -2432,7 +2431,6 @@ export default function Admin() {
 
           {!manageLoading && manageItems.map(item => {
             const isActive = item.active !== false;
-            const confirming = quickToggleConfirmId === item.id;
             const toggling = quickTogglingId === item.id;
             return (
             <div key={item.id}
@@ -2461,42 +2459,23 @@ export default function Admin() {
 
               {/* Quick status toggle — separate control from the row-open
                   button above (not nested inside it) so tapping it never
-                  opens the full edit modal. Reactivating (Sold → Active)
-                  applies immediately, same "safe/undo direction" logic
-                  already used in the edit modal. Marking sold (Active →
-                  Sold) requires one inline tap-to-confirm, mirroring the
-                  same safety the edit modal has always had, after this
-                  exact app's real July 22 incident (~15-20 records
-                  accidentally marked sold at $5 in one sitting). */}
-              {confirming ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-                  <div style={{ fontSize: '9px', color: '#fca5a5', textAlign: 'center' }}>Sold at ${item.price}?</div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button onClick={() => setQuickToggleConfirmId(null)}
-                      style={{ padding: '5px 8px', fontSize: '10px', background: 'transparent', border: '1px solid #444', borderRadius: '6px', color: '#bbb', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                      Cancel
-                    </button>
-                    <button onClick={() => performQuickToggle(item, false)} disabled={toggling}
-                      style={{ padding: '5px 8px', fontSize: '10px', background: '#7f1d1d', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
-                      {toggling ? '…' : 'Confirm'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => isActive ? setQuickToggleConfirmId(item.id) : performQuickToggle(item, true)}
-                  disabled={toggling}
-                  title={isActive ? 'Tap to mark Sold at the Store' : 'Tap to reactivate — For Sale'}
-                  style={{
-                    flexShrink: 0, padding: '6px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '700',
-                    cursor: toggling ? 'default' : 'pointer', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap',
-                    background: isActive ? '#0a1a0a' : '#2a1a0a',
-                    border: '1px solid ' + (isActive ? '#1a3a1a' : '#7a5a2a'),
-                    color: isActive ? '#4ade80' : '#e8b86a',
-                  }}>
-                  {toggling ? '…' : isActive ? '✅ Active' : '💰 Sold'}
-                </button>
-              )}
+                  opens the full edit modal. Instant both directions, at
+                  the user's explicit request (Aug 1 follow-up) — no
+                  confirm step, since price corrections happen inside the
+                  item's own edit screen if needed, not here. */}
+              <button
+                onClick={() => performQuickToggle(item, !isActive)}
+                disabled={toggling}
+                title={isActive ? 'Tap to mark Sold at the Store' : 'Tap to reactivate — For Sale'}
+                style={{
+                  flexShrink: 0, padding: '6px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '700',
+                  cursor: toggling ? 'default' : 'pointer', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap',
+                  background: isActive ? '#0a1a0a' : '#2a1a0a',
+                  border: '1px solid ' + (isActive ? '#1a3a1a' : '#7a5a2a'),
+                  color: isActive ? '#4ade80' : '#e8b86a',
+                }}>
+                {toggling ? '…' : isActive ? '✅ Active' : '💰 Sold'}
+              </button>
 
               <button onClick={() => openEditItem(item)} style={{ background: 'transparent', border: 'none', color: '#c9a84c', fontSize: '16px', flexShrink: 0, cursor: 'pointer', padding: '0 0 0 2px' }}>›</button>
             </div>
